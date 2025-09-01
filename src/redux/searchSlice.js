@@ -1,3 +1,4 @@
+// src/redux/searchSlice.js
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 // Thunk: POST /flights
@@ -6,49 +7,68 @@ export const fetchSearchResults = createAsyncThunk(
   async (form, { rejectWithValue, signal }) => {
     try {
       //const BASE = import.meta.env.VITE_API_BASE || "http://localhost:3100";
-       const BASE = import.meta.env.VITE_API_BASE || 'https://nodebasic-production.up.railway.app';
-     
-  // Normalize IATA + dates
-  const origin = String(form.origin || "").trim().toUpperCase();
-  const destination = String(form.destination || "").trim().toUpperCase();
-  const depart = String(form.depart || "");
-  const ret = form.ret ? String(form.ret) : null;
+      const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production.up.railway.app";
 
-  // Build journeys[]
-  const journeys = [];
-  if (origin && destination && depart) {
-    journeys.push({ origin, destination, departureDate: depart });
-    if (form.tripType === "roundtrip" && ret) {
-      journeys.push({ origin: destination, destination: origin, departureDate: ret });
-    }
-  }
+      // Normalize IATA + dates
+      const origin = String(form.origin || "").trim().toUpperCase();
+      const destination = String(form.destination || "").trim().toUpperCase();
+      const depart = String(form.depart || "");
+      const ret = form.ret ? String(form.ret) : null;
 
-  // Flatten pax counts (fallback to form.pax if present)
-  const adult  = Number(form.adult ?? form?.pax?.ADT ?? 0);
-  const child  = Number(form.child ?? form?.pax?.CHD ?? 0);
-  const infant = Number(form.infant ?? form?.pax?.INF ?? 0);
+      // Build journeys[] (robust: add reverse leg whenever ret exists)
+      const journeys = [];
+      if (origin && destination && depart) {
+        journeys.push({ origin, destination, departureDate: depart });
 
-  // Assemble backend/NOK payload
-  const payload = {
-    agencyCode: form.agencyCode ?? "",
-    currency:   form.currency   ?? "THB",
-    adult,
-    child,
-    infant,
-    journeys,
-    // Only include promoCode when non-empty (avoid null)
-    ...(typeof form.promoCode === "string" && form.promoCode.trim()
-      ? { promoCode: form.promoCode.trim() }
-      : {}),
-  };
+        // Previously: if (form.tripType === "roundtrip" && ret) { ... }
+        // Now: be tolerant—if a return date is present, add the reverse leg.
+        if (ret) {
+          journeys.push({
+            origin: destination,
+            destination: origin,
+            departureDate: ret,
+          });
+        }
+      }
+
+      // Flatten pax counts (fallback to form.pax if present)
+      const adtIn = Number(form.adult ?? form?.pax?.ADT ?? 0);
+      const chdIn = Number(form.child ?? form?.pax?.CHD ?? 0);
+      const infIn = Number(form.infant ?? form?.pax?.INF ?? 0);
+
+      const adult = Number.isFinite(adtIn) ? adtIn : 0;
+      const child = Number.isFinite(chdIn) ? chdIn : 0;
+      // Safety: infants cannot exceed adults
+      const infantRaw = Number.isFinite(infIn) ? infIn : 0;
+      const infant = Math.max(0, Math.min(infantRaw, adult));
+
+      // Assemble backend/NOK payload
+      const payload = {
+        agencyCode: form.agencyCode ?? "",
+        currency: form.currency ?? "THB",
+        adult,
+        child,
+        infant,
+        journeys,
+        // Only include promoCode when non-empty (avoid null)
+        ...(typeof form.promoCode === "string" && form.promoCode.trim()
+          ? { promoCode: form.promoCode.trim() }
+          : {}),
+      };
+
       const res = await fetch(`${BASE}/flights`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal,
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`Search failed: ${res.status}`);
-      return await res.json(); // expected: { itineraries: [...], currency?, ... }
+
+      if (!res.ok) {
+        throw new Error(`Search failed: ${res.status}`);
+      }
+
+      // expected: { itineraries: [...], currency?, ... }
+      return await res.json();
     } catch (e) {
       return rejectWithValue(e.message || "Search failed");
     }

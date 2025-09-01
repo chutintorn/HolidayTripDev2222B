@@ -33,8 +33,16 @@ const fmtMoney = (n, currency = "THB") => {
   })}`;
 };
 
-/* ---------- One leg box (table + selection) ---------- */
-function LegBox({ title, rows, currency = "THB", fallbackToken = "" }) {
+/* ---------- One leg box (table + selection; no per-leg NEXT) ---------- */
+function LegBox({
+  title,
+  rows,
+  currency = "THB",
+  fallbackToken = "",
+  onSelect,            // (selection) => void
+  showNextButton = false, // keep compatibility; default off
+  onNext,             // optional internal next if showNextButton=true
+}) {
   const dispatch = useDispatch();
   const [selectedRow, setSelectedRow] = useState(null);
   const [selectedFare, setSelectedFare] = useState(null);
@@ -63,32 +71,49 @@ function LegBox({ title, rows, currency = "THB", fallbackToken = "" }) {
 
   const pickFare = (row, col) => {
     let fareKey = "";
-    if (col === "fareAmountIncludingTax") fareKey = row.fareKey; // LITE
-    else if (col === "nokXtraAmount") fareKey = row.farekey1; // X-TRA
-    else if (col === "nokMaxAmount") fareKey = row.farekey2; // MAX
+    let brand = "";
+    if (col === "fareAmountIncludingTax") {
+      fareKey = row.fareKey;  // LITE
+      brand = "LITE";
+    } else if (col === "nokXtraAmount") {
+      fareKey = row.farekey1; // X-TRA
+      brand = "XTRA";
+    } else if (col === "nokMaxAmount") {
+      fareKey = row.farekey2; // MAX
+      brand = "MAX";
+    }
     if (!fareKey) return;
 
-    setSelectedRow(row);
-    setSelectedFare({
+    const selection = {
+      brand,
       fareKey,
       journeyKey: row.journeyKey,
       securityToken: row.securityToken || fallbackToken,
       currency,
-    });
+      row, // expose full row (origin, destination, times, etc.)
+    };
+
+    setSelectedRow(row);
+    setSelectedFare(selection);
+    if (typeof onSelect === "function") onSelect(selection);
   };
 
-  const onNext = () => {
+  // Only used if showNextButton=true (legacy behavior)
+  const handleInternalNext = () => {
     if (!selectedFare) return;
-    dispatch(
-      fetchPriceDetail({
-        offer: {
-          id: selectedFare.fareKey,
-          fareKey: selectedFare.fareKey,
-          journeyKey: selectedFare.journeyKey,
-          securityToken: selectedFare.securityToken,
-        },
-      })
-    );
+    const payload = {
+      offer: {
+        id: selectedFare.fareKey,
+        fareKey: selectedFare.fareKey,
+        journeyKey: selectedFare.journeyKey,
+        securityToken: selectedFare.securityToken,
+      },
+    };
+    if (typeof onNext === "function") {
+      onNext(selectedFare);
+    } else {
+      dispatch(fetchPriceDetail(payload));
+    }
   };
 
   const statusKey = selectedFare?.fareKey || "";
@@ -186,34 +211,37 @@ function LegBox({ title, rows, currency = "THB", fallbackToken = "" }) {
         </table>
       </div>
 
-      {/* Footer / Price + Next */}
-      <div className="px-4 py-3 flex items-center justify-end gap-3">
-        {selectedStatus === "loading" && (
-          <div className="text-sm text-slate-600">Loading price…</div>
-        )}
-        {selectedStatus === "failed" && (
-          <div className="text-sm text-red-600">Failed to load price.</div>
-        )}
-        {selectedStatus === "succeeded" && selectedDetail && (
-          <div className="text-sm font-medium">
-            Total: {selectedDetail.currency || selectedFare.currency}{" "}
-            {selectedDetail.total?.toLocaleString?.()}
-          </div>
-        )}
-        <button
-          onClick={onNext}
-          disabled={!selectedFare || selectedStatus === "loading"}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-        >
-          NEXT
-        </button>
-      </div>
+      {/* Optional per-leg footer (kept for backward compatibility; OFF by default) */}
+      {showNextButton && (
+        <div className="px-4 py-3 flex items-center justify-end gap-3">
+          {selectedStatus === "loading" && (
+            <div className="text-sm text-slate-600">Loading price…</div>
+          )}
+          {selectedStatus === "failed" && (
+            <div className="text-sm text-red-600">Failed to load price.</div>
+          )}
+          {selectedStatus === "succeeded" && selectedDetail && (
+            <div className="text-sm font-medium">
+              Total: {selectedDetail.currency || selectedFare?.currency}{" "}
+              {selectedDetail.total?.toLocaleString?.()}
+            </div>
+          )}
+          <button
+            onClick={handleInternalNext}
+            disabled={!selectedFare || selectedStatus === "loading"}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            NEXT
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ---------- Main: split full results into two windows ---------- */
-export default function RoundTripResultsLite() {
+/* ---------- Main: split full results, capture selections, ONE NEXT ---------- */
+export default function RoundTripResultsLite({ onNext }) {
+  const dispatch = useDispatch();
   const raw = useSelector(selectResults);
 
   // Unwrap common API shapes
@@ -242,7 +270,7 @@ export default function RoundTripResultsLite() {
    * Group strategy:
    *  1) Prefer direction split: "DMK-CNX" vs "CNX-DMK"
    *  2) If only one direction exists, split by earliest two distinct dates
-   *  3) Fallback: take first half as Depart, second half as Return
+   *  3) Fallback: first half as Depart, second half as Return
    */
   const byDirMap = rows.reduce((acc, r) => {
     const dir = `${(r.origin || "").trim()}-${(r.destination || "").trim()}`;
@@ -265,7 +293,6 @@ export default function RoundTripResultsLite() {
     .sort(byAscDate);
 
   if (dirEntries.length >= 2) {
-    // Two main directions by earliest appearance
     groups = [
       { title: "Depart", rows: dirEntries[0].rows, minDate: dirEntries[0].minDate },
       { title: "Return", rows: dirEntries[1].rows, minDate: dirEntries[1].minDate },
@@ -292,7 +319,7 @@ export default function RoundTripResultsLite() {
         { title: "Return", rows: dateEntries[1].rows, minDate: dateEntries[1].minDate },
       ];
     } else {
-      // Fallback: split list in half (still show 2 windows when possible)
+      // Fallback: split list in half
       const mid = Math.ceil(rows.length / 2);
       groups = [
         { title: "Depart", rows: rows.slice(0, mid), minDate: toLocalDate(rows[0]?.departureDate) },
@@ -312,18 +339,93 @@ export default function RoundTripResultsLite() {
     );
   }
 
-  // Full width column layout (no 2-col grid that shrinks the table)
+  // Track selections for each leg
+  const [selectedOutbound, setSelectedOutbound] = useState(null);
+  const [selectedInbound, setSelectedInbound] = useState(null);
+
+  // Detect whether this is effectively roundtrip (2 groups)
+  const isRoundTrip = groups.length >= 2;
+
+  const canProceed = isRoundTrip
+    ? !!(selectedOutbound && selectedInbound)
+    : !!selectedOutbound;
+
+  const handleUnifiedNext = async () => {
+    if (!canProceed) return;
+
+    if (typeof onNext === "function") {
+      onNext(selectedOutbound, isRoundTrip ? selectedInbound : null);
+      return;
+    }
+
+    // Default (backward-compatible) behavior:
+    // dispatch pricing for outbound only, so nothing breaks if onNext not wired yet.
+    const ob = selectedOutbound;
+    if (ob?.fareKey) {
+      await dispatch(
+        fetchPriceDetail({
+          offer: {
+            id: ob.fareKey,
+            fareKey: ob.fareKey,
+            journeyKey: ob.journeyKey,
+            securityToken: ob.securityToken,
+          },
+        })
+      );
+    }
+  };
+
+  // Full width column layout; one unified NEXT footer
   return (
     <div className="w-full flex flex-col gap-6 mt-4">
-      {groups.map((g, i) => (
+      {/* Depart */}
+      <LegBox
+        title={groups[0].title || "Depart"}
+        rows={groups[0].rows}
+        currency={currency}
+        fallbackToken={token}
+        onSelect={setSelectedOutbound}
+        showNextButton={false}
+      />
+
+      {/* Return (if present) */}
+      {isRoundTrip && (
         <LegBox
-          key={i}
-          title={g.title || `Route ${i + 1}`}
-          rows={g.rows}
+          title={groups[1].title || "Return"}
+          rows={groups[1].rows}
           currency={currency}
           fallbackToken={token}
+          onSelect={setSelectedInbound}
+          showNextButton={false}
         />
-      ))}
+      )}
+
+      {/* Unified sticky footer */}
+      <div className="sticky bottom-0 z-10 flex items-center justify-between rounded-xl border bg-white p-3 shadow">
+        <div className="text-sm text-gray-600">
+          {isRoundTrip ? (
+            <>
+              {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}{" "}
+              &nbsp;&nbsp;
+              {selectedInbound ? "✓ Return selected" : "• Choose a return"}
+            </>
+          ) : (
+            <>{selectedOutbound ? "✓ Flight selected" : "• Choose a flight"}</>
+          )}
+        </div>
+
+        <button
+          className={`px-4 py-2 rounded-lg font-semibold ${
+            canProceed
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-gray-300 text-gray-600 cursor-not-allowed"
+          }`}
+          disabled={!canProceed}
+          onClick={handleUnifiedNext}
+        >
+          NEXT
+        </button>
+      </div>
     </div>
   );
 }

@@ -37,13 +37,13 @@ const fmtMoney = (n, currency = "THB") => {
  *
  * Props:
  * - resultsOverride?: object | array
- *     When provided (e.g., one leg/day from a round-trip response),
- *     the table renders rows based on this object instead of the global store.
- *
  * - currencyOverride?: string
  * - securityTokenOverride?: string
- * - titleOverride?: string    // optional text shown left of the route header
- * - hideHeader?: boolean      // hide the top header line with route+date
+ * - titleOverride?: string
+ * - hideHeader?: boolean
+ * - showNextButton?: boolean         // default false (for unified single-submit)
+ * - onSelectRow?: (selection) => {}  // receives selected fare/row object
+ * - onNext?: (selection) => {}       // optional override for NEXT action
  */
 export default function JourneyTable({
   resultsOverride = null,
@@ -51,6 +51,9 @@ export default function JourneyTable({
   securityTokenOverride,
   titleOverride,
   hideHeader = false,
+  showNextButton = false,
+  onSelectRow,
+  onNext, // optional override
 }) {
   const dispatch = useDispatch();
 
@@ -71,7 +74,6 @@ export default function JourneyTable({
     "";
 
   // Many APIs wrap arrays under `data`. If not, use the object/array directly.
-  // We'll normalize to an array for the A-branch of flattenFlights.
   const payload = raw?.data ?? raw;
 
   // Build display rows from the raw payload and keep only well-formed rows.
@@ -120,22 +122,38 @@ export default function JourneyTable({
   /** Fare selection */
   const pickFare = (row, col) => {
     let fareKey = "";
-    if (col === "fareAmountIncludingTax") fareKey = row.fareKey; // LITE
-    else if (col === "nokXtraAmount") fareKey = row.farekey1; // X-TRA
-    else if (col === "nokMaxAmount") fareKey = row.farekey2; // MAX
+    let brand = "";
+    if (col === "fareAmountIncludingTax") {
+      fareKey = row.fareKey; // LITE
+      brand = "LITE";
+    } else if (col === "nokXtraAmount") {
+      fareKey = row.farekey1; // X-TRA
+      brand = "XTRA";
+    } else if (col === "nokMaxAmount") {
+      fareKey = row.farekey2; // MAX
+      brand = "MAX";
+    }
     if (!fareKey) return;
 
-    setSelectedRow(row);
-    setSelectedFare({
+    const selection = {
+      brand,
       fareKey,
       journeyKey: row.journeyKey,
       securityToken: row.securityToken || securityToken,
       currency,
-    });
+      row, // expose full row if parent needs flight/segment fields
+    };
+
+    setSelectedRow(row);
+    setSelectedFare(selection);
+
+    if (typeof onSelectRow === "function") {
+      onSelectRow(selection);
+    }
   };
 
-  /** Go to pricing */
-  const onNext = () => {
+  /** Default NEXT behavior (only used if showNextButton && no onNext) */
+  const handleInternalNext = () => {
     if (!selectedFare) return;
     dispatch(
       fetchPriceDetail({
@@ -266,17 +284,24 @@ export default function JourneyTable({
         )}
         {selectedStatus === "succeeded" && selectedDetail && (
           <div className="text-sm font-medium">
-            Total: {selectedDetail.currency || selectedFare.currency}{" "}
+            Total: {selectedDetail.currency || selectedFare?.currency}{" "}
             {selectedDetail.total?.toLocaleString?.()}
           </div>
         )}
-        <button
-          onClick={onNext}
-          disabled={!selectedFare || selectedStatus === "loading"}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-        >
-          NEXT
-        </button>
+
+        {showNextButton && (
+          <button
+            onClick={
+              onNext
+                ? () => selectedFare && onNext(selectedFare)
+                : handleInternalNext
+            }
+            disabled={!selectedFare || selectedStatus === "loading"}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            NEXT
+          </button>
+        )}
       </div>
     </div>
   );
