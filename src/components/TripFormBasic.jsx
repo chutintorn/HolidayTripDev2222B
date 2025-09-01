@@ -10,12 +10,37 @@ import MultiCityPopup from "./MultiCityPopup";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchSearchResults, selectSearch } from "../redux/searchSlice";
 import JourneyTable from "./JourneyTable";
-import RoundTripResultsLite from "./RoundTripResultsLite"; // auto-split view for 2 legs
+import RoundTripResultsLite from "./RoundTripResultsLite"; // ⬅️ Supports depart/return split
 
-// 🛫 Airport dropdown (reads from airportsSlice)
+// 🛫 Airport dropdown component (reads from airportsSlice)
 import AirportSelect from "./AirportSelect";
 
-/** Start of today in local time */
+/* ---------------------------------------------
+ * Helpers
+ * -------------------------------------------*/
+
+/** Responsive hook: treat viewport < 768px as "mobile" */
+function useIsMobile(breakpoint = 768) {
+  const get = () =>
+    typeof window !== "undefined" ? window.innerWidth < breakpoint : false;
+
+  const [isMobile, setIsMobile] = useState(get());
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(get());
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", onResize);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("resize", onResize);
+      }
+    };
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
 const startOfToday = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -26,32 +51,55 @@ const startOfToday = () => {
 const formatUiDate = (date, style = "SUN") => {
   if (!date) return "";
   const dd = String(date.getDate()).padStart(2, "0");
-  const MMM = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  ][date.getMonth()];
+  const MMM = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][date.getMonth()];
   const DOW3 = ["SUN","MON","TUE","WED","THU","FRI","SAT"][date.getDay()];
   const DOW2 = ["Su","Mo","Tu","We","Th","Fr","Sa"][date.getDay()];
   const dow = style === "Su" ? DOW2 : DOW3;
   return `${dd}-${MMM}-${dow}`;
 };
 
-/* 2-month single-date picker (wrapping rsuite DateRangePicker oneTap) */
+/** Serialize to YYYY-MM-DD in *local time* (avoids off-by-one UTC issues) */
+const toYMDLocal = (d) => {
+  if (!d) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+/* ---------------------------------------------
+ * Responsive single-date picker
+ *  - Mobile: one calendar
+ *  - Desktop: two calendars
+ * -------------------------------------------*/
 function TwoMonthSingleDatePicker({
-  value, onChange, minDate, placeholder, renderValue, className, style, locale, placement = "bottomEnd",
+  value,
+  onChange,
+  minDate,
+  placeholder,
+  renderValue,
+  className,
+  style,
+  locale,
+  placement = "bottomEnd",
+  /** Optional override to force behavior regardless of screen */
+  forceOneCalendar, // true | false | undefined
 }) {
+  const isMobile = useIsMobile();
+  const showOne = typeof forceOneCalendar === "boolean" ? forceOneCalendar : isMobile;
+
   return (
     <DateRangePicker
       oneTap
-      showOneCalendar={false}
       isoWeek
-      size="lg"
+      showOneCalendar={showOne}     // one panel on mobile, two on desktop
+      size={showOne ? "md" : "lg"}  // slightly smaller on mobile
       format="yyyy-MM-dd"
       value={value ? [value, value] : null}
       onChange={(range) => onChange(range && range[0] ? range[0] : null)}
       placeholder={placeholder}
       className={className}
-      style={style}
+      style={style || { width: "100%" }}
       locale={locale}
       placement={placement}
       disabledDate={(d) => !!(minDate && d < minDate)}
@@ -63,6 +111,9 @@ function TwoMonthSingleDatePicker({
   );
 }
 
+/* ---------------------------------------------
+ * Component
+ * -------------------------------------------*/
 export default function TripFormBasic({ onSubmit }) {
   const t = useT();
   const calendarLocale =
@@ -77,8 +128,8 @@ export default function TripFormBasic({ onSubmit }) {
   const [tripType, setTripType] = useState("oneway"); // "oneway" | "roundtrip" | "multicity"
 
   // 🛫 Use IATA codes from the dropdowns (e.g., "DMK", "BKK", "CNX")
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
+  const [origin, setOrigin] = useState("");       // was "Bangkok"
+  const [destination, setDestination] = useState(""); // was "Chiang Mai"
 
   const [depart, setDepart] = useState(startOfToday());
   const [ret, setRet] = useState(null);
@@ -103,15 +154,6 @@ export default function TripFormBasic({ onSubmit }) {
   // ---- helpers ----
   const clampInt = (val, min, max = Infinity) =>
     Math.max(min, Math.min(max, Number.parseInt(val ?? 0, 10) || 0));
-
-  /** Local-safe formatter: build YYYY-MM-DD from local parts (no UTC) */
-  const formatDateStr = (d) => {
-    if (!d) return null;
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  };
 
   const switchTripType = (type) => {
     setTripType(type);
@@ -150,7 +192,7 @@ export default function TripFormBasic({ onSubmit }) {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [showPax]);
 
-  // ---- submit (dispatch Redux thunk) ----
+  // ---- submit (uses Redux thunk) ----
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -160,7 +202,7 @@ export default function TripFormBasic({ onSubmit }) {
       return;
     }
 
-    // Multicity: keep current behavior (not wired to Redux yet)
+    // Multicity (not yet wired to Redux)
     if (tripType === "multicity") {
       const payload = {
         tripType,
@@ -169,7 +211,7 @@ export default function TripFormBasic({ onSubmit }) {
           .map((s) => ({
             origin: s.from.trim().toUpperCase(),
             destination: s.to.trim().toUpperCase(),
-            date: formatDateStr(s.date), // local-safe
+            date: toYMDLocal(s.date), // <-- local-safe
           })),
         pax: {
           adult: clampInt(adult, 1),
@@ -189,8 +231,8 @@ export default function TripFormBasic({ onSubmit }) {
     const payload = {
       origin: origin.trim().toUpperCase(),           // e.g., DMK
       destination: destination.trim().toUpperCase(), // e.g., CNX
-      depart: formatDateStr(depart),                 // local-safe
-      ret: tripType === "roundtrip" ? formatDateStr(ret) : null, // local-safe
+      depart: toYMDLocal(depart),                    // <-- local-safe
+      ret: tripType === "roundtrip" ? toYMDLocal(ret) : null, // <-- local-safe
       adult: clampInt(adult, 1),
       child: clampInt(child, 0),
       infant: clampInt(Math.min(infant ?? 0, adult ?? 0), 0),
@@ -460,7 +502,7 @@ export default function TripFormBasic({ onSubmit }) {
         today={today}
       />
 
-      {/* Results: show 2 boxes when multiple legs, else original table */}
+      {/* Results: show 2 boxes when multiple legs, else your original table */}
       {results && (
         Array.isArray(results?.data) && results.data.length > 1
           ? <RoundTripResultsLite />
