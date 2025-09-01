@@ -230,7 +230,7 @@ export default function MultiCityPopup({
             <button
               type="button"
               onClick={addSegment}
-              className="h-11 px-4 rounded-xl border border-slate-300 text-sky-700 hover:bg-slate-50"
+              className="h-11 px-4 rounded-xl border bg-skyBlue-50 border-slate-300 text-sky-700 hover:bg-slate-50"
             >
               Add From–To City
             </button>
