@@ -10,9 +10,15 @@ export default function SiteHeader() {
       <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
         {/* Left: logo + title (unchanged) */}
         <div className="flex items-center gap-3">
-          <img src="/src/assets/nOKaiR.png" alt="Logo" className="h-8 w-8" />
-          <span className="font-bold text-[150%]   text-blue-600 tracking-tight">Nok Holiday</span>
-        </div>
+  <img 
+    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s" 
+    alt="Logo" 
+    className="h-8 w-8" 
+  />
+  <span className="font-bold text-[170%] text-blue-600 tracking-tight">
+    Nok Holiday
+  </span>
+</div>
 
         {/* Right: tagline + language toggle */}
         <div className="flex items-center gap-4">
