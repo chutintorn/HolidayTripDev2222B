@@ -9,15 +9,12 @@ import {
   selectPricingStatus,
 } from "../redux/pricingSlice";
 
-/* ---------- Helpers (local-safe date + formatting) ---------- */
+/* ---------- Helpers ---------- */
 const ymd = (s) => (typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "");
 const toLocalDate = (s) => {
-  const dstr = ymd(s);
-  if (!dstr) return null;
-  const y = Number(dstr.slice(0, 4));
-  const m = Number(dstr.slice(5, 7)) - 1; // 0-based
-  const d = Number(dstr.slice(8, 10));
-  const date = new Date(y, m, d); // local midnight
+  const d = ymd(s);
+  if (!d) return null;
+  const date = new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
   return isNaN(date) ? null : date;
 };
 const byAscDate = (a, b) =>
@@ -33,19 +30,54 @@ const fmtMoney = (n, currency = "THB") => {
   })}`;
 };
 
-/* ---------- One leg box (table + selection; no per-leg NEXT) ---------- */
+const dowColors = {
+  Mon: "#FFD700",
+  Tue: "#FF69B4",
+  Wed: "#32CD32",
+  Thu: "#FFA500",
+  Fri: "#00BFFF",
+  Sat: "#CF9FFF",
+  Sun: "#FF4500",
+};
+
+/** Build header display bits from the first row of a leg */
+function getHeaderParts(rows) {
+  const first = Array.isArray(rows) ? rows[0] : null;
+  if (!first) {
+    return { origin: "", destination: "", ddMMM: "", dow: "", chipColor: "#FFF" };
+  }
+  const depDate = toLocalDate(first?.departureDate);
+  const ddMMM = depDate
+    ? depDate
+        .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
+        .toUpperCase()
+    : "";
+  const dow = depDate ? depDate.toLocaleDateString("en-GB", { weekday: "short" }) : "";
+  return {
+    origin: first?.origin || "",
+    destination: first?.destination || "",
+    ddMMM,
+    dow,
+    chipColor: dowColors[dow] || "#FFF",
+  };
+}
+
+/* ---------- One leg box (table + optional inline NEXT) ---------- */
 function LegBox({
   title,
   rows,
   currency = "THB",
   fallbackToken = "",
-  onSelect,            // (selection) => void
-  showNextButton = false, // keep compatibility; default off
-  onNext,             // optional internal next if showNextButton=true
+  onSelect,            // (selection|null) => void
+  showInlineNext = false,
+  onInlineNext,        // () => void
+  inlinePriceKey = "", // request key for pricing state when inline button is shown
 }) {
-  const dispatch = useDispatch();
   const [selectedRow, setSelectedRow] = useState(null);
-  const [selectedFare, setSelectedFare] = useState(null);
+  const [selectedFareKey, setSelectedFareKey] = useState(null);
+
+  const inlineStatus = useSelector(selectPricingStatus(inlinePriceKey));
+  const inlineDetail = useSelector(selectPriceFor(inlinePriceKey));
 
   const cols = [
     "departureTime",
@@ -71,96 +103,67 @@ function LegBox({
 
   const pickFare = (row, col) => {
     let fareKey = "";
-    let brand = "";
-    if (col === "fareAmountIncludingTax") {
-      fareKey = row.fareKey;  // LITE
-      brand = "LITE";
-    } else if (col === "nokXtraAmount") {
-      fareKey = row.farekey1; // X-TRA
-      brand = "XTRA";
-    } else if (col === "nokMaxAmount") {
-      fareKey = row.farekey2; // MAX
-      brand = "MAX";
-    }
+    if (col === "fareAmountIncludingTax") fareKey = row.fareKey;   // LITE
+    else if (col === "nokXtraAmount")     fareKey = row.farekey1;  // X-TRA
+    else if (col === "nokMaxAmount")      fareKey = row.farekey2;  // MAX
     if (!fareKey) return;
 
+    // toggle off if clicked again
+    if (selectedRow?.id === row.id && selectedFareKey === fareKey) {
+      setSelectedRow(null);
+      setSelectedFareKey(null);
+      onSelect?.(null);
+      return;
+    }
+
     const selection = {
-      brand,
       fareKey,
       journeyKey: row.journeyKey,
       securityToken: row.securityToken || fallbackToken,
       currency,
-      row, // expose full row (origin, destination, times, etc.)
+      row,
     };
 
     setSelectedRow(row);
-    setSelectedFare(selection);
-    if (typeof onSelect === "function") onSelect(selection);
+    setSelectedFareKey(fareKey);
+    onSelect?.(selection);
   };
 
-  // Only used if showNextButton=true (legacy behavior)
-  const handleInternalNext = () => {
-    if (!selectedFare) return;
-    const payload = {
-      offer: {
-        id: selectedFare.fareKey,
-        fareKey: selectedFare.fareKey,
-        journeyKey: selectedFare.journeyKey,
-        securityToken: selectedFare.securityToken,
-      },
-    };
-    if (typeof onNext === "function") {
-      onNext(selectedFare);
-    } else {
-      dispatch(fetchPriceDetail(payload));
-    }
-  };
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return (
+      <div className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm p-4 text-sm text-slate-600">
+        No flights for this leg.
+      </div>
+    );
+  }
 
-  const statusKey = selectedFare?.fareKey || "";
-  const selectedStatus = useSelector(selectPricingStatus(statusKey));
-  const selectedDetail = useSelector(selectPriceFor(statusKey));
-
-  // Header date chip
-  const d0 = toLocalDate(rows?.[0]?.departureDate);
-  const ddMMM = d0
-    ? d0.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase()
-    : "";
-  const dow = d0 ? d0.toLocaleDateString("en-GB", { weekday: "short" }) : "";
-  const dowColors = {
-    Mon: "#FFD700",
-    Tue: "#FF69B4",
-    Wed: "#32CD32",
-    Thu: "#FFA500",
-    Fri: "#00BFFF",
-    Sat: "#CF9FFF",
-    Sun: "#FF4500",
-  };
+  // Build header parts (origin → dest, date, DOW chip)
+  const hdr = getHeaderParts(rows);
 
   return (
     <div className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm">
-      {/* Header */}
+      {/* Title + header line */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-wrap">
-        <span className="text-blue-600 font-semibold">{title}</span>
-        <span className="text-slate-700 text-sm">
-          {rows?.[0]?.origin} → {rows?.[0]?.destination}
-        </span>
-        {ddMMM && (
-          <div className="flex items-center gap-2">
-            <span className="text-slate-700 text-xs md:text-sm">{ddMMM}</span>
-            <span
-              className="text-[11px] md:text-xs font-semibold px-2 py-0.5 rounded"
-              style={{ backgroundColor: "#000", color: dowColors[dow] || "#FFF" }}
-            >
-              {dow}
-            </span>
+        {title && <div className="text-slate-700 font-semibold">{title}</div>}
+        {(hdr.origin || hdr.destination) && (
+          <div className="text-blue-600 font-semibold">
+            {hdr.origin} → {hdr.destination}
           </div>
+        )}
+        {hdr.ddMMM && <span className="text-slate-700 text-sm">{hdr.ddMMM}</span>}
+        {hdr.dow && (
+          <span
+            className="text-sm font-semibold px-2 py-0.5 rounded"
+            style={{ backgroundColor: "#000", color: hdr.chipColor }}
+          >
+            {hdr.dow}
+          </span>
         )}
       </div>
 
-      {/* Table */}
       <div className="w-full overflow-x-auto">
         <table className="w-full min-w-[860px] text-sm">
-          <thead className="bg-slate-100 sticky top-0">
+          <thead className="bg-slate-100">
             <tr>
               {cols.map((c) => (
                 <th key={c} className="px-3 py-2 text-left font-semibold">
@@ -170,8 +173,11 @@ function LegBox({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t last:border-b-0">
+            {rows.map((row, idx) => (
+              <tr
+                key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
+                className="border-t last:border-b-0"
+              >
                 {cols.map((col) => {
                   const selectable = [
                     "fareAmountIncludingTax",
@@ -181,7 +187,7 @@ function LegBox({
 
                   const isSelected =
                     selectedRow?.id === row.id &&
-                    selectedFare?.fareKey ===
+                    selectedFareKey ===
                       (col === "fareAmountIncludingTax"
                         ? row.fareKey
                         : col === "nokXtraAmount"
@@ -189,17 +195,18 @@ function LegBox({
                         : row.farekey2);
 
                   const val = row[col];
-                  const display = selectable ? fmtMoney(val, currency) : val || "—";
+                  const display = selectable ? fmtMoney(val, currency) : (val ?? "—");
 
                   return (
                     <td
                       key={col}
                       onClick={() => selectable && pickFare(row, col)}
                       className={[
-                        "px-3 py-2",
+                        "px-3 py-2 align-top",
                         selectable ? "font-semibold cursor-pointer" : "",
                         isSelected ? "bg-yellow-200" : "",
                       ].join(" ")}
+                      title={selectable ? "Click to select fare" : undefined}
                     >
                       {display}
                     </td>
@@ -211,27 +218,28 @@ function LegBox({
         </table>
       </div>
 
-      {/* Optional per-leg footer (kept for backward compatibility; OFF by default) */}
-      {showNextButton && (
-        <div className="px-4 py-3 flex items-center justify-end gap-3">
-          {selectedStatus === "loading" && (
-            <div className="text-sm text-slate-600">Loading price…</div>
+      {/* Inline NEXT for one-way */}
+      {showInlineNext && (
+        <div className="px-4 py-3 flex items-center justify-end gap-3 border-t">
+          {inlineStatus === "loading" && (
+            <div className="text-sm text-slate-600">Getting offers…</div>
           )}
-          {selectedStatus === "failed" && (
+          {inlineStatus === "failed" && (
             <div className="text-sm text-red-600">Failed to load price.</div>
           )}
-          {selectedStatus === "succeeded" && selectedDetail && (
+          {inlineStatus === "succeeded" && inlineDetail && (
             <div className="text-sm font-medium">
-              Total: {selectedDetail.currency || selectedFare?.currency}{" "}
-              {selectedDetail.total?.toLocaleString?.()}
+              {typeof inlineDetail.total !== "undefined"
+                ? `Total: ${fmtMoney(inlineDetail.total, inlineDetail.currency || currency)}`
+                : "Pricing available."}
             </div>
           )}
           <button
-            onClick={handleInternalNext}
-            disabled={!selectedFare || selectedStatus === "loading"}
+            onClick={onInlineNext}
+            disabled={!selectedFareKey || inlineStatus === "loading"}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
           >
-            NEXT
+            {inlineStatus === "loading" ? "Please wait…" : "NEXT"}
           </button>
         </div>
       )}
@@ -239,8 +247,8 @@ function LegBox({
   );
 }
 
-/* ---------- Main: split full results, capture selections, ONE NEXT ---------- */
-export default function RoundTripResultsLite({ onNext }) {
+/* ---------- Main (one-way = inline NEXT; roundtrip = unified NEXT) ---------- */
+export default function RoundTripResultsLite() {
   const dispatch = useDispatch();
   const raw = useSelector(selectResults);
 
@@ -249,29 +257,23 @@ export default function RoundTripResultsLite({ onNext }) {
   const token = raw?.securityToken || payload?.securityToken || "";
   const currency = raw?.currency || "THB";
 
-  // Flatten once (supports days[].journey[] and itineraries[].offers[])
+  // Flatten once
   const rows = useMemo(() => {
     if (!payload) return [];
     const input = Array.isArray(payload) ? payload : [payload];
     const out = flattenFlights(input, token) || [];
-    // Keep only well-formed rows
-    return out.filter((r) => r && r.id && (r.origin || r.destination));
+    return out.filter((r) => r && (r.id || r.flightNumber) && (r.origin || r.destination));
   }, [payload, token]);
 
   if (!rows.length) {
     return (
       <div className="mt-6 rounded-xl border bg-amber-50 text-amber-900 p-4">
-        No flights to display. The response may be empty or in an unexpected format.
+        No flights to display.
       </div>
     );
   }
 
-  /**
-   * Group strategy:
-   *  1) Prefer direction split: "DMK-CNX" vs "CNX-DMK"
-   *  2) If only one direction exists, split by earliest two distinct dates
-   *  3) Fallback: first half as Depart, second half as Return
-   */
+  /* Group by direction first */
   const byDirMap = rows.reduce((acc, r) => {
     const dir = `${(r.origin || "").trim()}-${(r.destination || "").trim()}`;
     (acc[dir] ||= []).push(r);
@@ -279,7 +281,6 @@ export default function RoundTripResultsLite({ onNext }) {
   }, {});
 
   let groups = [];
-
   const dirEntries = Object.entries(byDirMap)
     .filter(([k]) => !!k && k !== "-")
     .map(([key, arr]) => {
@@ -294,138 +295,115 @@ export default function RoundTripResultsLite({ onNext }) {
 
   if (dirEntries.length >= 2) {
     groups = [
-      { title: "Depart", rows: dirEntries[0].rows, minDate: dirEntries[0].minDate },
-      { title: "Return", rows: dirEntries[1].rows, minDate: dirEntries[1].minDate },
+      { title: "Depart", rows: dirEntries[0].rows },
+      { title: "Return", rows: dirEntries[1].rows },
     ];
+  } else if (dirEntries.length === 1) {
+    groups = [{ title: "Depart", rows: dirEntries[0].rows }];
   } else {
-    // Only one direction -> split by date
-    const byDateMap = rows.reduce((acc, r) => {
-      const key = ymd(r.departureDate) || "unknown-date";
-      (acc[key] ||= []).push(r);
-      return acc;
-    }, {});
-
-    const dateEntries = Object.entries(byDateMap)
-      .map(([k, arr]) => ({
-        key: k,
-        rows: arr,
-        minDate: toLocalDate(k),
-      }))
-      .sort(byAscDate);
-
-    if (dateEntries.length >= 2) {
-      groups = [
-        { title: "Depart", rows: dateEntries[0].rows, minDate: dateEntries[0].minDate },
-        { title: "Return", rows: dateEntries[1].rows, minDate: dateEntries[1].minDate },
-      ];
-    } else {
-      // Fallback: split list in half
-      const mid = Math.ceil(rows.length / 2);
-      groups = [
-        { title: "Depart", rows: rows.slice(0, mid), minDate: toLocalDate(rows[0]?.departureDate) },
-        { title: "Return", rows: rows.slice(mid),  minDate: toLocalDate(rows[mid]?.departureDate) },
-      ].filter((g) => Array.isArray(g.rows) && g.rows.length > 0);
-    }
+    groups = [{ title: "Depart", rows }];
   }
 
-  // Ensure two groups at most
-  groups = groups.slice(0, 2);
+  // Track selections
+  const [selectedOutbound, setSelectedOutbound] = useState(null);
+  const [selectedInbound, setSelectedInbound] = useState(null);
 
-  if (!groups.length) {
+  const isRoundTrip = groups.length === 2;
+
+  /* ---------- ONE-WAY: inline NEXT inside the leg box ---------- */
+  if (!isRoundTrip) {
+    const requestKey = selectedOutbound?.fareKey || "";
+    const doInlineNext = async () => {
+      if (!selectedOutbound) return;
+      await dispatch(fetchPriceDetail({ offers: [selectedOutbound] }));
+    };
+
     return (
-      <div className="mt-6 rounded-xl border bg-amber-50 text-amber-900 p-4">
-        No flights after grouping. The payload may contain only one leg.
+      <div className="w-full flex flex-col gap-6 mt-4">
+        <LegBox
+          title="Depart"
+          rows={groups[0].rows}
+          currency={currency}
+          fallbackToken={token}
+          onSelect={setSelectedOutbound}
+          showInlineNext={true}
+          onInlineNext={doInlineNext}
+          inlinePriceKey={requestKey}
+        />
       </div>
     );
   }
 
-  // Track selections for each leg
-  const [selectedOutbound, setSelectedOutbound] = useState(null);
-  const [selectedInbound, setSelectedInbound] = useState(null);
+  /* ---------- ROUNDTRIP: unified NEXT below both boxes ---------- */
+  const canProceed = !!(selectedOutbound && selectedInbound);
 
-  // Detect whether this is effectively roundtrip (2 groups)
-  const isRoundTrip = groups.length >= 2;
+  const requestKey = useMemo(() => {
+    const a = selectedOutbound?.fareKey || "";
+    const b = selectedInbound?.fareKey || "";
+    return [a, b].filter(Boolean).join("+") || "";
+  }, [selectedOutbound, selectedInbound]);
 
-  const canProceed = isRoundTrip
-    ? !!(selectedOutbound && selectedInbound)
-    : !!selectedOutbound;
+  const pricingStatus = useSelector(selectPricingStatus(requestKey));
+  const priceDetail   = useSelector(selectPriceFor(requestKey));
 
   const handleUnifiedNext = async () => {
-    if (!canProceed) return;
-
-    if (typeof onNext === "function") {
-      onNext(selectedOutbound, isRoundTrip ? selectedInbound : null);
-      return;
-    }
-
-    // Default (backward-compatible) behavior:
-    // dispatch pricing for outbound only, so nothing breaks if onNext not wired yet.
-    const ob = selectedOutbound;
-    if (ob?.fareKey) {
-      await dispatch(
-        fetchPriceDetail({
-          offer: {
-            id: ob.fareKey,
-            fareKey: ob.fareKey,
-            journeyKey: ob.journeyKey,
-            securityToken: ob.securityToken,
-          },
-        })
-      );
-    }
+    if (!canProceed || pricingStatus === "loading") return;
+    await dispatch(fetchPriceDetail({ offers: [selectedOutbound, selectedInbound] }));
   };
 
-  // Full width column layout; one unified NEXT footer
   return (
     <div className="w-full flex flex-col gap-6 mt-4">
-      {/* Depart */}
       <LegBox
-        title={groups[0].title || "Depart"}
+        title="Depart"
         rows={groups[0].rows}
         currency={currency}
         fallbackToken={token}
         onSelect={setSelectedOutbound}
-        showNextButton={false}
       />
 
-      {/* Return (if present) */}
-      {isRoundTrip && (
-        <LegBox
-          title={groups[1].title || "Return"}
-          rows={groups[1].rows}
-          currency={currency}
-          fallbackToken={token}
-          onSelect={setSelectedInbound}
-          showNextButton={false}
-        />
-      )}
+      <LegBox
+        title="Return"
+        rows={groups[1].rows}
+        currency={currency}
+        fallbackToken={token}
+        onSelect={setSelectedInbound}
+      />
 
-      {/* Unified sticky footer */}
-      <div className="sticky bottom-0 z-10 flex items-center justify-between rounded-xl border bg-white p-3 shadow">
+      <div className="mt-2 flex items-center justify-between rounded-xl border bg-white p-3 shadow">
         <div className="text-sm text-gray-600">
-          {isRoundTrip ? (
-            <>
-              {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}{" "}
-              &nbsp;&nbsp;
-              {selectedInbound ? "✓ Return selected" : "• Choose a return"}
-            </>
-          ) : (
-            <>{selectedOutbound ? "✓ Flight selected" : "• Choose a flight"}</>
+          {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}{" "}
+          &nbsp;&nbsp;
+          {selectedInbound ? "✓ Return selected" : "• Choose a return"}
+          {pricingStatus === "loading" && (
+            <span className="ml-3 text-blue-600">Getting offers…</span>
           )}
         </div>
 
         <button
           className={`px-4 py-2 rounded-lg font-semibold ${
-            canProceed
+            canProceed && pricingStatus !== "loading"
               ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-gray-300 text-gray-600 cursor-not-allowed"
+              : "bg-gray-300 text-gray-600"
           }`}
-          disabled={!canProceed}
+          disabled={!canProceed || pricingStatus === "loading"}
           onClick={handleUnifiedNext}
         >
-          NEXT
+          {pricingStatus === "loading" ? "Please wait…" : "NEXT"}
         </button>
       </div>
+
+      {pricingStatus === "succeeded" && priceDetail && (
+        <div className="rounded-xl border bg-slate-50 p-3 text-sm">
+          <div className="font-semibold mb-2">Offer loaded</div>
+          {typeof priceDetail.total !== "undefined" ? (
+            <div>
+              Total: {fmtMoney(priceDetail.total, priceDetail.currency || currency)}
+            </div>
+          ) : (
+            <div>Pricing available.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

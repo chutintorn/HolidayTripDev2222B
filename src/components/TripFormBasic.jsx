@@ -502,11 +502,13 @@ export default function TripFormBasic({ onSubmit }) {
         today={today}
       />
 
-      {/* Results: show 2 boxes when multiple legs, else your original table */}
+      {/* Results: show 2 boxes when multiple legs, else one-way table */}
       {results && (
-        Array.isArray(results?.data) && results.data.length > 1
-          ? <RoundTripResultsLite />
-          : <JourneyTable />
+        Array.isArray(results?.data) && results.data.length > 1 ? (
+          <RoundTripResultsLite />
+        ) : (
+          <JourneyTable showNextButton />
+        )
       )}
     </CustomProvider>
   );

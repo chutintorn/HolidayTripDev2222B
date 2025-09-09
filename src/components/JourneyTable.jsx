@@ -33,7 +33,7 @@ const fmtMoney = (n, currency = "THB") => {
 };
 
 /**
- * JourneyTable
+ * JourneyTable (One-way view)
  *
  * Props:
  * - resultsOverride?: object | array
@@ -41,9 +41,9 @@ const fmtMoney = (n, currency = "THB") => {
  * - securityTokenOverride?: string
  * - titleOverride?: string
  * - hideHeader?: boolean
- * - showNextButton?: boolean         // default false (for unified single-submit)
+ * - showNextButton?: boolean         // default false
  * - onSelectRow?: (selection) => {}  // receives selected fare/row object
- * - onNext?: (selection) => {}       // optional override for NEXT action
+ * - onNext?: ({ journeyKey, fareKey }) => {} // optional override for NEXT action
  */
 export default function JourneyTable({
   resultsOverride = null,
@@ -85,7 +85,7 @@ export default function JourneyTable({
   }, [payload, securityToken]);
 
   const [selectedRow, setSelectedRow] = useState(null);
-  const [selectedFare, setSelectedFare] = useState(null);
+  const [selectedFare, setSelectedFare] = useState(null); // { brand, fareKey, journeyKey, ... }
 
   // If empty, show a helpful hint (keeps layout stable)
   if (!rows.length) {
@@ -119,18 +119,18 @@ export default function JourneyTable({
     return col;
   };
 
-  /** Fare selection */
+  /** Fare selection (map LITE/X-TRA/MAX -> fareKey) */
   const pickFare = (row, col) => {
     let fareKey = "";
     let brand = "";
     if (col === "fareAmountIncludingTax") {
-      fareKey = row.fareKey; // LITE
+      fareKey = row.fareKey;   // LITE
       brand = "LITE";
     } else if (col === "nokXtraAmount") {
-      fareKey = row.farekey1; // X-TRA
+      fareKey = row.farekey1;  // X-TRA
       brand = "XTRA";
     } else if (col === "nokMaxAmount") {
-      fareKey = row.farekey2; // MAX
+      fareKey = row.farekey2;  // MAX
       brand = "MAX";
     }
     if (!fareKey) return;
@@ -141,7 +141,7 @@ export default function JourneyTable({
       journeyKey: row.journeyKey,
       securityToken: row.securityToken || securityToken,
       currency,
-      row, // expose full row if parent needs flight/segment fields
+      row, // full row if needed upstream
     };
 
     setSelectedRow(row);
@@ -152,17 +152,30 @@ export default function JourneyTable({
     }
   };
 
-  /** Default NEXT behavior (only used if showNextButton && no onNext) */
+  /** Default NEXT behavior (send only journeyKey + fareKey, like RoundTripResultsLite) */
   const handleInternalNext = () => {
-    if (!selectedFare) return;
+    if (!selectedFare?.journeyKey || !selectedFare?.fareKey) return;
+
+    // If parent provides onNext, delegate to it
+    if (typeof onNext === "function") {
+      onNext({
+        journeyKey: selectedFare.journeyKey,
+        fareKey: selectedFare.fareKey,
+      });
+      return;
+    }
+
+    // Else dispatch internally in "offers" form (single item)
     dispatch(
       fetchPriceDetail({
-        offer: {
-          id: selectedFare.fareKey,
-          fareKey: selectedFare.fareKey,
-          journeyKey: selectedFare.journeyKey,
-          securityToken: selectedFare.securityToken,
-        },
+        securityToken,
+        offers: [
+          {
+            journeyKey: selectedFare.journeyKey,
+            fareKey: selectedFare.fareKey,
+          },
+        ],
+        currency,
       })
     );
   };
@@ -190,6 +203,8 @@ export default function JourneyTable({
   const statusKey = selectedFare?.fareKey || "";
   const selectedStatus = useSelector(selectPricingStatus(statusKey));
   const selectedDetail = useSelector(selectPriceFor(statusKey));
+
+  const canNext = !!(selectedFare?.journeyKey && selectedFare?.fareKey) && selectedStatus !== "loading";
 
   return (
     <div className="journey-table-wrapper w-full">
@@ -291,15 +306,14 @@ export default function JourneyTable({
 
         {showNextButton && (
           <button
-            onClick={
-              onNext
-                ? () => selectedFare && onNext(selectedFare)
-                : handleInternalNext
+            onClick={handleInternalNext}
+            disabled={!canNext}
+            className={
+              "px-4 py-2 rounded-lg text-white text-sm " +
+              (canNext ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed")
             }
-            disabled={!selectedFare || selectedStatus === "loading"}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
           >
-            NEXT
+            {selectedStatus === "loading" ? "Loading..." : "NEXT"}
           </button>
         )}
       </div>
