@@ -45,7 +45,7 @@ function mergeDirectDetails(details) {
 
 /**
  * Modes:
- *  proxy  -> POST `${VITE_API_BASE||http://localhost:3100}/pricedetails`
+ *  proxy  -> POST `${VITE_API_BASE||https://nodebasic-production-76d7.up.railway.app/}/pricedetails`
  *            headers: securityToken
  *            body:    [{ fareKey, journeyKey }, ...]
  *
@@ -121,7 +121,7 @@ export const fetchPriceDetail = createAsyncThunk(
       }
 
       // ---- proxy mode (your local Node server) ----
-      const BASE = import.meta.env.VITE_API_BASE || "http://localhost:3100";
+      const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production-76d7.up.railway.app/";
       const body = selections.map((s) => ({
         fareKey: s.fareKey,
         journeyKey: s.journeyKey,
