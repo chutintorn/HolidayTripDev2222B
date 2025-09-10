@@ -1,5 +1,5 @@
 export async function getPriceDetail({ offerId, passengers, ancillaries }, { signal } = {}) {
-  const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production-76d7.up.railway.app/";
+  const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production-76d7.up.railway.app";
   const res = await fetch(`${BASE}/pricedetails`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

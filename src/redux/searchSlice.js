@@ -6,7 +6,7 @@ export const fetchSearchResults = createAsyncThunk(
   "search/fetch",
   async (form, { rejectWithValue, signal }) => {
     try {
-      const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production-76d7.up.railway.app/";
+      const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production-76d7.up.railway.app";
      //const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production.up.railway.app";
 
       // Normalize IATA + dates
