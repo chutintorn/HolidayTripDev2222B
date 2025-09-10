@@ -1,6 +1,7 @@
 // src/components/JourneyTable.jsx
 import React, { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { selectResults } from "../redux/searchSlice";
 import {
   fetchPriceDetail,
@@ -56,6 +57,7 @@ export default function JourneyTable({
   onNext, // optional override
 }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   // Global results from Redux (fallbacks for token/currency)
   const globalResults = useSelector(selectResults);
@@ -81,7 +83,7 @@ export default function JourneyTable({
     if (!payload) return [];
     const input = Array.isArray(payload) ? payload : [payload];
     const out = flattenFlights(input, securityToken) || [];
-    return out.filter((r) => r && r.id && (r.origin || r.destination));
+    return out.filter((r) => r && (r.id || r.flightNumber) && (r.origin || r.destination));
   }, [payload, securityToken]);
 
   const [selectedRow, setSelectedRow] = useState(null);
@@ -153,7 +155,7 @@ export default function JourneyTable({
   };
 
   /** Default NEXT behavior (send only journeyKey + fareKey, like RoundTripResultsLite) */
-  const handleInternalNext = () => {
+  const handleInternalNext = async () => {
     if (!selectedFare?.journeyKey || !selectedFare?.fareKey) return;
 
     // If parent provides onNext, delegate to it
@@ -166,18 +168,28 @@ export default function JourneyTable({
     }
 
     // Else dispatch internally in "offers" form (single item)
-    dispatch(
-      fetchPriceDetail({
-        securityToken,
-        offers: [
-          {
-            journeyKey: selectedFare.journeyKey,
-            fareKey: selectedFare.fareKey,
-          },
-        ],
-        currency,
-      })
-    );
+    try {
+      await dispatch(
+        fetchPriceDetail({
+          offers: [
+            {
+              journeyKey: selectedFare.journeyKey,
+              fareKey: selectedFare.fareKey,
+              securityToken: selectedFare.securityToken,
+            },
+          ],
+          currency,
+        })
+      ).unwrap();
+
+      // After success, navigate to the dedicated detail page.
+      // One-way requestKey convention: fareKey.
+      const requestKey = selectedFare.fareKey;
+      navigate("/skyblue-price-detail", { state: { requestKey } });
+      // Or: navigate(`/skyblue-price-detail?key=${encodeURIComponent(requestKey)}`);
+    } catch (e) {
+      console.error("Pricing failed", e);
+    }
   };
 
   /** Header date (local-safe) */
@@ -200,11 +212,14 @@ export default function JourneyTable({
     Sun: "#FF4500",
   };
 
+  // For showing inline pricing result for the currently selected fare
   const statusKey = selectedFare?.fareKey || "";
   const selectedStatus = useSelector(selectPricingStatus(statusKey));
   const selectedDetail = useSelector(selectPriceFor(statusKey));
 
-  const canNext = !!(selectedFare?.journeyKey && selectedFare?.fareKey) && selectedStatus !== "loading";
+  const canNext =
+    !!(selectedFare?.journeyKey && selectedFare?.fareKey) &&
+    selectedStatus !== "loading";
 
   return (
     <div className="journey-table-wrapper w-full">
@@ -248,8 +263,11 @@ export default function JourneyTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t last:border-b-0">
+            {rows.map((row, idx) => (
+              <tr
+                key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
+                className="border-t last:border-b-0"
+              >
                 {cols.map((col) => {
                   const selectable = [
                     "fareAmountIncludingTax",
@@ -299,8 +317,12 @@ export default function JourneyTable({
         )}
         {selectedStatus === "succeeded" && selectedDetail && (
           <div className="text-sm font-medium">
-            Total: {selectedDetail.currency || selectedFare?.currency}{" "}
-            {selectedDetail.total?.toLocaleString?.()}
+            {typeof selectedDetail.total !== "undefined"
+              ? `Total: ${fmtMoney(
+                  selectedDetail.total,
+                  selectedDetail.currency || selectedFare?.currency || currency
+                )}`
+              : "Pricing available."}
           </div>
         )}
 
@@ -310,7 +332,9 @@ export default function JourneyTable({
             disabled={!canNext}
             className={
               "px-4 py-2 rounded-lg text-white text-sm " +
-              (canNext ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-300 cursor-not-allowed")
+              (canNext
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-gray-300 cursor-not-allowed")
             }
           >
             {selectedStatus === "loading" ? "Loading..." : "NEXT"}

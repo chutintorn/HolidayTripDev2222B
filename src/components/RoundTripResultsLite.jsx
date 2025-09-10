@@ -1,6 +1,7 @@
 // src/components/RoundTripResultsLite.jsx
 import React, { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { selectResults } from "../redux/searchSlice";
 import { flattenFlights } from "../utils/flattenFlights";
 import {
@@ -250,6 +251,7 @@ function LegBox({
 /* ---------- Main (one-way = inline NEXT; roundtrip = unified NEXT) ---------- */
 export default function RoundTripResultsLite() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const raw = useSelector(selectResults);
 
   // Unwrap common API shapes
@@ -312,10 +314,19 @@ export default function RoundTripResultsLite() {
 
   /* ---------- ONE-WAY: inline NEXT inside the leg box ---------- */
   if (!isRoundTrip) {
+    // requestKey convention (one-way): fareKey
     const requestKey = selectedOutbound?.fareKey || "";
+
     const doInlineNext = async () => {
       if (!selectedOutbound) return;
-      await dispatch(fetchPriceDetail({ offers: [selectedOutbound] }));
+      try {
+        await dispatch(fetchPriceDetail({ offers: [selectedOutbound] })).unwrap();
+        // Navigate to detail page with requestKey so page can read from Redux
+        navigate("/skyblue-price-detail", { state: { requestKey } });
+        // Or: navigate(`/skyblue-price-detail?key=${encodeURIComponent(requestKey)}`);
+      } catch (e) {
+        console.error("Pricing failed", e);
+      }
     };
 
     return (
@@ -337,6 +348,7 @@ export default function RoundTripResultsLite() {
   /* ---------- ROUNDTRIP: unified NEXT below both boxes ---------- */
   const canProceed = !!(selectedOutbound && selectedInbound);
 
+  // requestKey convention (roundtrip): fareKeyA+fareKeyB
   const requestKey = useMemo(() => {
     const a = selectedOutbound?.fareKey || "";
     const b = selectedInbound?.fareKey || "";
@@ -348,7 +360,17 @@ export default function RoundTripResultsLite() {
 
   const handleUnifiedNext = async () => {
     if (!canProceed || pricingStatus === "loading") return;
-    await dispatch(fetchPriceDetail({ offers: [selectedOutbound, selectedInbound] }));
+    try {
+      await dispatch(
+        fetchPriceDetail({ offers: [selectedOutbound, selectedInbound] })
+      ).unwrap();
+
+      // Navigate to detail page with requestKey so page can read from Redux
+      navigate("/skyblue-price-detail", { state: { requestKey } });
+      // Or: navigate(`/skyblue-price-detail?key=${encodeURIComponent(requestKey)}`);
+    } catch (e) {
+      console.error("Pricing failed", e);
+    }
   };
 
   return (
