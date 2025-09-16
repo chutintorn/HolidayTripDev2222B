@@ -51,10 +51,6 @@ const STR = {
       "I would like to receive news and special offers from Nok Holiday and accept the privacy policy.",
     depart: "Depart",
     ret: "Return",
-    addOnBundles: "Add-on bundles",
-    selectOneBundle: "Select one of the bundles",
-    included: "Included",
-    segment: "Segment",
   },
   th: {
     title: "รายละเอียดผู้โดยสาร • SkyBlue",
@@ -101,14 +97,11 @@ const STR = {
       "ฉันต้องการรับข่าวสารและข้อเสนอพิเศษจาก Nok Holiday และยอมรับนโยบายความเป็นส่วนตัว",
     depart: "ขาไป",
     ret: "ขากลับ",
-    addOnBundles: "แพ็กเกจเสริม",
-    selectOneBundle: "เลือก 1 แพ็กเกจ",
-    included: "รวมในราคา",
-    segment: "ช่วงบิน",
   },
 };
 
 /* ========================= Helpers ========================= */
+/** Find the FIRST pricingDetails bucket (various API shapes supported) */
 function firstPricingDetailsBucket(root) {
   if (!root || typeof root !== "object") return null;
   if (Array.isArray(root.pricingDetails)) return root.pricingDetails;
@@ -147,10 +140,14 @@ function paxFromFirstPricingDetails(detailLike) {
   return out;
 }
 
+/* -------- Origin/Destination + Dates extraction (robust fallbacks) -------- */
+const up3 = (x) =>
+  typeof x === "string" && /^[A-Za-z]{3}$/.test(x) ? x.toUpperCase() : null;
+
 function safeDate(s) {
   if (!s) return null;
-  const str = typeof s === "string" ? s.replace(" ", "T") : s;
-  const d = new Date(str);
+  // accept ISO, "YYYY-MM-DD", "YYYY-MM-DDTHH:mm", etc.
+  const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }
 
@@ -161,102 +158,91 @@ function formatDDMMM(d) {
   return `${dd}-${mon}`;
 }
 
-function hhmm(d) {
-  if (!d) return "";
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-/* ====== Segment extraction (drop seg 1 & 3: i.e., drop ANY without flightNumber, dedupe) ====== */
-function looksLikeSegment(x) {
-  if (!x || typeof x !== "object") return false;
-  const o = x.origin || x.from || x.depAirport || x.departureAirport;
-  const d = x.destination || x.to || x.arrAirport || x.arrivalAirport;
-  const dep = x.departureTime || x.departureDateTime || x.dep || x.depTime || x.std || x.offBlockTime;
-  return Boolean(o && d && dep);
-}
-
-function deepCollectSegments(node, out = []) {
-  if (!node) return out;
-  if (Array.isArray(node)) {
-    for (const v of node) deepCollectSegments(v, out);
-    return out;
+/** Crawl through any nested shape to collect segment-like items */
+function gatherSegments(root, acc = []) {
+  if (!root || typeof root !== "object") return acc;
+  // segment-like heuristic
+  if (
+    (root.origin || root.from || root.departureAirport) &&
+    (root.destination || root.to || root.arrivalAirport)
+  ) {
+    acc.push({
+      origin:
+        up3(root.origin) ||
+        up3(root.from) ||
+        up3(root.departureAirport) ||
+        null,
+      destination:
+        up3(root.destination) ||
+        up3(root.to) ||
+        up3(root.arrivalAirport) ||
+        null,
+      dep:
+        safeDate(root.departureDateTime || root.departureTime || root.departure || root.depTime || root.depDate) ||
+        safeDate(root.date) ||
+        null,
+      direction:
+        String(root.direction || root.dir || root.bound || "").toLowerCase(),
+    });
   }
-  if (typeof node === "object") {
-    if (looksLikeSegment(node)) out.push(node);
-    for (const k of Object.keys(node)) deepCollectSegments(node[k], out);
-    return out;
-  }
-  return out;
+  Object.values(root).forEach((v) => {
+    if (Array.isArray(v)) v.forEach((x) => gatherSegments(x, acc));
+    else if (typeof v === "object") gatherSegments(v, acc);
+  });
+  return acc;
 }
 
-function normalizeSegment(x) {
-  return {
-    origin: x.origin || x.from || x.depAirport || x.departureAirport || "",
-    destination: x.destination || x.to || x.arrAirport || x.arrivalAirport || "",
-    depTime: safeDate(
-      x.departureTime || x.departureDateTime || x.depTime || x.dep || x.std || x.offBlockTime
-    ),
-    arrTime: safeDate(
-      x.arrivalTime || x.arrivalDateTime || x.arrTime || x.arr || x.sta || x.onBlockTime
-    ),
-    fn: x.flightNumber || x.flightNo || x.fn || x.marketingFlightNumber || "",
-    dir: (x.direction || x.dir || "").toString().toUpperCase(),
+/** Build routes array from API; fallback to OD (DMK↔HKT default) */
+function buildRoutes(detailLike, lang) {
+  const segments = gatherSegments(detailLike);
+  // Try to detect legs by direction labels in the data
+  const out = [];
+  const dirGroups = {
+    outbound: segments.filter((s) => /out|depart/i.test(s.direction)),
+    inbound: segments.filter((s) => /in|return|back/i.test(s.direction)),
   };
-}
 
-/** Extract & clean all segments:
- * - keep only those WITH flightNumber
- * - dedupe by origin|destination|depTime
- * - sort by depTime
- * - label OUT/IN by provided dir, else by order (first OUT, second IN, others SEG-n)
- */
-function extractLegs(raw) {
-  if (!raw) return [];
+  const pushLeg = (id, o, d, date, label) => {
+    if (!o || !d) return;
+    out.push({
+      id,
+      leg: `${o}–${d}`,
+      label,
+      dateLabel: date ? formatDDMMM(date) : "",
+    });
+  };
 
-  // If API returns an array of flight objects (e.g., 2 objects you mentioned)
-  const roots = Array.isArray(raw) ? raw : [raw];
-  const bucket = new Map();
+  if (dirGroups.outbound.length) {
+    const f = dirGroups.outbound[0];
+    pushLeg("depart", f.origin, f.destination, f.dep, STR[lang].depart);
+  }
+  if (dirGroups.inbound.length) {
+    const f = dirGroups.inbound[0];
+    pushLeg("return", f.origin, f.destination, f.dep, STR[lang].ret);
+  }
 
-  for (const root of roots) {
-    const segs = deepCollectSegments(root);
-    // Also consider "simple root" as a segment
-    const maybeRootSeg = looksLikeSegment(root) ? [root] : [];
-    const all = [...segs, ...maybeRootSeg];
+  // If still empty, attempt a simplistic 1–2 leg inference from segment order
+  if (!out.length && segments.length) {
+    const first = segments[0];
+    pushLeg("depart", first.origin, first.destination, first.dep, STR[lang].depart);
 
-    for (const s of all) {
-      const n = normalizeSegment(s);
-      // REQUIRE flight number (drops seg 1 & seg 3 automatically)
-      if (!n.fn || !n.depTime || !n.origin || !n.destination) continue;
-      const key = `${n.origin}|${n.destination}|${n.depTime.toISOString()}`;
-      if (!bucket.has(key)) bucket.set(key, n);
+    // try to find a later segment that looks like reverse
+    const rev = segments.find(
+      (s) => s.origin === first.destination && s.destination === first.origin
+    );
+    if (rev) {
+      pushLeg("return", rev.origin, rev.destination, rev.dep, STR[lang].ret);
     }
   }
 
-  const cleaned = [...bucket.values()].sort((a, b) => a.depTime - b.depTime);
+  // Fallback hard defaults if nothing detected
+  if (!out.length) {
+    pushLeg("depart", "DMK", "HKT", null, STR[lang].depart);
+  }
 
-  // assign stable keys + inferred direction if missing
-  return cleaned.map((n, i) => {
-    const inferred =
-      n.dir === "OUT" || n.dir === "IN"
-        ? n.dir
-        : i === 0
-        ? "OUT"
-        : i === 1
-        ? "IN"
-        : `SEG-${i + 1}`;
-    return {
-      key: `${inferred}-${i + 1}`,
-      origin: n.origin,
-      destination: n.destination,
-      depTime: n.depTime,
-      arrTime: n.arrTime,
-      fn: n.fn,
-      dir: inferred,
-    };
-  });
+  return out;
 }
 
-/* ===== UI bits ===== */
 function Chip({ ok, children }) {
   return (
     <span
@@ -526,8 +512,12 @@ function TravellerForm({ t, value, onChange, onSave, showSave = true, points = 9
             background: "#f8fafc",
           }}
         >
-          <div style={{ color: "#0f172a", marginBottom: 8 }}>• {t.earnPoints}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+          <div style={{ color: "#0f172a", marginBottom: 8 }}>
+            • {t.earnPoints}
+          </div>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}
+          >
             <input
               placeholder={t.email}
               value={local.email || ""}
@@ -558,12 +548,15 @@ function TravellerForm({ t, value, onChange, onSave, showSave = true, points = 9
         </div>
 
         <div style={{ marginTop: 12, color: "#0f172a" }}>
-          {t.pointsAfter} <span style={{ fontWeight: 700 }}>95 {t.points}</span>
+          {t.pointsAfter}{" "}
+          <span style={{ fontWeight: 700 }}>{points} {t.points}</span>
         </div>
       </div>
 
       {showSave && (
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+        <div
+          style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}
+        >
           <button
             onClick={save}
             style={{
@@ -584,48 +577,169 @@ function TravellerForm({ t, value, onChange, onSave, showSave = true, points = 9
   );
 }
 
-/* ========================= Bundle Selector (radio – select one per group) ========================= */
-function BundleCard({ name, checked, onChange, title, subtitle, features, priceLabel, accent = "#3b82f6" }) {
+/* ========================= AddOnBundles (inline component) ========================= */
+const Suitcase = ({ className = "" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="7" width="18" height="13" rx="2" />
+    <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+const Seat = ({ className = "" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M6 3v8a2 2 0 0 0 2 2h7" />
+    <path d="M5 19h12a2 2 0 0 0 2-2v-1H9a3 3 0 0 1-3-3" />
+  </svg>
+);
+const Meal = ({ className = "" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 3v7" /><path d="M8 3v7" /><path d="M4 10h4" />
+    <path d="M12 3v18" /><path d="M16 7h4" />
+  </svg>
+);
+const Voucher = ({ className = "" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M7 9h10M7 13h6" />
+  </svg>
+);
+const Shield = ({ className = "" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z" />
+  </svg>
+);
+const ICONS = { suitcase: Suitcase, seat: Seat, meal: Meal, voucher: Voucher, shield: Shield };
+
+const colorMap = {
+  blue:  { border: "border-blue-200",  text: "text-blue-600",  pill: "bg-blue-500",  icon: "text-blue-500"  },
+  amber: { border: "border-amber-200", text: "text-amber-600", pill: "bg-amber-500", icon: "text-amber-500" },
+  rose:  { border: "border-rose-200",  text: "text-rose-600",  pill: "bg-rose-500",  icon: "text-rose-500"  },
+};
+function cx(...xs) { return xs.filter(Boolean).join(" "); }
+
+function FeatureCard({ bundle }) {
+  const cm = colorMap[bundle.color] ?? colorMap.blue;
   return (
-    <label
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 12,
-        border: `2px solid ${checked ? accent : "#e5e7eb"}`,
-        background: checked ? "#f0f9ff" : "#fff",
-        borderRadius: 14,
-        padding: 14,
-        cursor: "pointer",
-        width: "100%",
-      }}
-    >
-      <input
-        type="radio"
-        name={name}
-        checked={checked}
-        onChange={onChange}
-        style={{ marginTop: 4 }}
-      />
-      <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <div style={{ fontWeight: 800 }}>{title}</div>
-            <div style={{ color: "#2563eb", fontSize: 12, fontWeight: 600 }}>{subtitle}</div>
-          </div>
-          {priceLabel && <div style={{ fontWeight: 700 }}>{priceLabel}</div>}
-        </div>
-        <ul style={{ margin: "8px 0 0 18px", color: "#334155", fontSize: 13 }}>
-          {features.map((f, i) => (
-            <li key={i} style={{ marginBottom: 4, listStyle: "disc" }}>{f}</li>
-          ))}
+    <article className={cx("rounded-2xl bg-white border shadow-sm relative", cm.border)}>
+      <div className={cx("absolute left-0 top-6 bottom-6 w-2 rounded-l-lg", cm.pill)} />
+      <div className="p-6 pl-8">
+        <h3 className="text-xl font-semibold">{bundle.title}</h3>
+        <p className={cx(cm.text, "font-medium mb-5")}>{bundle.saveText}</p>
+        <p className="font-medium mb-2">Each guest gets:</p>
+        <ul className="space-y-3 text-sm">
+          {bundle.features.map((f, idx) => {
+            const Icon = ICONS[f.icon] || Suitcase;
+            return (
+              <li key={idx} className="flex items-center gap-3">
+                <Icon className={cx("w-[18px] h-[18px]", cm.icon)} />
+                <span>{f.text}</span>
+              </li>
+            );
+          })}
         </ul>
       </div>
-    </label>
+    </article>
   );
 }
 
-/* ========================= Contact Information (small) ========================= */
+function PriceRow({ route, price, isSelected, onSelect }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={isSelected}
+      data-selected={isSelected ? "true" : undefined}
+      onClick={onSelect}
+      className={cx(
+        "row w-full flex items-center justify-between rounded-lg border p-3 text-left",
+        isSelected ? "bg-blue-50 border-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,.12)]" : "border-gray-200"
+      )}
+      style={{ width: "100%" }}
+    >
+      <div className="flex-1">
+        <div className="uppercase tracking-wide text-gray-700 font-medium">{route.leg}</div>
+        <div className="text-xs text-gray-500">{route.label}</div>
+        {route.dateLabel && (
+          <div className="text-xs text-gray-500 mt-0.5">{route.dateLabel}</div>
+        )}
+      </div>
+      <div className="text-right mr-3">
+        <div className="font-semibold">{price?.amount ?? "—"}</div>
+        {price?.guests != null && (
+          <div className="text-xs text-gray-500">{price.guests} guests</div>
+        )}
+      </div>
+      <div
+        className={cx(
+          "check w-7 h-7 rounded-full grid place-items-center font-bold",
+          isSelected ? "bg-green-600 text-white" : "bg-gray-100 text-transparent"
+        )}
+        style={{
+          width: 28, height: 28, borderRadius: 9999,
+          display: "grid", placeItems: "center", fontWeight: 700,
+        }}
+      >
+        ✓
+      </div>
+    </button>
+  );
+}
+
+function AddOnBundles({ bundles, routes, prices, defaultSelected, onChange }) {
+  const [selected, setSelected] = useState(() => ({ ...(defaultSelected || {}) }));
+
+  const handleSelect = (routeId, bundleId) => {
+    setSelected((prev) => {
+      const next = { ...prev, [routeId]: bundleId };
+      onChange?.({ routeId, bundleId });
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-8" style={{ marginTop: 12 }}>
+      {/* Container 1: Feature Cards */}
+      <section className="space-y-2">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 rounded-full bg-green-600 grid place-items-center text-white">★</div>
+          <h1 className="text-2xl font-semibold">Add–on bundles</h1>
+        </div>
+        <p className="text-gray-600">Save more on add–on bundles than buying them individually</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ display: "grid", gap: 16 }}>
+          {bundles.map((b) => (
+            <FeatureCard key={b.id} bundle={b} />
+          ))}
+        </div>
+      </section>
+
+      {/* Container 2: Prices (one selection per route) */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-gray-700">Choose one per route</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ display: "grid", gap: 16 }}>
+          {bundles.map((b) => {
+            const cm = colorMap[b.color] ?? colorMap.blue;
+            return (
+              <div key={b.id} className={cx("rounded-2xl bg-white border shadow-sm", cm.border)} style={{ borderRadius: 12 }}>
+                <div className="p-3 space-y-3 text-sm" style={{ padding: 12 }}>
+                  {routes.map((r) => (
+                    <PriceRow
+                      key={r.id}
+                      route={r}
+                      price={prices?.[b.id]?.[r.id]}
+                      isSelected={selected[r.id] === b.id}
+                      onSelect={() => handleSelect(r.id, b.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ========================= Contact Information (NEW) ========================= */
 function ContactInformation({ t, value, onChange, showErrors }) {
   const [local, setLocal] = useState(
     value || { dialCode: "+66", phone: "", email: "", optIn: false }
@@ -663,6 +777,7 @@ function ContactInformation({ t, value, onChange, showErrors }) {
     >
       <h3 style={{ marginTop: 0 }}>{t.contact}</h3>
 
+      {/* Phone row */}
       <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 8 }}>
         <div>
           <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>
@@ -704,11 +819,14 @@ function ContactInformation({ t, value, onChange, showErrors }) {
             }}
           />
           {phoneErr && (
-            <div style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{t.required}</div>
+            <div style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>
+              {t.required}
+            </div>
           )}
         </div>
       </div>
 
+      {/* Email row */}
       <div style={{ marginTop: 10 }}>
         <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>
           {label(t.emailAddress)}
@@ -726,10 +844,13 @@ function ContactInformation({ t, value, onChange, showErrors }) {
           }}
         />
         {emailErr && (
-          <div style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{t.required}</div>
+          <div style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>
+            {t.required}
+          </div>
         )}
       </div>
 
+      {/* Opt in */}
       <label
         style={{
           display: "flex",
@@ -816,6 +937,7 @@ export default function PriceDetailSkyBlue() {
     for (let i = 1; i <= pax.infant; i++)
       arr.push({ id: `INF-${i}`, type: "INF", label: `${t.infant} ${i}` });
     return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pax.adult, pax.child, pax.infant, lang]);
 
   // Forms per traveller + which modal is open
@@ -841,6 +963,7 @@ export default function PriceDetailSkyBlue() {
   };
 
   const isComplete = (v) => v && v.firstName && v.lastName && v.dob;
+  const allCompleted = travellers.every((p) => isComplete(forms[p.id]));
   const firstAdultName =
     travellers[0] &&
     forms[travellers[0].id]?.firstName &&
@@ -854,100 +977,92 @@ export default function PriceDetailSkyBlue() {
       maximumFractionDigits: 2,
     })} ${ccy}`;
 
-  /* ==== Bundles (catalog) ==== */
+  /* ==== Bundles data & selection ==== */
   const bundles = useMemo(
     () => [
       {
         id: "lite",
         title: "Value Pack Lite",
-        subtitle: lang === "th" ? "ประหยัดสูงสุด 30%" : "Save up to 30%",
+        color: "blue",
+        saveText: lang === "th" ? "ประหยัดสูงสุด 30%" : "Save up to 30%",
         features: [
-          lang === "th" ? "สัมภาระขึ้นเครื่อง 7 กก." : "7 kg carry-on baggage",
-          lang === "th" ? "น้ำหนักสัมภาระ 15 กก." : "15 kg baggage allowance",
-          lang === "th" ? "ที่นั่งมาตรฐาน" : "Standard seat",
+          { icon: "suitcase", text: lang === "th" ? "สัมภาระขึ้นเครื่อง 7 กก." : "7 kg carry–on baggage" },
+          { icon: "suitcase", text: lang === "th" ? "น้ำหนักสัมภาระ 15 กก." : "15 kg baggage allowance" },
+          { icon: "seat",     text: lang === "th" ? "ที่นั่งมาตรฐาน" : "Standard seat" },
         ],
-        addOnAmount: 0,
-        accent: "#3b82f6",
       },
       {
         id: "value",
         title: "Value Pack",
-        subtitle: lang === "th" ? "ประหยัดสูงสุด 30%" : "Save up to 30%",
+        color: "amber",
+        saveText: lang === "th" ? "ประหยัดสูงสุด 30%" : "Save up to 30%",
         features: [
-          "7 kg carry-on baggage",
-          "20 kg baggage allowance",
-          "Standard seat",
-          "1 meal",
-          "Duty Free RM50 Voucher",
-          lang === "th" ? "ประกัน Lite (Tune Protect)" : "Lite Insurance (Tune Protect)",
+          { icon: "suitcase", text: "7kg carry–on baggage" },
+          { icon: "suitcase", text: "20kg baggage allowance" },
+          { icon: "seat",     text: "Standard seat" },
+          { icon: "meal",     text: "1 meal" },
+          { icon: "voucher",  text: "Duty Free RM50 Voucher" },
+          { icon: "shield",   text: lang === "th" ? "ประกัน Lite (Tune Protect)" : "Lite Insurance (Tune Protect)" },
         ],
-        addOnAmount: 250.0,
-        accent: "#f59e0b",
       },
       {
         id: "premium",
         title: "Premium Flex",
-        subtitle: lang === "th" ? "ประหยัดสูงสุด 20%" : "Save up to 20%",
+        color: "rose",
+        saveText: lang === "th" ? "ประหยัดสูงสุด 20%" : "Save up to 20%",
         features: [
-          "7 kg carry-on baggage",
-          "20 kg baggage allowance",
-          "Standard/Hot seat",
+          { icon: "suitcase", text: "7 kg carry–on baggage" },
+          { icon: "suitcase", text: "20 kg baggage allowance" },
+          { icon: "seat",     text: "Standard/Hot seat" },
         ],
-        addOnAmount: 450.0,
-        accent: "#f43f5e",
       },
     ],
     [lang]
   );
 
-  // 🔎 Legs: scan entire API and build one bundle group per segment (after filtering)
-  const legs = useMemo(() => {
-    const d = detail?.raw || {};
-    const found = extractLegs(d);
-    // if your API sometimes sends 2 separate root objects (array), we already handle it in extractLegs
-    return found.length
-      ? found
-      : [
-          {
-            key: "OUT-1",
-            origin: "",
-            destination: "",
-            depTime: null,
-            arrTime: null,
-            fn: "",
-            dir: "OUT",
-          },
-        ];
-  }, [detail?.raw]);
+  /* ---- ROUTES from API (supports one-way) ---- */
+  const routes = useMemo(() => buildRoutes(detail?.raw ?? rawDetail ?? {}, lang), [detail?.raw, rawDetail, lang]);
 
-  // selection per leg: { 'OUT-1': 'value', 'IN-2': 'lite', ... }
+  /* Demo prices (map every detected route id) */
+  const prices = useMemo(() => {
+    const guests = pax.adult + pax.child;
+    const perRoute = {};
+    routes.forEach((r, idx) => {
+      perRoute[r.id] = {
+        amount: idx === 0 ? "THB 2,482.40" : "THB 2,482.40",
+        guests,
+      };
+    });
+    return {
+      lite: Object.fromEntries(routes.map((r) => [r.id, { amount: "THB 1,968.80", guests }])),
+      value: perRoute,
+      premium: Object.fromEntries(routes.map((r) => [r.id, { amount: "THB 4,108.80", guests }])),
+    };
+  }, [routes, pax.adult, pax.child]);
+
   const [selectedBundles, setSelectedBundles] = useState({});
   useEffect(() => {
-    setSelectedBundles((prev) => {
-      const next = { ...prev };
-      for (const leg of legs) if (!next[leg.key]) next[leg.key] = "value";
-      return next;
-    });
-  }, [legs]);
+    // initialize selection (value for all routes)
+    if (routes.length) {
+      setSelectedBundles((prev) => {
+        const next = { ...prev };
+        routes.forEach((r) => {
+          if (!next[r.id]) next[r.id] = "value";
+        });
+        return next;
+      });
+    }
+  }, [routes]);
+  const onBundleChange = ({ routeId, bundleId }) => {
+    setSelectedBundles((prev) => ({ ...prev, [routeId]: bundleId }));
+  };
 
-  const setBundleForLeg = (legKey, bundleId) =>
-    setSelectedBundles((s) => ({ ...s, [legKey]: bundleId }));
-
-  /* ==== Contact information ==== */
+  /* ==== Contact information state & validation ==== */
   const [contact, setContact] = useState({ dialCode: "+66", phone: "", email: "", optIn: false });
   const [showContactErrors, setShowContactErrors] = useState(false);
   const contactValid = contact.phone.trim() && contact.email.trim();
-  const canContinue = travellers.every((p) => isComplete(forms[p.id])) && contactValid;
 
-  // totals: sum add-on across legs
-  const currency = detail?.currency || "THB";
-  const addOnTotal = legs.reduce((sum, leg) => {
-    const bId = selectedBundles[leg.key];
-    const b = bundles.find((x) => x.id === bId);
-    return sum + (b?.addOnAmount || 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, 0);
-  const grandTotal = detail ? detail.totalAmount + addOnTotal : addOnTotal;
+  const canContinue = travellers.every((p) => isComplete(forms[p.id])) && contactValid;
 
   return (
     <div
@@ -1086,80 +1201,15 @@ export default function PriceDetailSkyBlue() {
                   showErrors={showContactErrors}
                 />
 
-                {/* ===== Bundle groups: one per (cleaned) segment ===== */}
+                {/* Add-on bundles */}
                 <div style={{ marginTop: 20 }}>
-                  {legs.map((leg, idx) => {
-                    const labelGuess =
-                      leg.dir === "IN" ? t.ret :
-                      leg.dir === "OUT" ? t.depart :
-                      `${t.segment} ${idx + 1}`;
-
-                    const name = `bundle-${leg.key}`;
-                    const headerText = [
-                      leg.origin && leg.destination ? `${leg.origin} → ${leg.destination}` : null,
-                      leg.fn ? leg.fn : null,
-                      leg.depTime ? `${formatDDMMM(leg.depTime)} ${hhmm(leg.depTime)}` : null,
-                      leg.arrTime ? `→ ${hhmm(leg.arrTime)}` : null,
-                    ].filter(Boolean).join(" • ");
-
-                    return (
-                      <div
-                        key={leg.key}
-                        style={{
-                          marginBottom: 18,
-                          padding: 12,
-                          borderRadius: 10,
-                          border: "1px solid #e5e7eb",
-                          background: "#ffffff",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div
-                            style={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: 999,
-                              background: "#16a34a",
-                              color: "#fff",
-                              display: "grid",
-                              placeItems: "center",
-                              fontWeight: 800,
-                              flexShrink: 0,
-                            }}
-                          >
-                            ★
-                          </div>
-                          <div style={{ fontSize: 16, fontWeight: 800 }}>
-                            {labelGuess} {headerText ? `• ${headerText}` : ""}
-                          </div>
-                        </div>
-
-                        <div style={{ color: "#475569", fontSize: 13, margin: "8px 0 12px" }}>
-                          {t.selectOneBundle}
-                        </div>
-
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                          {bundles.map((b) => (
-                            <BundleCard
-                              key={`${leg.key}-${b.id}`}
-                              name={name}
-                              checked={selectedBundles[leg.key] === b.id}
-                              onChange={() => setBundleForLeg(leg.key, b.id)}
-                              title={b.title}
-                              subtitle={b.subtitle}
-                              features={b.features}
-                              priceLabel={
-                                b.addOnAmount > 0
-                                  ? `${fmt(b.addOnAmount, detail?.currency || "THB")}`
-                                  : (lang === "th" ? STR.th.included : STR.en.included)
-                              }
-                              accent={b.accent}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <AddOnBundles
+                    bundles={bundles}
+                    routes={routes}
+                    prices={prices}
+                    defaultSelected={selectedBundles}
+                    onChange={onBundleChange}
+                  />
                 </div>
               </div>
             </div>
@@ -1199,17 +1249,18 @@ export default function PriceDetailSkyBlue() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr auto", rowGap: 8 }}>
                   <div style={{ color: "#555" }}>{t.baseFare}</div>
                   <div>
-                    <strong>{fmt(detail.baseFareAmount, currency)}</strong>
+                    <strong>{fmt(detail.baseFareAmount, detail.currency)}</strong>
                   </div>
 
                   <div style={{ color: "#555" }}>{t.tax}</div>
                   <div>
-                    <strong>{fmt(detail.taxAmount, currency)}</strong>
+                    <strong>{fmt(detail.taxAmount, detail.currency)}</strong>
                   </div>
 
                   <div style={{ color: "#555" }}>{t.addons}</div>
                   <div>
-                    <strong>{fmt(addOnTotal, currency)}</strong>
+                    {/* Wire this to selected bundle prices if desired */}
+                    <strong>{fmt(0, detail.currency)}</strong>
                   </div>
 
                   <div
@@ -1218,7 +1269,7 @@ export default function PriceDetailSkyBlue() {
 
                   <div style={{ color: "#0a5c57", fontWeight: 700 }}>{t.total}</div>
                   <div style={{ fontSize: 20, color: "#0077aa", fontWeight: 800 }}>
-                    {fmt(grandTotal, currency)}
+                    {fmt(detail.totalAmount, detail.currency)}
                   </div>
                 </div>
 
@@ -1240,11 +1291,7 @@ export default function PriceDetailSkyBlue() {
                     if (!canContinue) return;
                     alert(
                       "✅ Continue to seats / add-ons.\n\n" +
-                        JSON.stringify(
-                          { pax, forms, contact, selectedBundles, legs },
-                          null,
-                          2
-                        )
+                        JSON.stringify({ pax, forms, contact, selectedBundles }, null, 2)
                     );
                   }}
                 >
@@ -1335,6 +1382,7 @@ export default function PriceDetailSkyBlue() {
             onChange={(v) => updateForm(openId, v)}
             onSave={(v) => saveModal(openId, v)}
             showSave={true}
+            points={95}
           />
         )}
       </Modal>
