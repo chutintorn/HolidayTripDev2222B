@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+
 import { selectResults } from "../redux/searchSlice";
 import { flattenFlights } from "../utils/flattenFlights";
 import {
@@ -41,7 +42,6 @@ const dowColors = {
   Sun: "#FF4500",
 };
 
-/** Build header display bits from the first row of a leg */
 function getHeaderParts(rows) {
   const first = Array.isArray(rows) ? rows[0] : null;
   if (!first) {
@@ -63,7 +63,155 @@ function getHeaderParts(rows) {
   };
 }
 
-/* ---------- One leg box (table + optional inline NEXT) ---------- */
+/* ============================================================
+ * LiteCard (70% sizing) — matches JourneyTable card UI
+ * Props:
+ * - row
+ * - currency
+ * - selected (bool)
+ * - open (bool)
+ * - onSelect()   // select Lite fare
+ * - onToggle()   // toggle details
+ * ============================================================ */
+function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle }) {
+  return (
+    <article className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center">
+      {/* LEFT META */}
+      <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
+        <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
+          <img
+            className="w-full h-full object-cover"
+            alt="Nok Air"
+            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
+          />
+        </div>
+        <div>
+          <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
+            Economy
+          </span>
+
+          <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
+            {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin} → {row.destination}
+          </div>
+
+          {/* Timeline */}
+          <div className="flex items-center gap-3 mt-0.5">
+            <div className="text-[18px] font-extrabold">{row.departureTime}</div>
+            <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
+              <span className="absolute left-0 right-0 mx-auto -top-[7px] block h-[1px] w-[80px] bg-slate-300 rounded" />
+            </div>
+            <div className="text-[18px] font-extrabold">{row.arrivalTime}</div>
+          </div>
+
+          {/* Foot meta */}
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
+            <span>
+              {row.aircraftDescription
+                ? `${row.aircraftDescription} • ${row.duration}`
+                : row.duration}
+            </span>
+            <span>•</span>
+            <span>Nonstop</span>
+            <span>•</span>
+            <span>7 kg per person</span>
+            {row.co2 && (
+              <>
+                <span>•</span>
+                <span>{row.co2}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* RIGHT — price (Lite only), Select, Details toggle */}
+      <div className="flex flex-col items-end gap-1.5">
+        <div className="text-right">
+          <div
+            className={
+              "text-[#0b4f8a] font-bold text-[20px] leading-none " +
+              (selected ? "underline decoration-amber-300" : "")
+            }
+          >
+            {fmtMoney(row.fareAmountIncludingTax, currency)}
+          </div>
+          <div className="text-[10px] text-slate-500">/5 pax*</div>
+        </div>
+
+        <button
+          onClick={onSelect}
+          className={
+            "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm " +
+            (selected ? "bg-[#0a65a0]" : "bg-[#0B73B1] hover:bg-[#0a65a0]")
+          }
+        >
+          Select
+        </button>
+
+        <button
+          onClick={onToggle}
+          className="text-[11px] text-slate-700 border-b border-dashed border-slate-400"
+        >
+          {open ? "Hide details ▴" : "Details ▾"}
+        </button>
+      </div>
+
+      {/* INLINE DETAILS */}
+      <div
+        className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
+          open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
+        }`}
+        aria-hidden={!open}
+      >
+        <div className="min-h-0 pt-2">
+          <div className="relative pl-5">
+            <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-200 rounded" />
+            {/* Depart */}
+            <div className="relative my-2">
+              <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+              <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+                {row.departureTime} • Depart
+              </div>
+              <div className="text-slate-500 text-[11px] mt-0.5">
+                {row.originName || row.origin}
+              </div>
+            </div>
+            {/* Note */}
+            <div className="relative my-2">
+              <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+              <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[10px] text-slate-700">
+                <div className="font-semibold">
+                  {row.marketingCarrier || "Nok Air"},{" "}
+                  {row.flightNumber || ""}
+                </div>
+                <div className="text-slate-500">Short-haul</div>
+                <div className="text-[10px] mt-0.5">
+                  {row.perPaxCo2 || "48kg CO₂e"} • est. emissions
+                </div>
+              </div>
+            </div>
+            {/* Arrive */}
+            <div className="relative my-2">
+              <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+              <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+                {row.arrivalTime} • Arrive
+              </div>
+              <div className="text-slate-500 text-[11px] mt-0.5">
+                {row.destinationName || row.destination}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-dashed text-[10px]">
+            ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/* ---------- One leg box: header + list of Lite cards, optional inline NEXT (one-way) ---------- */
 function LegBox({
   title,
   rows,
@@ -74,61 +222,11 @@ function LegBox({
   onInlineNext,        // () => void
   inlinePriceKey = "", // request key for pricing state when inline button is shown
 }) {
-  const [selectedRow, setSelectedRow] = useState(null);
-  const [selectedFareKey, setSelectedFareKey] = useState(null);
+  const [openId, setOpenId] = useState(null);
+  const [selected, setSelected] = useState(null); // selection object
 
   const inlineStatus = useSelector(selectPricingStatus(inlinePriceKey));
   const inlineDetail = useSelector(selectPriceFor(inlinePriceKey));
-
-  const cols = [
-    "departureTime",
-    "arrivalTime",
-    "duration",
-    "flightNumber",
-    "aircraftDescription",
-    "fareAmountIncludingTax",
-    "nokXtraAmount",
-    "nokMaxAmount",
-  ];
-
-  const label = (col) => {
-    if (col === "fareAmountIncludingTax") return "Nok Lite";
-    if (col === "nokXtraAmount") return "Nok X-TRA";
-    if (col === "nokMaxAmount") return "Nok MAX";
-    if (col === "departureTime") return "Departure";
-    if (col === "arrivalTime") return "Arrival";
-    if (col === "flightNumber") return "Flight";
-    if (col === "aircraftDescription") return "Aircraft";
-    return col;
-  };
-
-  const pickFare = (row, col) => {
-    let fareKey = "";
-    if (col === "fareAmountIncludingTax") fareKey = row.fareKey;   // LITE
-    else if (col === "nokXtraAmount")     fareKey = row.farekey1;  // X-TRA
-    else if (col === "nokMaxAmount")      fareKey = row.farekey2;  // MAX
-    if (!fareKey) return;
-
-    // toggle off if clicked again
-    if (selectedRow?.id === row.id && selectedFareKey === fareKey) {
-      setSelectedRow(null);
-      setSelectedFareKey(null);
-      onSelect?.(null);
-      return;
-    }
-
-    const selection = {
-      fareKey,
-      journeyKey: row.journeyKey,
-      securityToken: row.securityToken || fallbackToken,
-      currency,
-      row,
-    };
-
-    setSelectedRow(row);
-    setSelectedFareKey(fareKey);
-    onSelect?.(selection);
-  };
 
   if (!Array.isArray(rows) || rows.length === 0) {
     return (
@@ -138,23 +236,47 @@ function LegBox({
     );
   }
 
-  // Build header parts (origin → dest, date, DOW chip)
   const hdr = getHeaderParts(rows);
+
+  const pickLite = (row) => {
+    const fareKey = row?.fareKey; // LITE key
+    if (!fareKey) return;
+
+    // Toggle off if same card clicked again
+    if (selected?.fareKey === fareKey && selected?.journeyKey === row.journeyKey) {
+      setSelected(null);
+      onSelect?.(null);
+      return;
+    }
+
+    const selection = {
+      brand: "LITE",
+      fareKey,
+      journeyKey: row.journeyKey,
+      securityToken: row.securityToken || fallbackToken,
+      currency,
+      row,
+    };
+    setSelected(selection);
+    onSelect?.(selection);
+  };
 
   return (
     <div className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm">
-      {/* Title + header line */}
-      <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-wrap">
-        {title && <div className="text-slate-700 font-semibold">{title}</div>}
+      {/* Title + header line — scaled to 200% */}
+      <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-wrap text-[200%] leading-tight">
+        {title && (
+          <div className="text-slate-700 font-semibold text-[0.5em]">{title}</div>
+        )}
         {(hdr.origin || hdr.destination) && (
-          <div className="text-blue-600 font-semibold">
+          <div className="text-blue-600 font-semibold text-[0.9em]">
             {hdr.origin} → {hdr.destination}
           </div>
         )}
-        {hdr.ddMMM && <span className="text-slate-700 text-sm">{hdr.ddMMM}</span>}
+        {hdr.ddMMM && <span className="text-slate-700 text-[0.6em]">{hdr.ddMMM}</span>}
         {hdr.dow && (
           <span
-            className="text-sm font-semibold px-2 py-0.5 rounded"
+            className="font-semibold rounded px-3 py-1 text-[0.6em]"
             style={{ backgroundColor: "#000", color: hdr.chipColor }}
           >
             {hdr.dow}
@@ -162,74 +284,39 @@ function LegBox({
         )}
       </div>
 
-      <div className="w-full overflow-x-auto">
-        <table className="w-full min-w-[860px] text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              {cols.map((c) => (
-                <th key={c} className="px-3 py-2 text-left font-semibold">
-                  {label(c)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
-                className="border-t last:border-b-0"
-              >
-                {cols.map((col) => {
-                  const selectable = [
-                    "fareAmountIncludingTax",
-                    "nokXtraAmount",
-                    "nokMaxAmount",
-                  ].includes(col);
+      {/* List of Lite cards */}
+      <div className="flex flex-col gap-3 px-3 pb-3">
+        {rows.map((row, idx) => {
+          const cardId = row.id || `${row.flightNumber}-${idx}`;
+          const open = openId === cardId;
+          const isSel =
+            selected?.fareKey === row.fareKey && selected?.journeyKey === row.journeyKey;
 
-                  const isSelected =
-                    selectedRow?.id === row.id &&
-                    selectedFareKey ===
-                      (col === "fareAmountIncludingTax"
-                        ? row.fareKey
-                        : col === "nokXtraAmount"
-                        ? row.farekey1
-                        : row.farekey2);
-
-                  const val = row[col];
-                  const display = selectable ? fmtMoney(val, currency) : (val ?? "—");
-
-                  return (
-                    <td
-                      key={col}
-                      onClick={() => selectable && pickFare(row, col)}
-                      className={[
-                        "px-3 py-2 align-top",
-                        selectable ? "font-semibold cursor-pointer" : "",
-                        isSelected ? "bg-yellow-200" : "",
-                      ].join(" ")}
-                      title={selectable ? "Click to select fare" : undefined}
-                    >
-                      {display}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          return (
+            <LiteCard
+              key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
+              row={row}
+              currency={currency}
+              selected={isSel}
+              open={open}
+              onSelect={() => pickLite(row)}
+              onToggle={() => setOpenId(open ? null : cardId)}
+            />
+          );
+        })}
       </div>
 
       {/* Inline NEXT for one-way */}
       {showInlineNext && (
         <div className="px-4 py-3 flex items-center justify-end gap-3 border-t">
           {inlineStatus === "loading" && (
-            <div className="text-sm text-slate-600">Getting offers…</div>
+            <div className="text-xs text-slate-600">Getting offers…</div>
           )}
           {inlineStatus === "failed" && (
-            <div className="text-sm text-red-600">Failed to load price.</div>
+            <div className="text-xs text-red-600">Failed to load price.</div>
           )}
           {inlineStatus === "succeeded" && inlineDetail && (
-            <div className="text-sm font-medium">
+            <div className="text-xs font-medium">
               {typeof inlineDetail.total !== "undefined"
                 ? `Total: ${fmtMoney(inlineDetail.total, inlineDetail.currency || currency)}`
                 : "Pricing available."}
@@ -237,8 +324,8 @@ function LegBox({
           )}
           <button
             onClick={onInlineNext}
-            disabled={!selectedFareKey || inlineStatus === "loading"}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+            disabled={!selected?.fareKey || inlineStatus === "loading"}
+            className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 text-xs"
           >
             {inlineStatus === "loading" ? "Please wait…" : "NEXT"}
           </button>
@@ -321,9 +408,7 @@ export default function RoundTripResultsLite() {
       if (!selectedOutbound) return;
       try {
         await dispatch(fetchPriceDetail({ offers: [selectedOutbound] })).unwrap();
-        // Navigate to detail page with requestKey so page can read from Redux
         navigate("/skyblue-price-detail", { state: { requestKey } });
-        // Or: navigate(`/skyblue-price-detail?key=${encodeURIComponent(requestKey)}`);
       } catch (e) {
         console.error("Pricing failed", e);
       }
@@ -362,12 +447,13 @@ export default function RoundTripResultsLite() {
     if (!canProceed || pricingStatus === "loading") return;
     try {
       await dispatch(
-        fetchPriceDetail({ offers: [selectedOutbound, selectedInbound] })
+        fetchPriceDetail({
+          offers: [selectedOutbound, selectedInbound],
+          currency,
+        })
       ).unwrap();
 
-      // Navigate to detail page with requestKey so page can read from Redux
       navigate("/skyblue-price-detail", { state: { requestKey } });
-      // Or: navigate(`/skyblue-price-detail?key=${encodeURIComponent(requestKey)}`);
     } catch (e) {
       console.error("Pricing failed", e);
     }
@@ -392,7 +478,7 @@ export default function RoundTripResultsLite() {
       />
 
       <div className="mt-2 flex items-center justify-between rounded-xl border bg-white p-3 shadow">
-        <div className="text-sm text-gray-600">
+        <div className="text-xs text-gray-600">
           {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}{" "}
           &nbsp;&nbsp;
           {selectedInbound ? "✓ Return selected" : "• Choose a return"}
@@ -402,7 +488,7 @@ export default function RoundTripResultsLite() {
         </div>
 
         <button
-          className={`px-4 py-2 rounded-lg font-semibold ${
+          className={`px-3 py-1.5 rounded-md font-semibold text-xs ${
             canProceed && pricingStatus !== "loading"
               ? "bg-blue-600 text-white hover:bg-blue-700"
               : "bg-gray-300 text-gray-600"
@@ -415,7 +501,7 @@ export default function RoundTripResultsLite() {
       </div>
 
       {pricingStatus === "succeeded" && priceDetail && (
-        <div className="rounded-xl border bg-slate-50 p-3 text-sm">
+        <div className="rounded-xl border bg-slate-50 p-3 text-xs">
           <div className="font-semibold mb-2">Offer loaded</div>
           {typeof priceDetail.total !== "undefined" ? (
             <div>

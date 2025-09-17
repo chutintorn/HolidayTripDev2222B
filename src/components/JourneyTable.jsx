@@ -34,17 +34,7 @@ const fmtMoney = (n, currency = "THB") => {
 };
 
 /**
- * JourneyTable (One-way view)
- *
- * Props:
- * - resultsOverride?: object | array
- * - currencyOverride?: string
- * - securityTokenOverride?: string
- * - titleOverride?: string
- * - hideHeader?: boolean
- * - showNextButton?: boolean         // default false
- * - onSelectRow?: (selection) => {}  // receives selected fare/row object
- * - onNext?: ({ journeyKey, fareKey }) => {} // optional override for NEXT action
+ * JourneyTable (One-way view) — CARD LAYOUT, LITE ONLY
  */
 export default function JourneyTable({
   resultsOverride = null,
@@ -54,7 +44,7 @@ export default function JourneyTable({
   hideHeader = false,
   showNextButton = false,
   onSelectRow,
-  onNext, // optional override
+  onNext,
 }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -88,8 +78,8 @@ export default function JourneyTable({
 
   const [selectedRow, setSelectedRow] = useState(null);
   const [selectedFare, setSelectedFare] = useState(null); // { brand, fareKey, journeyKey, ... }
+  const [openId, setOpenId] = useState(null);             // controls drawer per-card
 
-  // If empty, show a helpful hint (keeps layout stable)
   if (!rows.length) {
     return (
       <div className="mt-6 rounded-xl border bg-amber-50 text-amber-900 p-4">
@@ -98,52 +88,18 @@ export default function JourneyTable({
     );
   }
 
-  /** Columns to render */
-  const cols = [
-    "departureTime",
-    "arrivalTime",
-    "duration",
-    "flightNumber",
-    "aircraftDescription",
-    "fareAmountIncludingTax",
-    "nokXtraAmount",
-    "nokMaxAmount",
-  ];
-
-  const label = (col) => {
-    if (col === "fareAmountIncludingTax") return "Nok Lite";
-    if (col === "nokXtraAmount") return "Nok X-TRA";
-    if (col === "nokMaxAmount") return "Nok MAX";
-    if (col === "departureTime") return "Departure";
-    if (col === "arrivalTime") return "Arrival";
-    if (col === "flightNumber") return "Flight";
-    if (col === "aircraftDescription") return "Aircraft";
-    return col;
-  };
-
-  /** Fare selection (map LITE/X-TRA/MAX -> fareKey) */
-  const pickFare = (row, col) => {
-    let fareKey = "";
-    let brand = "";
-    if (col === "fareAmountIncludingTax") {
-      fareKey = row.fareKey;   // LITE
-      brand = "LITE";
-    } else if (col === "nokXtraAmount") {
-      fareKey = row.farekey1;  // X-TRA
-      brand = "XTRA";
-    } else if (col === "nokMaxAmount") {
-      fareKey = row.farekey2;  // MAX
-      brand = "MAX";
-    }
+  /** Lite fare selection only */
+  const selectLite = (row) => {
+    const fareKey = row.fareKey; // LITE
     if (!fareKey) return;
 
     const selection = {
-      brand,
+      brand: "LITE",
       fareKey,
       journeyKey: row.journeyKey,
       securityToken: row.securityToken || securityToken,
       currency,
-      row, // full row if needed upstream
+      row,
     };
 
     setSelectedRow(row);
@@ -154,11 +110,10 @@ export default function JourneyTable({
     }
   };
 
-  /** Default NEXT behavior (send only journeyKey + fareKey, like RoundTripResultsLite) */
+  /** Default NEXT behavior */
   const handleInternalNext = async () => {
     if (!selectedFare?.journeyKey || !selectedFare?.fareKey) return;
 
-    // If parent provides onNext, delegate to it
     if (typeof onNext === "function") {
       onNext({
         journeyKey: selectedFare.journeyKey,
@@ -167,7 +122,6 @@ export default function JourneyTable({
       return;
     }
 
-    // Else dispatch internally in "offers" form (single item)
     try {
       await dispatch(
         fetchPriceDetail({
@@ -182,11 +136,8 @@ export default function JourneyTable({
         })
       ).unwrap();
 
-      // After success, navigate to the dedicated detail page.
-      // One-way requestKey convention: fareKey.
       const requestKey = selectedFare.fareKey;
       navigate("/skyblue-price-detail", { state: { requestKey } });
-      // Or: navigate(`/skyblue-price-detail?key=${encodeURIComponent(requestKey)}`);
     } catch (e) {
       console.error("Pricing failed", e);
     }
@@ -195,9 +146,7 @@ export default function JourneyTable({
   /** Header date (local-safe) */
   const depDate = toLocalDate(rows[0]?.departureDate);
   const ddMMM = depDate
-    ? depDate
-        .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
-        .toUpperCase()
+    ? depDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase()
     : "";
   const dow = depDate
     ? depDate.toLocaleDateString("en-GB", { weekday: "short" })
@@ -212,7 +161,7 @@ export default function JourneyTable({
     Sun: "#FF4500",
   };
 
-  // For showing inline pricing result for the currently selected fare
+  // Pricing status for selected fare
   const statusKey = selectedFare?.fareKey || "";
   const selectedStatus = useSelector(selectPricingStatus(statusKey));
   const selectedDetail = useSelector(selectPriceFor(statusKey));
@@ -222,26 +171,24 @@ export default function JourneyTable({
     selectedStatus !== "loading";
 
   return (
-    <div className="journey-table-wrapper w-full">
+    <div className="w-full">
       {!hideHeader && (
-        <h2 className="ml-3 mb-2 text-blue-600 flex items-center gap-2 flex-wrap">
+        /* 2× header row using a scaling wrapper + em sizes inside */
+        <h2 className="ml-1 mb-2 text-blue-700 flex items-center gap-2 flex-wrap text-[200%] leading-tight">
           {titleOverride && (
-            <span className="text-slate-700 text-sm font-semibold">
+            <span className="text-slate-700 font-semibold text-[0.6em]">
               {titleOverride}
             </span>
           )}
-          <span>
+          <span className="font-semibold text-[0.9em]">
             {rows[0]?.origin} → {rows[0]?.destination}
           </span>
           {ddMMM && (
             <>
-              <span className="text-slate-700 text-sm">{ddMMM}</span>
+              <span className="text-slate-700 text-[0.65em]">{ddMMM}</span>
               <span
-                className="text-sm font-semibold px-2 py-0.5 rounded"
-                style={{
-                  backgroundColor: "#000",
-                  color: dowColors[dow] || "#FFF",
-                }}
+                className="font-semibold px-3 py-1 rounded text-[0.6em]"
+                style={{ backgroundColor: "#000", color: dowColors[dow] || "#FFF" }}
               >
                 {dow}
               </span>
@@ -250,73 +197,167 @@ export default function JourneyTable({
         </h2>
       )}
 
-      {/* Full-width table with horizontal scroll when needed */}
-      <div className="w-full overflow-x-auto rounded-xl border bg-white">
-        <table className="w-full min-w-[860px] text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              {cols.map((c) => (
-                <th key={c} className="px-3 py-2 text-left font-semibold">
-                  {label(c)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
-                className="border-t last:border-b-0"
+      {/* RESULT CARDS — 70% sizing */}
+      <div className="flex flex-col gap-3">
+        {rows.map((row, idx) => {
+          const open = openId === (row.id || `${row.flightNumber}-${idx}`);
+          const selected = selectedRow?.fareKey === row.fareKey;
+
+          return (
+            <article
+              key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
+              className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center"
+            >
+              {/* LEFT META */}
+              <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
+                <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
+                  <img
+                    className="w-full h-full object-cover"
+                    alt="Nok Air"
+                    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
+                  />
+                </div>
+                <div>
+                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
+                    Economy
+                  </span>
+
+                  <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
+                    {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin} → {row.destination}
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <div className="text-[18px] font-extrabold">{row.departureTime}</div>
+                    <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
+                      <span className="absolute left-0 right-0 mx-auto -top-[7px] block h-[1px] w-[80px] bg-slate-300 rounded" />
+                    </div>
+                    <div className="text-[18px] font-extrabold">{row.arrivalTime}</div>
+                  </div>
+
+                  {/* Foot meta */}
+                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
+                    <span>
+                      {row.aircraftDescription
+                        ? `${row.aircraftDescription} • ${row.duration}`
+                        : row.duration}
+                    </span>
+                    <span>•</span>
+                    <span>Nonstop</span>
+                    <span>•</span>
+                    <span>7 kg per person</span>
+                    {row.co2 && (
+                      <>
+                        <span>•</span>
+                        <span>{row.co2}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT — price (Lite only), Select, Details toggle */}
+              <div className="flex flex-col items-end gap-1.5">
+                <div className="text-right">
+                  <div
+                    className={
+                      "text-[#0b4f8a] font-bold text-[20px] leading-none " +
+                      (selected ? "underline decoration-amber-300" : "")
+                    }
+                  >
+                    {fmtMoney(row.fareAmountIncludingTax, currency)}
+                  </div>
+                  <div className="text-[10px] text-slate-500">/5 pax*</div>
+                </div>
+
+                <button
+                  onClick={() => selectLite(row)}
+                  className={
+                    "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm " +
+                    (selected ? "bg-[#0a65a0]" : "bg-[#0B73B1] hover:bg-[#0a65a0]")
+                  }
+                >
+                  {selectedStatus === "loading" && selectedRow?.fareKey === row.fareKey
+                    ? "Loading…"
+                    : "Select"}
+                </button>
+
+                <button
+                  onClick={() =>
+                    setOpenId(open ? null : (row.id || `${row.flightNumber}-${idx}`))
+                  }
+                  className="text-[11px] text-slate-700 border-b border-dashed border-slate-400"
+                >
+                  {open ? "Hide details ▴" : "Details ▾"}
+                </button>
+              </div>
+
+              {/* INLINE DETAILS */}
+              <div
+                className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
+                  open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
+                }`}
+                aria-hidden={!open}
               >
-                {cols.map((col) => {
-                  const selectable = [
-                    "fareAmountIncludingTax",
-                    "nokXtraAmount",
-                    "nokMaxAmount",
-                  ].includes(col);
+                <div className="min-h-0 pt-2">
+                  <div className="relative pl-5">
+                    <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-200 rounded" />
+                    {/* Depart */}
+                    <div className="relative my-2">
+                      <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+                      <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+                        {row.departureTime} • Depart
+                      </div>
+                      <div className="text-slate-500 text-[11px] mt-0.5">
+                        {row.originName || row.origin}
+                      </div>
+                    </div>
+                    {/* Note */}
+                    <div className="relative my-2">
+                      <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+                      <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[10px] text-slate-700">
+                        <div className="font-semibold">
+                          {row.marketingCarrier || "Nok Air"},{" "}
+                          {row.flightNumber || ""}
+                        </div>
+                        <div className="text-slate-500">Short-haul</div>
+                        <div className="text-[10px] mt-0.5">
+                          {row.perPaxCo2 || "48kg CO₂e"} • est. emissions
+                        </div>
+                      </div>
+                    </div>
+                    {/* Arrive */}
+                    <div className="relative my-2">
+                      <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+                      <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+                        {row.arrivalTime} • Arrive
+                      </div>
+                      <div className="text-slate-500 text-[11px] mt-0.5">
+                        {row.destinationName || row.destination}
+                      </div>
+                    </div>
+                  </div>
 
-                  const isSelected =
-                    selectedRow?.id === row.id &&
-                    selectedFare?.fareKey ===
-                      (col === "fareAmountIncludingTax"
-                        ? row.fareKey
-                        : col === "nokXtraAmount"
-                        ? row.farekey1
-                        : row.farekey2);
-
-                  const val = row[col];
-                  const priceText = selectable ? fmtMoney(val, currency) : "";
-
-                  return (
-                    <td
-                      key={col}
-                      onClick={() => selectable && pickFare(row, col)}
-                      className={[
-                        "px-3 py-2",
-                        selectable ? "font-semibold cursor-pointer" : "",
-                        isSelected ? "bg-yellow-200" : "",
-                      ].join(" ")}
-                    >
-                      {priceText || val || "—"}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <div className="mt-2 pt-2 border-t border-dashed text-[10px]">
+                    ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       {/* Footer */}
-      <div className="mt-3 flex items-center justify-end gap-3">
+      <div className="mt-2 flex items-center justify-end gap-2">
         {selectedStatus === "loading" && (
-          <div className="text-sm text-slate-600">Loading price…</div>
+          <div className="text-xs text-slate-600">Loading price…</div>
         )}
         {selectedStatus === "failed" && (
-          <div className="text-sm text-red-600">Failed to load price.</div>
+          <div className="text-xs text-red-600">Failed to load price.</div>
         )}
         {selectedStatus === "succeeded" && selectedDetail && (
-          <div className="text-sm font-medium">
+          <div className="text-xs font-medium">
             {typeof selectedDetail.total !== "undefined"
               ? `Total: ${fmtMoney(
                   selectedDetail.total,
@@ -331,7 +372,7 @@ export default function JourneyTable({
             onClick={handleInternalNext}
             disabled={!canNext}
             className={
-              "px-4 py-2 rounded-lg text-white text-sm " +
+              "px-3 py-1.5 rounded-md text-white text-xs " +
               (canNext
                 ? "bg-blue-600 hover:bg-blue-700"
                 : "bg-gray-300 cursor-not-allowed")
