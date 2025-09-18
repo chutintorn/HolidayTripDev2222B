@@ -124,25 +124,28 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
         </div>
       </div>
 
-      {/* RIGHT — price (Lite only), Select, Details toggle */}
+      {/* RIGHT — price, Select, Details toggle */}
       <div className="flex flex-col items-end gap-1.5">
         <div className="text-right">
-          <div
-            className={
-              "text-[#0b4f8a] font-bold text-[20px] leading-none " +
-              (selected ? "underline decoration-amber-300" : "")
-            }
+          <span
+            className="font-bold text-[20px] leading-none px-2 py-1 rounded"
+            style={{
+              color: selected ? "#4927F5" : "#0b4f8a",
+              backgroundColor: selected ? "#e6f8ff" : "transparent",
+            }}
           >
             {fmtMoney(row.fareAmountIncludingTax, currency)}
-          </div>
+          </span>
           <div className="text-[10px] text-slate-500">/5 pax*</div>
         </div>
 
         <button
           onClick={onSelect}
           className={
-            "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm " +
-            (selected ? "bg-[#0a65a0]" : "bg-[#0B73B1] hover:bg-[#0a65a0]")
+            "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
+            (selected
+              ? "bg-[#0a65a0] hover:bg-[#26c9ff]"
+              : "bg-[#0B73B1] hover:bg-[#26c9ff]")
           }
         >
           Select
@@ -325,7 +328,7 @@ function LegBox({
           <button
             onClick={onInlineNext}
             disabled={!selected?.fareKey || inlineStatus === "loading"}
-            className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 text-xs"
+            className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-[#26c9ff] disabled:opacity-60 text-xs transition-colors"
           >
             {inlineStatus === "loading" ? "Please wait…" : "NEXT"}
           </button>
@@ -488,9 +491,9 @@ export default function RoundTripResultsLite() {
         </div>
 
         <button
-          className={`px-3 py-1.5 rounded-md font-semibold text-xs ${
+          className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-colors ${
             canProceed && pricingStatus !== "loading"
-              ? "bg-blue-600 text-white hover:bg-blue-700"
+              ? "bg-blue-600 text-white hover:bg-[#26c9ff]"
               : "bg-gray-300 text-gray-600"
           }`}
           disabled={!canProceed || pricingStatus === "loading"}

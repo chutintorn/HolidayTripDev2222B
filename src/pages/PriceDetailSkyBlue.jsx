@@ -157,21 +157,31 @@ function safeDate(s) {
 function formatDDMMM(d) {
   if (!d) return "";
   const dd = String(d.getDate()).padStart(2, "0");
-  const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];
+  const mon = [
+    "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
+  ][d.getMonth()];
   return `${dd}-${mon}`;
 }
 
 function hhmm(d) {
   if (!d) return "";
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes()
+  ).padStart(2, "0")}`;
 }
 
-/* ====== Segment extraction (drop seg 1 & 3: i.e., drop ANY without flightNumber, dedupe) ====== */
+/* ====== Segment extraction (drops any segment without flight number, dedupe) ====== */
 function looksLikeSegment(x) {
   if (!x || typeof x !== "object") return false;
   const o = x.origin || x.from || x.depAirport || x.departureAirport;
   const d = x.destination || x.to || x.arrAirport || x.arrivalAirport;
-  const dep = x.departureTime || x.departureDateTime || x.dep || x.depTime || x.std || x.offBlockTime;
+  const dep =
+    x.departureTime ||
+    x.departureDateTime ||
+    x.dep ||
+    x.depTime ||
+    x.std ||
+    x.offBlockTime;
   return Boolean(o && d && dep);
 }
 
@@ -194,10 +204,20 @@ function normalizeSegment(x) {
     origin: x.origin || x.from || x.depAirport || x.departureAirport || "",
     destination: x.destination || x.to || x.arrAirport || x.arrivalAirport || "",
     depTime: safeDate(
-      x.departureTime || x.departureDateTime || x.depTime || x.dep || x.std || x.offBlockTime
+      x.departureTime ||
+        x.departureDateTime ||
+        x.depTime ||
+        x.dep ||
+        x.std ||
+        x.offBlockTime
     ),
     arrTime: safeDate(
-      x.arrivalTime || x.arrivalDateTime || x.arrTime || x.arr || x.sta || x.onBlockTime
+      x.arrivalTime ||
+        x.arrivalDateTime ||
+        x.arrTime ||
+        x.arr ||
+        x.sta ||
+        x.onBlockTime
     ),
     fn: x.flightNumber || x.flightNo || x.fn || x.marketingFlightNumber || "",
     dir: (x.direction || x.dir || "").toString().toUpperCase(),
@@ -213,19 +233,16 @@ function normalizeSegment(x) {
 function extractLegs(raw) {
   if (!raw) return [];
 
-  // If API returns an array of flight objects (e.g., 2 objects you mentioned)
   const roots = Array.isArray(raw) ? raw : [raw];
   const bucket = new Map();
 
   for (const root of roots) {
     const segs = deepCollectSegments(root);
-    // Also consider "simple root" as a segment
     const maybeRootSeg = looksLikeSegment(root) ? [root] : [];
     const all = [...segs, ...maybeRootSeg];
 
     for (const s of all) {
       const n = normalizeSegment(s);
-      // REQUIRE flight number (drops seg 1 & seg 3 automatically)
       if (!n.fn || !n.depTime || !n.origin || !n.destination) continue;
       const key = `${n.origin}|${n.destination}|${n.depTime.toISOString()}`;
       if (!bucket.has(key)) bucket.set(key, n);
@@ -234,7 +251,6 @@ function extractLegs(raw) {
 
   const cleaned = [...bucket.values()].sort((a, b) => a.depTime - b.depTime);
 
-  // assign stable keys + inferred direction if missing
   return cleaned.map((n, i) => {
     const inferred =
       n.dir === "OUT" || n.dir === "IN"
@@ -260,15 +276,11 @@ function extractLegs(raw) {
 function Chip({ ok, children }) {
   return (
     <span
-      style={{
-        fontSize: 12,
-        padding: "4px 10px",
-        borderRadius: 999,
-        background: ok ? "#e6fffa" : "#e6f2fb",
-        color: ok ? "#0f766e" : "#0a4a72",
-        border: `1px solid ${ok ? "#99f6e4" : "#bfe1fb"}`,
-        fontWeight: 700,
-      }}
+      className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+        ok
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+          : "bg-sky-50 text-sky-800 border border-sky-200"
+      }`}
     >
       {children}
     </span>
@@ -277,30 +289,11 @@ function Chip({ ok, children }) {
 
 function RowCard({ left, right, onClick }) {
   return (
-    <div
-      style={{
-        border: "1px solid #e5e7eb",
-        borderRadius: 12,
-        padding: "12px 14px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        background: "#fff",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{left}</div>
+    <div className="border border-slate-200 rounded-xl p-3 bg-white flex items-center justify-between">
+      <div className="flex items-center gap-3">{left}</div>
       <button
         onClick={onClick}
-        style={{
-          padding: "8px 12px",
-          borderRadius: 10,
-          border: "1px solid #06b6d4",
-          background: "#fff",
-          color: "#0891b2",
-          cursor: "pointer",
-          fontWeight: 600,
-          minWidth: 110,
-        }}
+        className="px-3 py-2 rounded-lg border border-cyan-500 text-cyan-700 font-semibold min-w-[110px]"
       >
         {right}
       </button>
@@ -313,27 +306,11 @@ function Modal({ open, onClose, children }) {
   if (!open) return null;
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 50,
-      }}
+      className="fixed inset-0 bg-black/45 flex items-center justify-center z-50"
       onClick={onClose}
     >
       <div
-        style={{
-          width: "min(720px, 92vw)",
-          maxHeight: "90vh",
-          overflow: "auto",
-          background: "#fff",
-          borderRadius: 12,
-          border: "1px solid #e5e7eb",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.20)",
-        }}
+        className="w-[92vw] max-w-3xl max-h-[90vh] overflow-auto bg-white rounded-xl border border-slate-200 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -372,68 +349,45 @@ function TravellerForm({ t, value, onChange, onSave, showSave = true, points = 9
   };
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="p-4">
       {/* Gender */}
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 13, color: "#475569", marginBottom: 6 }}>
-          {t.passengerDetails}
-        </div>
-        <div
-          style={{
-            display: "inline-flex",
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            overflow: "hidden",
-          }}
-        >
+      <div className="mb-3">
+        <div className="text-sm text-slate-600 mb-1">{t.passengerDetails}</div>
+        <div className="inline-flex border border-slate-300 rounded-lg overflow-hidden">
           <button
             type="button"
             onClick={() => set("gender", "M")}
-            style={{
-              padding: "8px 12px",
-              border: 0,
-              background: local.gender === "M" ? "#e6f8ff" : "#fff",
-              color: local.gender === "M" ? "#0369a1" : "#111827",
-              cursor: "pointer",
-            }}
+            className={`px-3 py-2 text-sm ${
+              local.gender === "M" ? "bg-sky-50 text-sky-700" : "bg-white text-slate-800"
+            }`}
           >
             {t.male}
           </button>
           <button
             type="button"
             onClick={() => set("gender", "F")}
-            style={{
-              padding: "8px 12px",
-              border: 0,
-              background: local.gender === "F" ? "#e6f8ff" : "#fff",
-              color: local.gender === "F" ? "#0369a1" : "#111827",
-              cursor: "pointer",
-              borderLeft: "1px solid #e5e7eb",
-            }}
+            className={`px-3 py-2 text-sm border-l border-slate-300 ${
+              local.gender === "F" ? "bg-sky-50 text-sky-700" : "bg-white text-slate-800"
+            }`}
           >
             {t.female}
           </button>
         </div>
       </div>
 
-      {/* Names */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      {/* Names (stack on mobile, side-by-side md+) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <input
             placeholder={t.firstName}
             value={local.firstName || ""}
             onChange={(e) => set("firstName", e.target.value)}
-            style={{
-              width: "100%",
-              border: `1px solid ${errors.firstName ? "#f87171" : "#e5e7eb"}`,
-              borderRadius: 10,
-              padding: "12px",
-            }}
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+              errors.firstName ? "border-red-400" : "border-slate-300"
+            }`}
           />
           {errors.firstName && (
-            <div style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>
-              {t.required}
-            </div>
+            <div className="text-red-600 text-xs mt-1">{t.required}</div>
           )}
         </div>
         <div>
@@ -441,41 +395,23 @@ function TravellerForm({ t, value, onChange, onSave, showSave = true, points = 9
             placeholder={t.lastName}
             value={local.lastName || ""}
             onChange={(e) => set("lastName", e.target.value)}
-            style={{
-              width: "100%",
-              border: `1px solid ${errors.lastName ? "#f87171" : "#e5e7eb"}`,
-              borderRadius: 10,
-              padding: "12px",
-            }}
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+              errors.lastName ? "border-red-400" : "border-slate-300"
+            }`}
           />
           {errors.lastName && (
-            <div style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>
-              {t.required}
-            </div>
+            <div className="text-red-600 text-xs mt-1">{t.required}</div>
           )}
         </div>
       </div>
 
       {/* Country + DOB */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-          marginTop: 12,
-        }}
-      >
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
         <div>
           <select
             value={local.country || "Thailand"}
             onChange={(e) => set("country", e.target.value)}
-            style={{
-              width: "100%",
-              border: "1px solid #e5e7eb",
-              borderRadius: 10,
-              padding: "12px",
-              background: "#fff",
-            }}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
           >
             <option>Thailand</option>
             <option>Singapore</option>
@@ -489,67 +425,36 @@ function TravellerForm({ t, value, onChange, onSave, showSave = true, points = 9
             placeholder={t.dob}
             value={local.dob || ""}
             onChange={(e) => set("dob", e.target.value)}
-            style={{
-              width: "100%",
-              border: `1px solid ${errors.dob ? "#f87171" : "#e5e7eb"}`,
-              borderRadius: 10,
-              padding: "12px",
-            }}
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+              errors.dob ? "border-red-400" : "border-slate-300"
+            }`}
           />
           {errors.dob && (
-            <div style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>
-              {t.required}
-            </div>
+            <div className="text-red-600 text-xs mt-1">{t.required}</div>
           )}
         </div>
       </div>
 
       {/* Member & email (lookup) */}
-      <div style={{ marginTop: 12 }}>
+      <div className="mt-3">
         <input
           placeholder={t.memberId}
           value={local.memberId || ""}
           onChange={(e) => set("memberId", e.target.value)}
-          style={{
-            width: "100%",
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            padding: "12px",
-            marginBottom: 12,
-          }}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-3"
         />
-        <div
-          style={{
-            padding: 12,
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            background: "#f8fafc",
-          }}
-        >
-          <div style={{ color: "#0f172a", marginBottom: 8 }}>• {t.earnPoints}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+        <div className="p-3 border border-slate-300 rounded-lg bg-slate-50">
+          <div className="text-slate-900 mb-2">• {t.earnPoints}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
             <input
               placeholder={t.email}
               value={local.email || ""}
               onChange={(e) => set("email", e.target.value)}
-              style={{
-                width: "100%",
-                border: "1px solid #e5e7eb",
-                borderRadius: 10,
-                padding: "12px",
-              }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
             <button
               type="button"
-              style={{
-                border: "1px solid #06b6d4",
-                background: "#fff",
-                color: "#0891b2",
-                padding: "10px 16px",
-                borderRadius: 10,
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
+              className="px-4 py-2 rounded-lg border border-cyan-500 text-cyan-700 font-semibold bg-white"
               onClick={() => alert("🔎 Lookup member by email (stub)")}
             >
               {t.search}
@@ -557,24 +462,16 @@ function TravellerForm({ t, value, onChange, onSave, showSave = true, points = 9
           </div>
         </div>
 
-        <div style={{ marginTop: 12, color: "#0f172a" }}>
-          {t.pointsAfter} <span style={{ fontWeight: 700 }}>95 {t.points}</span>
+        <div className="mt-3 text-slate-900">
+          {t.pointsAfter} <span className="font-bold">95 {t.points}</span>
         </div>
       </div>
 
       {showSave && (
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+        <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={save}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 10,
-              background: "#00b8ff",
-              border: 0,
-              color: "#fff",
-              cursor: "pointer",
-              fontWeight: 700,
-            }}
+            className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold"
           >
             {t.save}
           </button>
@@ -585,39 +482,43 @@ function TravellerForm({ t, value, onChange, onSave, showSave = true, points = 9
 }
 
 /* ========================= Bundle Selector (radio – select one per group) ========================= */
-function BundleCard({ name, checked, onChange, title, subtitle, features, priceLabel, accent = "#3b82f6" }) {
+function BundleCard({
+  name,
+  checked,
+  onChange,
+  title,
+  subtitle,
+  features,
+  priceLabel,
+  accent = "#3b82f6",
+}) {
   return (
     <label
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 12,
-        border: `2px solid ${checked ? accent : "#e5e7eb"}`,
-        background: checked ? "#f0f9ff" : "#fff",
-        borderRadius: 14,
-        padding: 14,
-        cursor: "pointer",
-        width: "100%",
-      }}
+      className={`flex items-start gap-3 border-2 rounded-xl p-3 cursor-pointer w-full ${
+        checked ? "bg-sky-50" : "bg-white"
+      }`}
+      style={{ borderColor: checked ? accent : "#e5e7eb" }}
     >
       <input
         type="radio"
         name={name}
         checked={checked}
         onChange={onChange}
-        style={{ marginTop: 4 }}
+        className="mt-1"
       />
-      <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+      <div className="flex-1">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <div style={{ fontWeight: 800 }}>{title}</div>
-            <div style={{ color: "#2563eb", fontSize: 12, fontWeight: 600 }}>{subtitle}</div>
+            <div className="font-extrabold">{title}</div>
+            <div className="text-blue-600 text-xs font-semibold">{subtitle}</div>
           </div>
-          {priceLabel && <div style={{ fontWeight: 700 }}>{priceLabel}</div>}
+          {priceLabel && <div className="font-bold whitespace-nowrap">{priceLabel}</div>}
         </div>
-        <ul style={{ margin: "8px 0 0 18px", color: "#334155", fontSize: 13 }}>
+        <ul className="mt-2 ml-5 text-slate-700 text-sm list-disc">
           {features.map((f, i) => (
-            <li key={i} style={{ marginBottom: 4, listStyle: "disc" }}>{f}</li>
+            <li key={i} className="mb-1">
+              {f}
+            </li>
           ))}
         </ul>
       </div>
@@ -647,37 +548,21 @@ function ContactInformation({ t, value, onChange, showErrors }) {
 
   const label = (text) => (
     <span>
-      {text} <span style={{ color: "#ef4444" }}>*</span>
+      {text} <span className="text-red-500">*</span>
     </span>
   );
 
   return (
-    <div
-      style={{
-        marginTop: 12,
-        background: "#f3f4f6",
-        borderRadius: 12,
-        padding: 16,
-        border: "1px solid #e5e7eb",
-      }}
-    >
-      <h3 style={{ marginTop: 0 }}>{t.contact}</h3>
+    <div className="mt-3 bg-slate-100 rounded-xl p-4 border border-slate-300">
+      <h3 className="mt-0 text-base font-semibold">{t.contact}</h3>
 
-      <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 8 }}>
+      <div className="grid grid-cols-[140px_1fr] max-[480px]:grid-cols-1 gap-2">
         <div>
-          <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>
-            {label("+ Code")}
-          </div>
+          <div className="text-xs text-slate-600 mb-1">{label("+ Code")}</div>
           <select
             value={local.dialCode}
             onChange={(e) => set("dialCode", e.target.value)}
-            style={{
-              width: "100%",
-              border: "1px solid #d1d5db",
-              borderRadius: 10,
-              padding: "10px 12px",
-              background: "#fff",
-            }}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-white"
           >
             <option value="+66">+66</option>
             <option value="+60">+60</option>
@@ -688,58 +573,33 @@ function ContactInformation({ t, value, onChange, showErrors }) {
         </div>
 
         <div>
-          <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>
-            {label(t.mobilePhone)}
-          </div>
+          <div className="text-xs text-slate-600 mb-1">{label(t.mobilePhone)}</div>
           <input
             value={local.phone}
             onChange={(e) => set("phone", e.target.value)}
             placeholder="8x-xxxxxxx"
-            style={{
-              width: "100%",
-              border: `1px solid ${phoneErr ? "#f87171" : "#d1d5db"}`,
-              borderRadius: 10,
-              padding: "10px 12px",
-              background: "#fff",
-            }}
+            className={`w-full rounded-lg border px-3 py-2 bg-white ${
+              phoneErr ? "border-red-400" : "border-slate-300"
+            }`}
           />
-          {phoneErr && (
-            <div style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{t.required}</div>
-          )}
+          {phoneErr && <div className="text-red-600 text-xs mt-1">{t.required}</div>}
         </div>
       </div>
 
-      <div style={{ marginTop: 10 }}>
-        <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>
-          {label(t.emailAddress)}
-        </div>
+      <div className="mt-2">
+        <div className="text-xs text-slate-600 mb-1">{label(t.emailAddress)}</div>
         <input
           value={local.email}
           onChange={(e) => set("email", e.target.value)}
           placeholder="name@example.com"
-          style={{
-            width: "100%",
-            border: `1px solid ${emailErr ? "#f87171" : "#d1d5db"}`,
-            borderRadius: 10,
-            padding: "10px 12px",
-            background: "#fff",
-          }}
+          className={`w-full rounded-lg border px-3 py-2 bg-white ${
+            emailErr ? "border-red-400" : "border-slate-300"
+          }`}
         />
-        {emailErr && (
-          <div style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{t.required}</div>
-        )}
+        {emailErr && <div className="text-red-600 text-xs mt-1">{t.required}</div>}
       </div>
 
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginTop: 10,
-          fontSize: 13,
-          color: "#374151",
-        }}
-      >
+      <label className="flex items-center gap-2 mt-3 text-sm text-slate-700">
         <input
           type="checkbox"
           checked={local.optIn || false}
@@ -776,8 +636,7 @@ export default function PriceDetailSkyBlue() {
       d?.currency || d?.currencyCode || d?.totalCurrency || d?.priceCurrency || "THB";
     const base = d?.baseFareAmount ?? d?.baseFare ?? d?.base ?? d?.fareAmount ?? 0;
     const tax = d?.taxAmount ?? d?.tax ?? d?.taxes ?? 0;
-    const totalExplicit =
-      d?.totalAmount ?? d?.total ?? d?.grandTotal ?? d?.priceTotal;
+    const totalExplicit = d?.totalAmount ?? d?.total ?? d?.grandTotal ?? d?.priceTotal;
     const total =
       typeof totalExplicit === "number" ? totalExplicit : Number(base) + Number(tax);
     return {
@@ -900,11 +759,10 @@ export default function PriceDetailSkyBlue() {
     [lang]
   );
 
-  // 🔎 Legs: scan entire API and build one bundle group per segment (after filtering)
+  // 🔎 Legs from detail.raw / whole API
   const legs = useMemo(() => {
     const d = detail?.raw || {};
     const found = extractLegs(d);
-    // if your API sometimes sends 2 separate root objects (array), we already handle it in extractLegs
     return found.length
       ? found
       : [
@@ -934,7 +792,12 @@ export default function PriceDetailSkyBlue() {
     setSelectedBundles((s) => ({ ...s, [legKey]: bundleId }));
 
   /* ==== Contact information ==== */
-  const [contact, setContact] = useState({ dialCode: "+66", phone: "", email: "", optIn: false });
+  const [contact, setContact] = useState({
+    dialCode: "+66",
+    phone: "",
+    email: "",
+    optIn: false,
+  });
   const [showContactErrors, setShowContactErrors] = useState(false);
   const contactValid = contact.phone.trim() && contact.email.trim();
   const canContinue = travellers.every((p) => isComplete(forms[p.id])) && contactValid;
@@ -950,51 +813,24 @@ export default function PriceDetailSkyBlue() {
   const grandTotal = detail ? detail.totalAmount + addOnTotal : addOnTotal;
 
   return (
-    <div
-      style={{
-        fontFamily: "Arial, Helvetica, sans-serif",
-        background: "#fafafa",
-        minHeight: "100vh",
-        margin: 0,
-      }}
-    >
+    <div className="font-sans bg-gray-50 min-h-screen">
       {/* Top bar */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "12px 16px",
-          background: "#ffffff",
-          borderBottom: "1px solid #e9e9e9",
-          position: "sticky",
-          top: 0,
-          zIndex: 5,
-        }}
-      >
-        <h1 style={{ fontSize: 18, margin: 0 }}>{t.title}</h1>
-        <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex justify-between items-center px-4 py-3 bg-white border-b sticky top-0 z-10">
+        <h1 className="text-base font-bold">{t.title}</h1>
+        <div className="flex gap-2">
           <button
             onClick={() => setLang("th")}
-            style={{
-              border: "1px solid #00b8ff",
-              padding: "6px 10px",
-              borderRadius: 8,
-              background: lang === "th" ? "#e6f8ff" : "#fff",
-              cursor: "pointer",
-            }}
+            className={`px-3 py-1 border rounded ${
+              lang === "th" ? "bg-sky-50 border-sky-400" : "border-sky-400"
+            }`}
           >
             ไทย
           </button>
           <button
             onClick={() => setLang("en")}
-            style={{
-              border: "1px solid #00b8ff",
-              padding: "6px 10px",
-              borderRadius: 8,
-              background: lang === "en" ? "#e6f8ff" : "#fff",
-              cursor: "pointer",
-            }}
+            className={`px-3 py-1 border rounded ${
+              lang === "en" ? "bg-sky-50 border-sky-400" : "border-sky-400"
+            }`}
           >
             English
           </button>
@@ -1002,42 +838,17 @@ export default function PriceDetailSkyBlue() {
       </div>
 
       {/* Main layout */}
-      <div style={{ maxWidth: 1180, margin: "20px auto", padding: "0 16px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 16 }}>
+      <div className="max-w-[1180px] mx-auto my-5 px-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4">
           {/* LEFT */}
           <div>
-            <div
-              style={{
-                background: "#fff",
-                border: "1px solid #e5e7eb",
-                borderRadius: 12,
-                padding: 16,
-              }}
-            >
-              <h2 style={{ marginTop: 0 }}>{t.travellers}</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+              <h2 className="text-lg font-semibold mb-3">{t.travellers}</h2>
 
-              {/* Adult 1 full form */}
+              {/* Adult 1 block */}
               {travellers[0] && (
-                <div
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 12,
-                    overflow: "hidden",
-                    marginTop: 8,
-                    marginBottom: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px 16px",
-                      background: "#fafafa",
-                      borderBottom: "1px solid #e5e7eb",
-                      fontWeight: 700,
-                    }}
-                  >
+                <div className="border border-slate-200 rounded-xl overflow-hidden mb-3">
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 font-bold">
                     <div>{travellers[0].label}</div>
                     <Chip ok={isComplete(forms[travellers[0].id])}>
                       {isComplete(forms[travellers[0].id]) ? t.completed : t.incomplete}
@@ -1056,18 +867,18 @@ export default function PriceDetailSkyBlue() {
               )}
 
               {/* Other travellers */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div className="flex flex-col gap-2">
                 {travellers.slice(1).map((p) => (
                   <RowCard
                     key={p.id}
                     left={
                       <>
-                        <div style={{ fontWeight: 700 }}>{p.label}</div>
+                        <div className="font-bold">{p.label}</div>
                         <Chip ok={isComplete(forms[p.id])}>
                           {isComplete(forms[p.id]) ? STR[lang].completed : STR[lang].incomplete}
                         </Chip>
                         {p.type === "INF" && firstAdultName && (
-                          <span style={{ marginLeft: 10, color: "#0a4a72", fontSize: 13 }}>
+                          <span className="ml-2 text-sky-900 text-sm">
                             {STR[lang].travellingWith} {firstAdultName}
                           </span>
                         )}
@@ -1086,59 +897,47 @@ export default function PriceDetailSkyBlue() {
                   showErrors={showContactErrors}
                 />
 
-                {/* ===== Bundle groups: one per (cleaned) segment ===== */}
-                <div style={{ marginTop: 20 }}>
+                {/* ===== Bundle groups: one per segment ===== */}
+                <div className="mt-5">
                   {legs.map((leg, idx) => {
                     const labelGuess =
-                      leg.dir === "IN" ? t.ret :
-                      leg.dir === "OUT" ? t.depart :
-                      `${t.segment} ${idx + 1}`;
+                      leg.dir === "IN"
+                        ? t.ret
+                        : leg.dir === "OUT"
+                        ? t.depart
+                        : `${t.segment} ${idx + 1}`;
 
                     const name = `bundle-${leg.key}`;
                     const headerText = [
-                      leg.origin && leg.destination ? `${leg.origin} → ${leg.destination}` : null,
+                      leg.origin && leg.destination
+                        ? `${leg.origin} → ${leg.destination}`
+                        : null,
                       leg.fn ? leg.fn : null,
                       leg.depTime ? `${formatDDMMM(leg.depTime)} ${hhmm(leg.depTime)}` : null,
                       leg.arrTime ? `→ ${hhmm(leg.arrTime)}` : null,
-                    ].filter(Boolean).join(" • ");
+                    ]
+                      .filter(Boolean)
+                      .join(" • ");
 
                     return (
                       <div
                         key={leg.key}
-                        style={{
-                          marginBottom: 18,
-                          padding: 12,
-                          borderRadius: 10,
-                          border: "1px solid #e5e7eb",
-                          background: "#ffffff",
-                        }}
+                        className="mb-4 p-3 rounded-xl border border-slate-200 bg-white"
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div
-                            style={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: 999,
-                              background: "#16a34a",
-                              color: "#fff",
-                              display: "grid",
-                              placeItems: "center",
-                              fontWeight: 800,
-                              flexShrink: 0,
-                            }}
-                          >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-green-600 text-white grid place-items-center font-extrabold flex-shrink-0">
                             ★
                           </div>
-                          <div style={{ fontSize: 16, fontWeight: 800 }}>
+                          <div className="text-base font-extrabold">
                             {labelGuess} {headerText ? `• ${headerText}` : ""}
                           </div>
                         </div>
 
-                        <div style={{ color: "#475569", fontSize: 13, margin: "8px 0 12px" }}>
+                        <div className="text-slate-600 text-sm mt-2 mb-3">
                           {t.selectOneBundle}
                         </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div className="flex flex-col gap-2">
                           {bundles.map((b) => (
                             <BundleCard
                               key={`${leg.key}-${b.id}`}
@@ -1151,7 +950,9 @@ export default function PriceDetailSkyBlue() {
                               priceLabel={
                                 b.addOnAmount > 0
                                   ? `${fmt(b.addOnAmount, detail?.currency || "THB")}`
-                                  : (lang === "th" ? STR.th.included : STR.en.included)
+                                  : lang === "th"
+                                  ? STR.th.included
+                                  : STR.en.included
                               }
                               accent={b.accent}
                             />
@@ -1166,75 +967,42 @@ export default function PriceDetailSkyBlue() {
           </div>
 
           {/* RIGHT: Fare summary */}
-          <aside
-            style={{
-              background: "#fff",
-              border: "1px solid #e9e9e9",
-              borderRadius: 12,
-              padding: 16,
-              height: "fit-content",
-              position: "sticky",
-              top: 76,
-            }}
-          >
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>{t.priceSummary}</h3>
+          <aside className="bg-white border border-slate-200 rounded-2xl p-4 h-fit sticky top-20">
+            <h3 className="text-lg font-semibold mb-3">{t.priceSummary}</h3>
 
             {!requestKey && !state?.priceDetail && (
-              <div
-                style={{
-                  padding: 12,
-                  background: "#fff7ed",
-                  border: "1px solid #fed7aa",
-                  borderRadius: 8,
-                  color: "#9a3412",
-                  marginBottom: 12,
-                }}
-              >
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 mb-3">
                 {t.noKey}
               </div>
             )}
 
             {detail ? (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", rowGap: 8 }}>
-                  <div style={{ color: "#555" }}>{t.baseFare}</div>
-                  <div>
-                    <strong>{fmt(detail.baseFareAmount, currency)}</strong>
-                  </div>
+                <div className="grid grid-cols-[1fr_auto] gap-y-2 text-sm">
+                  <div className="text-slate-600">{t.baseFare}</div>
+                  <div className="font-semibold">{fmt(detail.baseFareAmount, currency)}</div>
 
-                  <div style={{ color: "#555" }}>{t.tax}</div>
-                  <div>
-                    <strong>{fmt(detail.taxAmount, currency)}</strong>
-                  </div>
+                  <div className="text-slate-600">{t.tax}</div>
+                  <div className="font-semibold">{fmt(detail.taxAmount, currency)}</div>
 
-                  <div style={{ color: "#555" }}>{t.addons}</div>
-                  <div>
-                    <strong>{fmt(addOnTotal, currency)}</strong>
-                  </div>
+                  <div className="text-slate-600">{t.addons}</div>
+                  <div className="font-semibold">{fmt(addOnTotal, currency)}</div>
 
-                  <div
-                    style={{ height: 1, background: "#e9e9e9", gridColumn: "1 / -1", margin: "6px 0" }}
-                  />
+                  <div className="h-px bg-slate-200 col-span-full my-1" />
 
-                  <div style={{ color: "#0a5c57", fontWeight: 700 }}>{t.total}</div>
-                  <div style={{ fontSize: 20, color: "#0077aa", fontWeight: 800 }}>
+                  <div className="text-emerald-900 font-bold">{t.total}</div>
+                  <div className="text-xl text-sky-700 font-extrabold">
                     {fmt(grandTotal, currency)}
                   </div>
                 </div>
 
                 <button
                   disabled={!canContinue}
-                  style={{
-                    marginTop: 16,
-                    width: "100%",
-                    padding: "12px 16px",
-                    borderRadius: 999,
-                    border: 0,
-                    background: canContinue ? "#00b8ff" : "#9ca3af",
-                    color: "#fff",
-                    cursor: canContinue ? "pointer" : "not-allowed",
-                    fontWeight: 700,
-                  }}
+                  className={`mt-4 w-full px-4 py-3 rounded-full font-bold text-white ${
+                    canContinue
+                      ? "bg-sky-500 hover:bg-sky-600"
+                      : "bg-gray-400 cursor-not-allowed"
+                  }`}
                   onClick={() => {
                     if (!contactValid) setShowContactErrors(true);
                     if (!canContinue) return;
@@ -1251,48 +1019,25 @@ export default function PriceDetailSkyBlue() {
                   {t.continue}
                 </button>
 
-                <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                <div className="mt-2 flex gap-2">
                   <button
                     onClick={() => navigate(-1)}
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 10,
-                      border: "1px solid #ddd",
-                      background: "#fff",
-                      cursor: "pointer",
-                    }}
+                    className="px-3 py-2 rounded-lg border border-slate-300 bg-white"
                   >
                     {t.back}
                   </button>
                 </div>
 
-                <details style={{ marginTop: 10 }}>
-                  <summary style={{ cursor: "pointer", color: "#666" }}>{t.raw}</summary>
-                  <pre
-                    style={{
-                      background: "#f7f7f7",
-                      border: "1px solid #eee",
-                      borderRadius: 8,
-                      padding: 10,
-                      overflowX: "auto",
-                      fontSize: 12,
-                    }}
-                  >
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-slate-600">{t.raw}</summary>
+                  <pre className="bg-slate-100 border border-slate-200 rounded p-2 overflow-x-auto text-xs mt-2">
                     {JSON.stringify(detail.raw, null, 2)}
                   </pre>
                 </details>
               </>
             ) : (
               (requestKey || state?.priceDetail) && (
-                <div
-                  style={{
-                    padding: 12,
-                    background: "#fef2f2",
-                    border: "1px solid #fecaca",
-                    borderRadius: 8,
-                    color: "#991b1b",
-                  }}
-                >
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded text-rose-800">
                   {t.noDetail}
                 </div>
               )
@@ -1303,25 +1048,11 @@ export default function PriceDetailSkyBlue() {
 
       {/* Modal for secondary travellers */}
       <Modal open={!!openId} onClose={() => setOpenId(null)}>
-        <div
-          style={{
-            padding: "12px 16px",
-            borderBottom: "1px solid #e5e7eb",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ fontWeight: 800 }}>{t.passengerDetails}</div>
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <div className="font-extrabold">{t.passengerDetails}</div>
           <button
             onClick={() => setOpenId(null)}
-            style={{
-              border: 0,
-              background: "transparent",
-              fontSize: 20,
-              cursor: "pointer",
-              lineHeight: 1,
-            }}
+            className="text-xl leading-none"
             aria-label={t.cancel}
             title={t.cancel}
           >

@@ -16,9 +16,9 @@ const toLocalDate = (s) => {
   const dstr = ymd(s);
   if (!dstr) return null;
   const y = Number(dstr.slice(0, 4));
-  const m = Number(dstr.slice(5, 7)) - 1;
+  const m = Number(dstr.slice(5, 7)) - 1; // 0-based
   const d = Number(dstr.slice(8, 10));
-  const date = new Date(y, m, d);
+  const date = new Date(y, m, d); // local midnight
   return isNaN(date) ? null : date;
 };
 
@@ -33,6 +33,9 @@ const fmtMoney = (n, currency = "THB") => {
   })}`;
 };
 
+/**
+ * JourneyTable (One-way view) — CARD LAYOUT, LITE ONLY
+ */
 export default function JourneyTable({
   resultsOverride = null,
   currencyOverride,
@@ -46,19 +49,26 @@ export default function JourneyTable({
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  // Global results from Redux (fallbacks for token/currency)
   const globalResults = useSelector(selectResults);
+
+  // Choose which results to render: per-leg override or global
   const raw = resultsOverride ?? globalResults;
 
+  // Common top-level fields most backends include
   const currency =
     currencyOverride || raw?.currency || globalResults?.currency || "THB";
+
   const securityToken =
     securityTokenOverride ||
     raw?.securityToken ||
     globalResults?.securityToken ||
     "";
 
+  // Many APIs wrap arrays under `data`. If not, use the object/array directly.
   const payload = raw?.data ?? raw;
 
+  // Build display rows from the raw payload and keep only well-formed rows.
   const rows = useMemo(() => {
     if (!payload) return [];
     const input = Array.isArray(payload) ? payload : [payload];
@@ -67,8 +77,8 @@ export default function JourneyTable({
   }, [payload, securityToken]);
 
   const [selectedRow, setSelectedRow] = useState(null);
-  const [selectedFare, setSelectedFare] = useState(null);
-  const [openId, setOpenId] = useState(null);
+  const [selectedFare, setSelectedFare] = useState(null); // { brand, fareKey, journeyKey, ... }
+  const [openId, setOpenId] = useState(null);             // controls drawer per-card
 
   if (!rows.length) {
     return (
@@ -78,8 +88,9 @@ export default function JourneyTable({
     );
   }
 
+  /** Lite fare selection only */
   const selectLite = (row) => {
-    const fareKey = row.fareKey;
+    const fareKey = row.fareKey; // LITE
     if (!fareKey) return;
 
     const selection = {
@@ -99,6 +110,7 @@ export default function JourneyTable({
     }
   };
 
+  /** Default NEXT behavior */
   const handleInternalNext = async () => {
     if (!selectedFare?.journeyKey || !selectedFare?.fareKey) return;
 
@@ -131,11 +143,14 @@ export default function JourneyTable({
     }
   };
 
+  /** Header date (local-safe) */
   const depDate = toLocalDate(rows[0]?.departureDate);
   const ddMMM = depDate
     ? depDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase()
     : "";
-  const dow = depDate ? depDate.toLocaleDateString("en-GB", { weekday: "short" }) : "";
+  const dow = depDate
+    ? depDate.toLocaleDateString("en-GB", { weekday: "short" })
+    : "";
   const dowColors = {
     Mon: "#FFD700",
     Tue: "#FF69B4",
@@ -146,6 +161,7 @@ export default function JourneyTable({
     Sun: "#FF4500",
   };
 
+  // Pricing status for selected fare
   const statusKey = selectedFare?.fareKey || "";
   const selectedStatus = useSelector(selectPricingStatus(statusKey));
   const selectedDetail = useSelector(selectPriceFor(statusKey));
@@ -157,6 +173,7 @@ export default function JourneyTable({
   return (
     <div className="w-full">
       {!hideHeader && (
+        /* 2× header row using a scaling wrapper + em sizes inside */
         <h2 className="ml-1 mb-2 text-blue-700 flex items-center gap-2 flex-wrap text-[200%] leading-tight">
           {titleOverride && (
             <span className="text-slate-700 font-semibold text-[0.6em]">
@@ -180,7 +197,7 @@ export default function JourneyTable({
         </h2>
       )}
 
-      {/* RESULT CARDS */}
+      {/* RESULT CARDS — 70% sizing */}
       <div className="flex flex-col gap-3">
         {rows.map((row, idx) => {
           const open = openId === (row.id || `${row.flightNumber}-${idx}`);
@@ -239,28 +256,25 @@ export default function JourneyTable({
                 </div>
               </div>
 
-              {/* RIGHT — price */}
+              {/* RIGHT — price (Lite only), Select, Details toggle */}
               <div className="flex flex-col items-end gap-1.5">
                 <div className="text-right">
-                  <span
-                    className="font-bold text-[20px] leading-none px-2 py-1 rounded"
-                    style={{
-                      color: selected ? "#4927F5" : "#0b4f8a",
-                      backgroundColor: selected ? "#e6f8ff" : "transparent",
-                    }}
+                  <div
+                    className={
+                      "text-[#0b4f8a] font-bold text-[20px] leading-none " +
+                      (selected ? "underline decoration-amber-300" : "")
+                    }
                   >
                     {fmtMoney(row.fareAmountIncludingTax, currency)}
-                  </span>
+                  </div>
                   <div className="text-[10px] text-slate-500">/5 pax*</div>
                 </div>
 
                 <button
                   onClick={() => selectLite(row)}
                   className={
-                    "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
-                    (selected
-                      ? "bg-[#0a65a0] hover:bg-[#26c9ff]"
-                      : "bg-[#0B73B1] hover:bg-[#26c9ff]")
+                    "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm " +
+                    (selected ? "bg-[#0a65a0]" : "bg-[#0B73B1] hover:bg-[#0a65a0]")
                   }
                 >
                   {selectedStatus === "loading" && selectedRow?.fareKey === row.fareKey
@@ -276,6 +290,58 @@ export default function JourneyTable({
                 >
                   {open ? "Hide details ▴" : "Details ▾"}
                 </button>
+              </div>
+
+              {/* INLINE DETAILS */}
+              <div
+                className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
+                  open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
+                }`}
+                aria-hidden={!open}
+              >
+                <div className="min-h-0 pt-2">
+                  <div className="relative pl-5">
+                    <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-200 rounded" />
+                    {/* Depart */}
+                    <div className="relative my-2">
+                      <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+                      <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+                        {row.departureTime} • Depart
+                      </div>
+                      <div className="text-slate-500 text-[11px] mt-0.5">
+                        {row.originName || row.origin}
+                      </div>
+                    </div>
+                    {/* Note */}
+                    <div className="relative my-2">
+                      <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+                      <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[10px] text-slate-700">
+                        <div className="font-semibold">
+                          {row.marketingCarrier || "Nok Air"},{" "}
+                          {row.flightNumber || ""}
+                        </div>
+                        <div className="text-slate-500">Short-haul</div>
+                        <div className="text-[10px] mt-0.5">
+                          {row.perPaxCo2 || "48kg CO₂e"} • est. emissions
+                        </div>
+                      </div>
+                    </div>
+                    {/* Arrive */}
+                    <div className="relative my-2">
+                      <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+                      <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+                        {row.arrivalTime} • Arrive
+                      </div>
+                      <div className="text-slate-500 text-[11px] mt-0.5">
+                        {row.destinationName || row.destination}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 pt-2 border-t border-dashed text-[10px]">
+                    ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
+                  </div>
+                </div>
               </div>
             </article>
           );
@@ -308,7 +374,7 @@ export default function JourneyTable({
             className={
               "px-3 py-1.5 rounded-md text-white text-xs " +
               (canNext
-                ? "bg-blue-600 hover:bg-[#26c9ff]"
+                ? "bg-blue-600 hover:bg-blue-700"
                 : "bg-gray-300 cursor-not-allowed")
             }
           >
