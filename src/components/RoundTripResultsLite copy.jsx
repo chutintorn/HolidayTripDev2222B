@@ -45,7 +45,7 @@ const dowColors = {
 function getHeaderParts(rows) {
   const first = Array.isArray(rows) ? rows[0] : null;
   if (!first) {
-    return { origin: "", destination: "", ddMMM: "", dow: "", chipColor: "#00BFFF" };
+    return { origin: "", destination: "", ddMMM: "", dow: "", chipColor: "#FFF" };
   }
   const depDate = toLocalDate(first?.departureDate);
   const ddMMM = depDate
@@ -59,27 +59,23 @@ function getHeaderParts(rows) {
     destination: first?.destination || "",
     ddMMM,
     dow,
-    chipColor: dowColors[dow] || "#00BFFF",
+    chipColor: dowColors[dow] || "#FFF",
   };
 }
 
 /* ============================================================
- * LiteCard (70% sizing)
+ * LiteCard (70% sizing) — matches JourneyTable card UI
+ * Props:
+ * - row
+ * - currency
+ * - selected (bool)
+ * - open (bool)
+ * - onSelect()   // select Lite fare
+ * - onToggle()   // toggle details
  * ============================================================ */
-function LiteCard({
-  row,
-  currency = "THB",
-  selected,
-  open,
-  onSelect,
-  onToggle,
-  accent = "#00BFFF",
-}) {
+function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle }) {
   return (
-    <article
-      style={{ "--dow": accent }}
-      className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
-    >
+    <article className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center">
       {/* LEFT META */}
       <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
         <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
@@ -148,8 +144,8 @@ function LiteCard({
           className={
             "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
             (selected
-              ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
-              : "bg-[#0B73B1] hover:bg-[var(--dow)]")
+              ? "bg-[#0a65a0] hover:bg-[#26c9ff]"
+              : "bg-[#0B73B1] hover:bg-[#26c9ff]")
           }
         >
           Select
@@ -157,7 +153,7 @@ function LiteCard({
 
         <button
           onClick={onToggle}
-          className="text-[11px] text-slate-700 border-b border-dashed border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)] transition-colors"
+          className="text-[11px] text-slate-700 border-b border-dashed border-slate-400"
         >
           {open ? "Hide details ▴" : "Details ▾"}
         </button>
@@ -269,10 +265,7 @@ function LegBox({
   };
 
   return (
-    <div
-      className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm"
-      style={{ "--dow": hdr.chipColor }}
-    >
+    <div className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm">
       {/* Title + header line — scaled to 200% */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-wrap text-[200%] leading-tight">
         {title && (
@@ -311,7 +304,6 @@ function LegBox({
               open={open}
               onSelect={() => pickLite(row)}
               onToggle={() => setOpenId(open ? null : cardId)}
-              accent={hdr.chipColor}
             />
           );
         })}
@@ -336,7 +328,7 @@ function LegBox({
           <button
             onClick={onInlineNext}
             disabled={!selected?.fareKey || inlineStatus === "loading"}
-            className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-[var(--dow)] disabled:opacity-60 text-xs transition-colors"
+            className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-[#26c9ff] disabled:opacity-60 text-xs transition-colors"
           >
             {inlineStatus === "loading" ? "Please wait…" : "NEXT"}
           </button>
@@ -470,12 +462,8 @@ export default function RoundTripResultsLite() {
     }
   };
 
-  // Use the outbound group's day color for unified NEXT hover
-  const outboundHdr = getHeaderParts(groups[0]?.rows || []);
-  const nextHoverColor = outboundHdr.chipColor || "#00BFFF";
-
   return (
-    <div className="w-full flex flex-col gap-6 mt-4" style={{ "--dow": nextHoverColor }}>
+    <div className="w-full flex flex-col gap-6 mt-4">
       <LegBox
         title="Depart"
         rows={groups[0].rows}
@@ -505,7 +493,7 @@ export default function RoundTripResultsLite() {
         <button
           className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-colors ${
             canProceed && pricingStatus !== "loading"
-              ? "bg-blue-600 text-white hover:bg-[var(--dow)]"
+              ? "bg-blue-600 text-white hover:bg-[#26c9ff]"
               : "bg-gray-300 text-gray-600"
           }`}
           disabled={!canProceed || pricingStatus === "loading"}

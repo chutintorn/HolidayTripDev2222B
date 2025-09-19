@@ -1,12 +1,5 @@
 // src/pages/PriceDetailSkyBlue.jsx
-import React, {
-  useMemo,
-  useState,
-  useEffect,
-  useCallback,
-  memo,
-  useRef,
-} from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { selectPriceFor } from "../redux/pricingSlice";
@@ -14,7 +7,7 @@ import { selectPriceFor } from "../redux/pricingSlice";
 /* ========================= Strings ========================= */
 const STR = {
   en: {
-    title: "Passenger details",
+    title: "Passenger details • SkyBlue",
     travellers: "Travellers",
     adult: "Adult",
     child: "Child",
@@ -64,7 +57,7 @@ const STR = {
     segment: "Segment",
   },
   th: {
-    title: "รายละเอียดผู้โดยสาร",
+    title: "รายละเอียดผู้โดยสาร • SkyBlue",
     travellers: "ผู้โดยสาร",
     adult: "ผู้ใหญ่",
     child: "เด็ก",
@@ -177,7 +170,7 @@ function hhmm(d) {
   ).padStart(2, "0")}`;
 }
 
-/* ====== Segment extraction ====== */
+/* ====== Segment extraction (drops any segment without flight number, dedupe) ====== */
 function looksLikeSegment(x) {
   if (!x || typeof x !== "object") return false;
   const o = x.origin || x.from || x.depAirport || x.departureAirport;
@@ -231,6 +224,12 @@ function normalizeSegment(x) {
   };
 }
 
+/** Extract & clean all segments:
+ * - keep only those WITH flightNumber
+ * - dedupe by origin|destination|depTime
+ * - sort by depTime
+ * - label OUT/IN by provided dir, else by order (first OUT, second IN, others SEG-n)
+ */
 function extractLegs(raw) {
   if (!raw) return [];
 
@@ -274,7 +273,7 @@ function extractLegs(raw) {
 }
 
 /* ===== UI bits ===== */
-const Chip = memo(function Chip({ ok, children }) {
+function Chip({ ok, children }) {
   return (
     <span
       className={`text-xs font-bold px-2.5 py-1 rounded-full ${
@@ -286,9 +285,9 @@ const Chip = memo(function Chip({ ok, children }) {
       {children}
     </span>
   );
-});
+}
 
-const RowCard = memo(function RowCard({ left, right, onClick }) {
+function RowCard({ left, right, onClick }) {
   return (
     <div className="border border-slate-200 rounded-xl p-3 bg-white flex items-center justify-between">
       <div className="flex items-center gap-3">{left}</div>
@@ -300,14 +299,14 @@ const RowCard = memo(function RowCard({ left, right, onClick }) {
       </button>
     </div>
   );
-});
+}
 
 /* ============== Simple Modal ============== */
-const Modal = memo(function Modal({ open, onClose, children }) {
+function Modal({ open, onClose, children }) {
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 bg-black/45 flex items-center justify-center z-50 will-change-transform"
+      className="fixed inset-0 bg-black/45 flex items-center justify-center z-50"
       onClick={onClose}
     >
       <div
@@ -318,46 +317,36 @@ const Modal = memo(function Modal({ open, onClose, children }) {
       </div>
     </div>
   );
-});
+}
 
 /* ============== Traveller Form ============== */
-const TravellerForm = memo(function TravellerForm({
-  t,
-  value,
-  onChange,
-  onSave,
-  showSave = true,
-  points = 95,
-}) {
+function TravellerForm({ t, value, onChange, onSave, showSave = true, points = 95 }) {
   const [local, setLocal] = useState(value || {});
   const [errors, setErrors] = useState({});
 
   useEffect(() => setLocal(value || {}), [value]);
 
-  const set = useCallback((k, v) => {
+  const set = (k, v) => {
     const next = { ...local, [k]: v };
     setLocal(next);
     onChange?.(next);
-  }, [local, onChange]);
+  };
 
-  const required = useCallback(
-    (k) => ((local[k] || "").trim()).length > 0,
-    [local]
-  );
+  const required = (k) => ((local[k] || "").trim()).length > 0;
 
-  const validate = useCallback(() => {
+  const validate = () => {
     const e = {};
     ["firstName", "lastName", "dob"].forEach((k) => {
       if (!required(k)) e[k] = t.required;
     });
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [required, t.required]);
+  };
 
-  const save = useCallback(() => {
+  const save = () => {
     if (!validate()) return;
     onSave?.(local);
-  }, [local, onSave, validate]);
+  };
 
   return (
     <div className="p-4">
@@ -386,7 +375,7 @@ const TravellerForm = memo(function TravellerForm({
         </div>
       </div>
 
-      {/* Names */}
+      {/* Names (stack on mobile, side-by-side md+) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <input
@@ -490,10 +479,10 @@ const TravellerForm = memo(function TravellerForm({
       )}
     </div>
   );
-});
+}
 
-/* ========================= Bundle Selector ========================= */
-const BundleCard = memo(function BundleCard({
+/* ========================= Bundle Selector (radio – select one per group) ========================= */
+function BundleCard({
   name,
   checked,
   onChange,
@@ -523,9 +512,7 @@ const BundleCard = memo(function BundleCard({
             <div className="font-extrabold">{title}</div>
             <div className="text-blue-600 text-xs font-semibold">{subtitle}</div>
           </div>
-          {priceLabel && (
-            <div className="font-bold whitespace-nowrap">{priceLabel}</div>
-          )}
+          {priceLabel && <div className="font-bold whitespace-nowrap">{priceLabel}</div>}
         </div>
         <ul className="mt-2 ml-5 text-slate-700 text-sm list-disc">
           {features.map((f, i) => (
@@ -537,15 +524,10 @@ const BundleCard = memo(function BundleCard({
       </div>
     </label>
   );
-});
+}
 
-/* ========================= Contact Information ========================= */
-const ContactInformation = memo(function ContactInformation({
-  t,
-  value,
-  onChange,
-  showErrors,
-}) {
+/* ========================= Contact Information (small) ========================= */
+function ContactInformation({ t, value, onChange, showErrors }) {
   const [local, setLocal] = useState(
     value || { dialCode: "+66", phone: "", email: "", optIn: false }
   );
@@ -555,22 +537,19 @@ const ContactInformation = memo(function ContactInformation({
     [value]
   );
 
-  const set = useCallback((k, v) => {
+  const set = (k, v) => {
     const next = { ...local, [k]: v };
     setLocal(next);
     onChange?.(next);
-  }, [local, onChange]);
+  };
 
   const phoneErr = showErrors && !local.phone.trim();
   const emailErr = showErrors && !local.email.trim();
 
-  const label = useCallback(
-    (text) => (
-      <span>
-        {text} <span className="text-red-500">*</span>
-      </span>
-    ),
-    []
+  const label = (text) => (
+    <span>
+      {text} <span className="text-red-500">*</span>
+    </span>
   );
 
   return (
@@ -594,34 +573,30 @@ const ContactInformation = memo(function ContactInformation({
         </div>
 
         <div>
-          <div className="text-xs text-slate-600 mb-1">{label(t.emailAddress)}</div>
+          <div className="text-xs text-slate-600 mb-1">{label(t.mobilePhone)}</div>
           <input
-            value={local.email}
-            onChange={(e) => set("email", e.target.value)}
-            placeholder="name@example.com"
+            value={local.phone}
+            onChange={(e) => set("phone", e.target.value)}
+            placeholder="8x-xxxxxxx"
             className={`w-full rounded-lg border px-3 py-2 bg-white ${
-              emailErr ? "border-red-400" : "border-slate-300"
+              phoneErr ? "border-red-400" : "border-slate-300"
             }`}
           />
-          {emailErr && (
-            <div className="text-red-600 text-xs mt-1">{t.required}</div>
-          )}
+          {phoneErr && <div className="text-red-600 text-xs mt-1">{t.required}</div>}
         </div>
       </div>
 
       <div className="mt-2">
-        <div className="text-xs text-slate-600 mb-1">{label(t.mobilePhone)}</div>
+        <div className="text-xs text-slate-600 mb-1">{label(t.emailAddress)}</div>
         <input
-          value={local.phone}
-          onChange={(e) => set("phone", e.target.value)}
-          placeholder="8x-xxxxxxx"
+          value={local.email}
+          onChange={(e) => set("email", e.target.value)}
+          placeholder="name@example.com"
           className={`w-full rounded-lg border px-3 py-2 bg-white ${
-            phoneErr ? "border-red-400" : "border-slate-300"
+            emailErr ? "border-red-400" : "border-slate-300"
           }`}
         />
-        {phoneErr && (
-          <div className="text-red-600 text-xs mt-1">{t.required}</div>
-        )}
+        {emailErr && <div className="text-red-600 text-xs mt-1">{t.required}</div>}
       </div>
 
       <label className="flex items-center gap-2 mt-3 text-sm text-slate-700">
@@ -634,7 +609,7 @@ const ContactInformation = memo(function ContactInformation({
       </label>
     </div>
   );
-});
+}
 
 /* ========================= Page ========================= */
 export default function PriceDetailSkyBlue() {
@@ -646,36 +621,10 @@ export default function PriceDetailSkyBlue() {
   const [lang, setLang] = useState(state?.lang === "th" ? "th" : "en");
   const t = STR[lang];
 
-  // Refs for precise scrolling
-  const headerRef = useRef(null);
-  const passengerTopRef = useRef(null);
-
-  // Mobile flag (stable)
-  const isMobile = useMemo(
-    () => (typeof window !== "undefined"
-      ? window.matchMedia("(max-width: 640px)").matches
-      : false),
-    []
-  );
-
-  // Helper: scroll to passenger card top (accounts for sticky header)
-  const scrollToPassengerTop = useCallback((behavior = "smooth") => {
-    const sentinel = passengerTopRef.current;
-    if (!sentinel) return;
-
-    // Use scroll-margin-top to avoid hiding under sticky header
-    sentinel.scrollIntoView({ block: "start", behavior });
-  }, []);
-
-  // 🔝 On mount: scroll to the passenger box (especially for mobile)
-  useEffect(() => {
-    scrollToPassengerTop(isMobile ? "smooth" : "auto");
-  }, [scrollToPassengerTop, isMobile]);
-
   // Pricing (Redux)
   const requestKey = state?.requestKey || params.get("key") || null;
-  const pricedFromStore = useSelector(
-    useCallback((s) => (requestKey ? selectPriceFor(requestKey)(s) : null), [requestKey])
+  const pricedFromStore = useSelector((s) =>
+    requestKey ? selectPriceFor(requestKey)(s) : null
   );
   const rawDetail = pricedFromStore ?? state?.priceDetail ?? null;
 
@@ -713,6 +662,7 @@ export default function PriceDetailSkyBlue() {
       child: fromState.child ?? (Number.isFinite(chdQ) ? chdQ : 0),
       infant: fromState.infant ?? (Number.isFinite(infQ) ? infQ : 0),
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?.raw, rawDetail, state?.pax, params]);
 
   // Travellers list
@@ -725,7 +675,7 @@ export default function PriceDetailSkyBlue() {
     for (let i = 1; i <= pax.infant; i++)
       arr.push({ id: `INF-${i}`, type: "INF", label: `${t.infant} ${i}` });
     return arr;
-  }, [pax.adult, pax.child, pax.infant, t.adult, t.child, t.infant]);
+  }, [pax.adult, pax.child, pax.infant, lang]);
 
   // Forms per traveller + which modal is open
   const [forms, setForms] = useState({});
@@ -741,48 +691,29 @@ export default function PriceDetailSkyBlue() {
     }
   }, [travellers, forms]);
 
-  const updateForm = useCallback(
-    (id, v) =>
-      setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...v } })),
-    []
-  );
+  const updateForm = (id, v) =>
+    setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...v } }));
 
-  const saveModal = useCallback(
-    (id, v) => {
-      updateForm(id, v);
-      setOpenId(null);
-      // After closing modal, jump back to top of passenger box
-      setTimeout(() => scrollToPassengerTop("smooth"), 0);
-    },
-    [updateForm, scrollToPassengerTop]
-  );
+  const saveModal = (id, v) => {
+    updateForm(id, v);
+    setOpenId(null);
+  };
 
-  const isComplete = useCallback(
-    (v) => v && v.firstName && v.lastName && v.dob,
-    []
-  );
+  const isComplete = (v) => v && v.firstName && v.lastName && v.dob;
+  const firstAdultName =
+    travellers[0] &&
+    forms[travellers[0].id]?.firstName &&
+    forms[travellers[0].id]?.lastName
+      ? `${forms[travellers[0].id].firstName} ${forms[travellers[0].id].lastName}`
+      : "";
 
-  const firstAdultName = useMemo(
-    () =>
-      travellers[0] &&
-      forms[travellers[0].id]?.firstName &&
-      forms[travellers[0].id]?.lastName
-        ? `${forms[travellers[0].id].firstName} ${forms[travellers[0].id].lastName}`
-        : "",
-    [travellers, forms]
-  );
+  const fmt = (n, ccy) =>
+    `${Number(n).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} ${ccy}`;
 
-  const fmt = useCallback(
-    (n, ccy) =>
-      `${Number(n).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })} ${ccy}`,
-    []
-  );
-
-  /* ==== Bundles ==== */
-  const [selectedBundles, setSelectedBundles] = useState({});
+  /* ==== Bundles (catalog) ==== */
   const bundles = useMemo(
     () => [
       {
@@ -847,6 +778,8 @@ export default function PriceDetailSkyBlue() {
         ];
   }, [detail?.raw]);
 
+  // selection per leg: { 'OUT-1': 'value', 'IN-2': 'lite', ... }
+  const [selectedBundles, setSelectedBundles] = useState({});
   useEffect(() => {
     setSelectedBundles((prev) => {
       const next = { ...prev };
@@ -855,11 +788,8 @@ export default function PriceDetailSkyBlue() {
     });
   }, [legs]);
 
-  const setBundleForLeg = useCallback(
-    (legKey, bundleId) =>
-      setSelectedBundles((s) => ({ ...s, [legKey]: bundleId })),
-    []
-  );
+  const setBundleForLeg = (legKey, bundleId) =>
+    setSelectedBundles((s) => ({ ...s, [legKey]: bundleId }));
 
   /* ==== Contact information ==== */
   const [contact, setContact] = useState({
@@ -869,79 +799,41 @@ export default function PriceDetailSkyBlue() {
     optIn: false,
   });
   const [showContactErrors, setShowContactErrors] = useState(false);
-  const contactValid = useMemo(
-    () => contact.phone.trim() && contact.email.trim(),
-    [contact.phone, contact.email]
-  );
-  const canContinue = useMemo(
-    () => travellers.every((p) => isComplete(forms[p.id])) && contactValid,
-    [travellers, forms, isComplete, contactValid]
-  );
+  const contactValid = contact.phone.trim() && contact.email.trim();
+  const canContinue = travellers.every((p) => isComplete(forms[p.id])) && contactValid;
 
   // totals: sum add-on across legs
   const currency = detail?.currency || "THB";
-  const addOnTotal = useMemo(
-    () =>
-      legs.reduce((sum, leg) => {
-        const bId = selectedBundles[leg.key];
-        const b = bundles.find((x) => x.id === bId);
-        return sum + (b?.addOnAmount || 0);
-      }, 0),
-    [legs, selectedBundles, bundles]
-  );
+  const addOnTotal = legs.reduce((sum, leg) => {
+    const bId = selectedBundles[leg.key];
+    const b = bundles.find((x) => x.id === bId);
+    return sum + (b?.addOnAmount || 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, 0);
   const grandTotal = detail ? detail.totalAmount + addOnTotal : addOnTotal;
 
-  /* ====================================================
-     UI
-  ==================================================== */
   return (
     <div className="font-sans bg-gray-50 min-h-screen">
-      {/* Nok Holiday themed header (no rainbow) */}
-      <div
-        ref={headerRef}
-        className="sticky top-0 z-20 w-full border-b bg-[#e3f8ff]"
-        style={{ minHeight: 64 }}
-      >
-        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3 group">
-            <span className="font-bold text-[170%] text-blue-600 tracking-tight transition-colors duration-300 group-hover:text-[#ffe657]">
-              Nok Holiday
-            </span>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                setLang("th");
-                setTimeout(() => scrollToPassengerTop("smooth"), 0);
-              }}
-              className={`px-3 py-1 border rounded ${
-                lang === "th"
-                  ? "bg-blue-600 text-white"
-                  : "border-blue-600 text-blue-600"
-              }`}
-            >
-              ไทย
-            </button>
-            <button
-              onClick={() => {
-                setLang("en");
-                setTimeout(() => scrollToPassengerTop("smooth"), 0);
-              }}
-              className={`px-3 py-1 border rounded ${
-                lang === "en"
-                  ? "bg-blue-600 text-white"
-                  : "border-blue-600 text-blue-600"
-              }`}
-            >
-              English
-            </button>
-          </div>
-        </div>
-
-        {/* Page title row */}
-        <div className="mx-auto max-w-6xl px-4 pb-3">
-          <h1 className="text-xl font-bold text-blue-600">{t.title}</h1>
+      {/* Top bar */}
+      <div className="flex justify-between items-center px-4 py-3 bg-white border-b sticky top-0 z-10">
+        <h1 className="text-base font-bold">{t.title}</h1>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setLang("th")}
+            className={`px-3 py-1 border rounded ${
+              lang === "th" ? "bg-sky-50 border-sky-400" : "border-sky-400"
+            }`}
+          >
+            ไทย
+          </button>
+          <button
+            onClick={() => setLang("en")}
+            className={`px-3 py-1 border rounded ${
+              lang === "en" ? "bg-sky-50 border-sky-400" : "border-sky-400"
+            }`}
+          >
+            English
+          </button>
         </div>
       </div>
 
@@ -950,10 +842,6 @@ export default function PriceDetailSkyBlue() {
         <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4">
           {/* LEFT */}
           <div>
-            {/* Sentinel for precise "scroll to top of passenger box".
-                scroll-mt-24 ensures it appears correctly below sticky header */}
-            <div ref={passengerTopRef} className="h-0 scroll-mt-24" />
-
             <div className="bg-white border border-slate-200 rounded-2xl p-4">
               <h2 className="text-lg font-semibold mb-3">{t.travellers}</h2>
 
@@ -963,9 +851,7 @@ export default function PriceDetailSkyBlue() {
                   <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 font-bold">
                     <div>{travellers[0].label}</div>
                     <Chip ok={isComplete(forms[travellers[0].id])}>
-                      {isComplete(forms[travellers[0].id])
-                        ? t.completed
-                        : t.incomplete}
+                      {isComplete(forms[travellers[0].id]) ? t.completed : t.incomplete}
                     </Chip>
                   </div>
 
@@ -1128,8 +1014,6 @@ export default function PriceDetailSkyBlue() {
                           2
                         )
                     );
-                    // After continue, force scroll passenger top again (UX consistency)
-                    setTimeout(() => scrollToPassengerTop("smooth"), 0);
                   }}
                 >
                   {t.continue}
@@ -1137,10 +1021,7 @@ export default function PriceDetailSkyBlue() {
 
                 <div className="mt-2 flex gap-2">
                   <button
-                    onClick={() => {
-                      navigate(-1);
-                      setTimeout(() => scrollToPassengerTop("smooth"), 0);
-                    }}
+                    onClick={() => navigate(-1)}
                     className="px-3 py-2 rounded-lg border border-slate-300 bg-white"
                   >
                     {t.back}
@@ -1166,17 +1047,11 @@ export default function PriceDetailSkyBlue() {
       </div>
 
       {/* Modal for secondary travellers */}
-      <Modal open={!!openId} onClose={() => {
-        setOpenId(null);
-        setTimeout(() => scrollToPassengerTop("smooth"), 0);
-      }}>
+      <Modal open={!!openId} onClose={() => setOpenId(null)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{t.passengerDetails}</div>
           <button
-            onClick={() => {
-              setOpenId(null);
-              setTimeout(() => scrollToPassengerTop("smooth"), 0);
-            }}
+            onClick={() => setOpenId(null)}
             className="text-xl leading-none"
             aria-label={t.cancel}
             title={t.cancel}

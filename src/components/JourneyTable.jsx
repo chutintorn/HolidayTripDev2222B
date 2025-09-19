@@ -131,9 +131,12 @@ export default function JourneyTable({
     }
   };
 
+  // ===== Day color (same theme as header) =====
   const depDate = toLocalDate(rows[0]?.departureDate);
   const ddMMM = depDate
-    ? depDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase()
+    ? depDate
+        .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
+        .toUpperCase()
     : "";
   const dow = depDate ? depDate.toLocaleDateString("en-GB", { weekday: "short" }) : "";
   const dowColors = {
@@ -145,6 +148,9 @@ export default function JourneyTable({
     Sat: "#CF9FFF",
     Sun: "#FF4500",
   };
+  const accent = dowColors[dow] || "#00BFFF"; // fallback color
+  // Expose the accent as a CSS variable on the container so we can use Tailwind arbitrary values
+  const containerStyle = { "--dow": accent };
 
   const statusKey = selectedFare?.fareKey || "";
   const selectedStatus = useSelector(selectPricingStatus(statusKey));
@@ -155,7 +161,7 @@ export default function JourneyTable({
     selectedStatus !== "loading";
 
   return (
-    <div className="w-full">
+    <div className="w-full" style={containerStyle}>
       {!hideHeader && (
         <h2 className="ml-1 mb-2 text-blue-700 flex items-center gap-2 flex-wrap text-[200%] leading-tight">
           {titleOverride && (
@@ -171,7 +177,7 @@ export default function JourneyTable({
               <span className="text-slate-700 text-[0.65em]">{ddMMM}</span>
               <span
                 className="font-semibold px-3 py-1 rounded text-[0.6em]"
-                style={{ backgroundColor: "#000", color: dowColors[dow] || "#FFF" }}
+                style={{ backgroundColor: "#000", color: accent }}
               >
                 {dow}
               </span>
@@ -189,7 +195,10 @@ export default function JourneyTable({
           return (
             <article
               key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
-              className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center"
+              // Use the same accent var at row level (lets us tweak per-row later if needed)
+              style={{ "--dow": accent }}
+              className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center
+                         transition-colors hover:border-[var(--dow)]"
             >
               {/* LEFT META */}
               <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
@@ -243,10 +252,10 @@ export default function JourneyTable({
               <div className="flex flex-col items-end gap-1.5">
                 <div className="text-right">
                   <span
-                    className="font-bold text-[20px] leading-none px-2 py-1 rounded"
+                    className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
                     style={{
                       color: selected ? "#4927F5" : "#0b4f8a",
-                      backgroundColor: selected ? "#e6f8ff" : "transparent",
+                      backgroundColor: selected ? "rgba(230,248,255,0.9)" : "transparent",
                     }}
                   >
                     {fmtMoney(row.fareAmountIncludingTax, currency)}
@@ -254,13 +263,14 @@ export default function JourneyTable({
                   <div className="text-[10px] text-slate-500">/5 pax*</div>
                 </div>
 
+                {/* Select button: hover color comes from --dow */}
                 <button
                   onClick={() => selectLite(row)}
                   className={
                     "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
                     (selected
-                      ? "bg-[#0a65a0] hover:bg-[#26c9ff]"
-                      : "bg-[#0B73B1] hover:bg-[#26c9ff]")
+                      ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
+                      : "bg-[#0B73B1] hover:bg-[var(--dow)]")
                   }
                 >
                   {selectedStatus === "loading" && selectedRow?.fareKey === row.fareKey
@@ -268,11 +278,12 @@ export default function JourneyTable({
                     : "Select"}
                 </button>
 
+                {/* Details link: underline/border uses accent on hover */}
                 <button
                   onClick={() =>
                     setOpenId(open ? null : (row.id || `${row.flightNumber}-${idx}`))
                   }
-                  className="text-[11px] text-slate-700 border-b border-dashed border-slate-400"
+                  className="text-[11px] text-slate-700 border-b border-dashed border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)] transition-colors"
                 >
                   {open ? "Hide details ▴" : "Details ▾"}
                 </button>
@@ -306,9 +317,9 @@ export default function JourneyTable({
             onClick={handleInternalNext}
             disabled={!canNext}
             className={
-              "px-3 py-1.5 rounded-md text-white text-xs " +
+              "px-3 py-1.5 rounded-md text-white text-xs transition-colors " +
               (canNext
-                ? "bg-blue-600 hover:bg-[#26c9ff]"
+                ? "bg-blue-600 hover:bg-[var(--dow)]"
                 : "bg-gray-300 cursor-not-allowed")
             }
           >
