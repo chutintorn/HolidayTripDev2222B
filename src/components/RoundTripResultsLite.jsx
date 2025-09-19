@@ -77,7 +77,7 @@ const hexToRgba = (hex, alpha = 0.18) => {
 };
 
 /* ============================================================
- * LiteCard (70% sizing)
+ * LiteCard (70% sizing) — with enhanced inline details styling
  * ============================================================ */
 function LiteCard({
   row,
@@ -170,59 +170,67 @@ function LiteCard({
 
         <button
           onClick={onToggle}
-          className="text-[11px] text-slate-700 border-b border-dashed border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)] transition-colors"
+          className={
+            "text-[11px] border-b border-dashed transition-colors " +
+            (open
+              ? "text-blue-700 border-blue-300"
+              : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
+          }
         >
           {open ? "Hide details ▴" : "Details ▾"}
         </button>
       </div>
 
-      {/* INLINE DETAILS */}
+      {/* INLINE DETAILS — enhanced with accent tint + bigger blue labels */}
       <div
         className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
           open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
         }`}
         aria-hidden={!open}
       >
-        <div className="min-h-0 pt-2">
+        <div
+          className="min-h-0 pt-3 pb-3 px-3 rounded-lg"
+          style={{ backgroundColor: hexToRgba(accent, 0.12) }}
+        >
           <div className="relative pl-5">
-            <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-200 rounded" />
+            <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-300 rounded" />
             {/* Depart */}
-            <div className="relative my-2">
+            <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
-              <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+              <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
                 {row.departureTime} • Depart
               </div>
-              <div className="text-slate-500 text-[11px] mt-0.5">
+              <div className="text-slate-600 text-[12px] mt-0.5">
                 {row.originName || row.origin}
               </div>
             </div>
             {/* Note */}
-            <div className="relative my-2">
+            <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
-              <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[10px] text-slate-700">
-                <div className="font-semibold">
+              <div className="bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 shadow-sm">
+                <div className="font-bold text-blue-700 text-[14px]">
                   {row.marketingCarrier || "Nok Air"},{" "}
                   {row.flightNumber || ""}
                 </div>
                 <div className="text-slate-500">Short-haul</div>
-                <div className="text-[10px] mt-0.5">
+                <div className="text-[11px] mt-1">
                   {row.perPaxCo2 || "48kg CO₂e"} • est. emissions
                 </div>
               </div>
             </div>
             {/* Arrive */}
-            <div className="relative my-2">
+            <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
-              <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+              <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
                 {row.arrivalTime} • Arrive
               </div>
-              <div className="text-slate-500 text-[11px] mt-0.5">
+              <div className="text-slate-600 text-[12px] mt-0.5">
                 {row.destinationName || row.destination}
               </div>
             </div>
           </div>
 
-          <div className="mt-2 pt-2 border-t border-dashed text-[10px]">
+          <div className="mt-3 pt-2 border-t border-dashed text-[12px] font-medium text-blue-700">
             ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
           </div>
         </div>

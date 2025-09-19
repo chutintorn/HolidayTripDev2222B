@@ -46,6 +46,61 @@ const hexToRgba = (hex, alpha = 0.18) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+/** ---- Inline details (presentational only) ---- */
+function InlineDetails({ row, accent }) {
+  return (
+    <div
+      className="min-h-0 pt-3 pb-3 px-3 rounded-lg"
+      style={{ backgroundColor: hexToRgba(accent, 0.12) }}
+    >
+      <div className="relative pl-5">
+        <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-300 rounded" />
+
+        {/* Depart */}
+        <div className="relative my-3">
+          <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+          <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
+            {(row?.departureTime || "").toString()} • Depart
+          </div>
+          <div className="text-slate-600 text-[12px] mt-0.5">
+            {row?.originName || row?.origin}
+          </div>
+        </div>
+
+        {/* Note */}
+        <div className="relative my-3">
+          <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+          <div className="bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 shadow-sm">
+            <div className="font-bold text-blue-700 text-[14px]">
+              {row?.marketingCarrier || "Nok Air"},{" "}
+              {row?.flightNumber || ""}
+            </div>
+            <div className="text-slate-500">Short-haul</div>
+            <div className="text-[11px] mt-1">
+              {row?.perPaxCo2 || "48kg CO₂e"} • est. emissions
+            </div>
+          </div>
+        </div>
+
+        {/* Arrive */}
+        <div className="relative my-3">
+          <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+          <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
+            {(row?.arrivalTime || "").toString()} • Arrive
+          </div>
+          <div className="text-slate-600 text-[12px] mt-0.5">
+            {row?.destinationName || row?.destination}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 pt-2 border-t border-dashed text-[12px] font-medium text-blue-700">
+        ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
+      </div>
+    </div>
+  );
+}
+
 export default function JourneyTable({
   resultsOverride = null,
   currencyOverride,
@@ -92,7 +147,7 @@ export default function JourneyTable({
   }
 
   const selectLite = (row) => {
-    const fareKey = row.fareKey;
+    const fareKey = row?.fareKey;
     if (!fareKey) return;
 
     const selection = {
@@ -162,9 +217,9 @@ export default function JourneyTable({
     Sun: "#FF4500",
   };
   const accent = dowColors[dow] || "#00BFFF"; // fallback color
-  // Expose the accent as a CSS variable on the container so we can use Tailwind arbitrary values
   const containerStyle = { "--dow": accent };
 
+  // Pricing state for the **currently selected fareKey only**
   const statusKey = selectedFare?.fareKey || "";
   const selectedStatus = useSelector(selectPricingStatus(statusKey));
   const selectedDetail = useSelector(selectPriceFor(statusKey));
@@ -202,16 +257,15 @@ export default function JourneyTable({
       {/* RESULT CARDS */}
       <div className="flex flex-col gap-3">
         {rows.map((row, idx) => {
-          const open = openId === (row.id || `${row.flightNumber}-${idx}`);
+          const cardId = row.id || `${row.flightNumber}-${idx}`;
+          const open = openId === cardId;
           const selected = selectedRow?.fareKey === row.fareKey;
 
           return (
             <article
               key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
-              // Use the same accent var at row level (lets us tweak per-row later if needed)
               style={{ "--dow": accent }}
-              className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center
-                         transition-colors hover:border-[var(--dow)]"
+              className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
             >
               {/* LEFT META */}
               <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
@@ -261,15 +315,13 @@ export default function JourneyTable({
                 </div>
               </div>
 
-              {/* RIGHT — price */}
+              {/* RIGHT — price / actions */}
               <div className="flex flex-col items-end gap-1.5">
                 <div className="text-right">
                   <span
                     className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
                     style={{
-                      // keep original font colors exactly
                       color: selected ? "#4927F5" : "#0b4f8a",
-                      // only the BACKGROUND changes to the hover accent (with a soft alpha)
                       backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent",
                     }}
                   >
@@ -278,7 +330,6 @@ export default function JourneyTable({
                   <div className="text-[10px] text-slate-500">/5 pax*</div>
                 </div>
 
-                {/* Select button: hover color comes from --dow */}
                 <button
                   onClick={() => selectLite(row)}
                   className={
@@ -290,18 +341,32 @@ export default function JourneyTable({
                 >
                   {selectedStatus === "loading" && selectedRow?.fareKey === row.fareKey
                     ? "Loading…"
+                    : selected
+                    ? "Selected"
                     : "Select"}
                 </button>
 
-                {/* Details link: underline/border uses accent on hover */}
                 <button
-                  onClick={() =>
-                    setOpenId(open ? null : (row.id || `${row.flightNumber}-${idx}`))
+                  onClick={() => setOpenId(open ? null : cardId)}
+                  className={
+                    "text-[11px] border-b border-dashed transition-colors " +
+                    (open
+                      ? "text-blue-700 border-blue-300"
+                      : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
                   }
-                  className="text-[11px] text-slate-700 border-b border-dashed border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)] transition-colors"
                 >
                   {open ? "Hide details ▴" : "Details ▾"}
                 </button>
+              </div>
+
+              {/* INLINE DETAILS (expanded) */}
+              <div
+                className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
+                  open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
+                }`}
+                aria-hidden={!open}
+              >
+                <InlineDetails row={row} accent={accent} />
               </div>
             </article>
           );
