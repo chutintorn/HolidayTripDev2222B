@@ -7,7 +7,7 @@ import React, {
   memo,
   useRef,
 } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { selectPriceFor } from "../redux/pricingSlice";
 
@@ -659,7 +659,9 @@ export default function PriceDetailSkyBlue() {
     []
   );
 
-  /* ===== Smooth, header-aware scroll helper ===== */
+  /* ===== Smooth, header-aware scroll helper =====
+     We compute the target Y so the sentinel sits JUST below the sticky header.
+     Always uses behavior: 'smooth' for animated movement. */
   const [headerHeight, setHeaderHeight] = useState(64);
   useEffect(() => {
     const update = () => {
@@ -668,9 +670,11 @@ export default function PriceDetailSkyBlue() {
       setHeaderHeight(rect?.height || 64);
     };
     update();
+    // Keep header height fresh on resize
     window.addEventListener("resize", update);
+    // Observe header size changes if supported
     let ro;
-    if (typeof ResizeObserver !== "undefined") {
+    if (window.ResizeObserver) {
       ro = new ResizeObserver(update);
       if (headerRef.current) ro.observe(headerRef.current);
     }
@@ -683,13 +687,17 @@ export default function PriceDetailSkyBlue() {
   const scrollToPassengerTop = useCallback(() => {
     const sentinel = passengerTopRef.current;
     if (!sentinel) return;
+
+    // Compute absolute Y position accounting for header height + small gap
     const rect = sentinel.getBoundingClientRect();
     const targetTop = Math.max(0, window.scrollY + rect.top - headerHeight - 8);
+
     window.scrollTo({ top: targetTop, behavior: "smooth" });
   }, [headerHeight]);
 
   // 🔝 On mount: scroll smoothly to the passenger box (especially for mobile)
   useEffect(() => {
+    // Defer a tick so layout is settled
     requestAnimationFrame(() => {
       if (isMobile) scrollToPassengerTop();
     });
@@ -776,6 +784,7 @@ export default function PriceDetailSkyBlue() {
     (id, v) => {
       updateForm(id, v);
       setOpenId(null);
+      // After closing modal, jump back to top of passenger box smoothly
       requestAnimationFrame(() => scrollToPassengerTop());
     },
     [updateForm, scrollToPassengerTop]
@@ -919,30 +928,17 @@ export default function PriceDetailSkyBlue() {
   ==================================================== */
   return (
     <div className="font-sans bg-gray-50 min-h-screen">
-      {/* Nok Holiday themed header */}
+      {/* Nok Holiday themed header (no rainbow) */}
       <div
         ref={headerRef}
         className="sticky top-0 z-20 w-full border-b bg-[#e3f8ff]"
         style={{ minHeight: 64 }}
       >
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          {/* Brand + logo (clickable to go home) */}
-          <div className="flex items-center gap-3">
-            <Link to="/" className="group flex items-center gap-3" aria-label="Go to homepage">
-              <img
-                src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
-                alt="Nok Holiday logo"
-                className="h-8 w-8 rounded"
-                width={32}
-                height={32}
-                loading="lazy"
-                decoding="async"
-                onError={(e) => { e.currentTarget.style.display = "none"; }}
-              />
-              <span className="font-bold text-[170%] text-blue-600 tracking-tight transition-colors duration-300 group-hover:text-[#ffe657]">
-                Nok Holiday
-              </span>
-            </Link>
+          <div className="flex items-center gap-3 group">
+            <span className="font-bold text-[170%] text-blue-600 tracking-tight transition-colors duration-300 group-hover:text-[#ffe657]">
+              Nok Holiday
+            </span>
           </div>
 
           <div className="flex gap-2">
@@ -1163,6 +1159,7 @@ export default function PriceDetailSkyBlue() {
                           2
                         )
                     );
+                    // After continue, force scroll passenger top again (UX consistency)
                     requestAnimationFrame(() => scrollToPassengerTop());
                   }}
                 >

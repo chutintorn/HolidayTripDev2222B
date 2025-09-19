@@ -33,19 +33,6 @@ const fmtMoney = (n, currency = "THB") => {
   })}`;
 };
 
-/** ---- Hex → rgba for soft accent backgrounds ---- */
-const hexToRgba = (hex, alpha = 0.18) => {
-  const m = hex?.trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
-  if (!m) return `rgba(0,0,0,${alpha})`;
-  let h = m[1];
-  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
-  const n = parseInt(h, 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
 export default function JourneyTable({
   resultsOverride = null,
   currencyOverride,
@@ -267,10 +254,8 @@ export default function JourneyTable({
                   <span
                     className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
                     style={{
-                      // keep original font colors exactly
                       color: selected ? "#4927F5" : "#0b4f8a",
-                      // only the BACKGROUND changes to the hover accent (with a soft alpha)
-                      backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent",
+                      backgroundColor: selected ? "rgba(230,248,255,0.9)" : "transparent",
                     }}
                   >
                     {fmtMoney(row.fareAmountIncludingTax, currency)}

@@ -63,19 +63,6 @@ function getHeaderParts(rows) {
   };
 }
 
-/* soft accent background helper */
-const hexToRgba = (hex, alpha = 0.18) => {
-  const m = hex?.trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
-  if (!m) return `rgba(0,0,0,${alpha})`;
-  let h = m[1];
-  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
-  const n = parseInt(h, 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
 /* ============================================================
  * LiteCard (70% sizing)
  * ============================================================ */
@@ -147,8 +134,8 @@ function LiteCard({
           <span
             className="font-bold text-[20px] leading-none px-2 py-1 rounded"
             style={{
-              color: selected ? "#4927F5" : "#0b4f8a", // keep text same
-              backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent", // only bg changes
+              color: selected ? "#4927F5" : "#0b4f8a",
+              backgroundColor: selected ? "#e6f8ff" : "transparent",
             }}
           >
             {fmtMoney(row.fareAmountIncludingTax, currency)}
@@ -231,19 +218,19 @@ function LiteCard({
   );
 }
 
-/* ---------- One leg box ---------- */
+/* ---------- One leg box: header + list of Lite cards, optional inline NEXT (one-way) ---------- */
 function LegBox({
   title,
   rows,
   currency = "THB",
   fallbackToken = "",
-  onSelect,
+  onSelect,            // (selection|null) => void
   showInlineNext = false,
-  onInlineNext,
-  inlinePriceKey = "",
+  onInlineNext,        // () => void
+  inlinePriceKey = "", // request key for pricing state when inline button is shown
 }) {
   const [openId, setOpenId] = useState(null);
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(null); // selection object
 
   const inlineStatus = useSelector(selectPricingStatus(inlinePriceKey));
   const inlineDetail = useSelector(selectPriceFor(inlinePriceKey));
@@ -259,9 +246,10 @@ function LegBox({
   const hdr = getHeaderParts(rows);
 
   const pickLite = (row) => {
-    const fareKey = row?.fareKey;
+    const fareKey = row?.fareKey; // LITE key
     if (!fareKey) return;
 
+    // Toggle off if same card clicked again
     if (selected?.fareKey === fareKey && selected?.journeyKey === row.journeyKey) {
       setSelected(null);
       onSelect?.(null);
@@ -285,7 +273,7 @@ function LegBox({
       className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm"
       style={{ "--dow": hdr.chipColor }}
     >
-      {/* Title + header */}
+      {/* Title + header line — scaled to 200% */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-wrap text-[200%] leading-tight">
         {title && (
           <div className="text-slate-700 font-semibold text-[0.5em]">{title}</div>
@@ -306,7 +294,7 @@ function LegBox({
         )}
       </div>
 
-      {/* Cards */}
+      {/* List of Lite cards */}
       <div className="flex flex-col gap-3 px-3 pb-3">
         {rows.map((row, idx) => {
           const cardId = row.id || `${row.flightNumber}-${idx}`;
@@ -329,7 +317,7 @@ function LegBox({
         })}
       </div>
 
-      {/* Inline NEXT */}
+      {/* Inline NEXT for one-way */}
       {showInlineNext && (
         <div className="px-4 py-3 flex items-center justify-end gap-3 border-t">
           {inlineStatus === "loading" && (
@@ -358,16 +346,18 @@ function LegBox({
   );
 }
 
-/* ---------- Main ---------- */
+/* ---------- Main (one-way = inline NEXT; roundtrip = unified NEXT) ---------- */
 export default function RoundTripResultsLite() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const raw = useSelector(selectResults);
 
+  // Unwrap common API shapes
   const payload = raw?.data ?? raw;
   const token = raw?.securityToken || payload?.securityToken || "";
   const currency = raw?.currency || "THB";
 
+  // Flatten once
   const rows = useMemo(() => {
     if (!payload) return [];
     const input = Array.isArray(payload) ? payload : [payload];
@@ -383,7 +373,7 @@ export default function RoundTripResultsLite() {
     );
   }
 
-  /* Group by direction */
+  /* Group by direction first */
   const byDirMap = rows.reduce((acc, r) => {
     const dir = `${(r.origin || "").trim()}-${(r.destination || "").trim()}`;
     (acc[dir] ||= []).push(r);
@@ -414,13 +404,15 @@ export default function RoundTripResultsLite() {
     groups = [{ title: "Depart", rows }];
   }
 
+  // Track selections
   const [selectedOutbound, setSelectedOutbound] = useState(null);
   const [selectedInbound, setSelectedInbound] = useState(null);
 
   const isRoundTrip = groups.length === 2;
 
-  /* ONE-WAY */
+  /* ---------- ONE-WAY: inline NEXT inside the leg box ---------- */
   if (!isRoundTrip) {
+    // requestKey convention (one-way): fareKey
     const requestKey = selectedOutbound?.fareKey || "";
 
     const doInlineNext = async () => {
@@ -449,9 +441,10 @@ export default function RoundTripResultsLite() {
     );
   }
 
-  /* ROUNDTRIP */
+  /* ---------- ROUNDTRIP: unified NEXT below both boxes ---------- */
   const canProceed = !!(selectedOutbound && selectedInbound);
 
+  // requestKey convention (roundtrip): fareKeyA+fareKeyB
   const requestKey = useMemo(() => {
     const a = selectedOutbound?.fareKey || "";
     const b = selectedInbound?.fareKey || "";
@@ -477,6 +470,7 @@ export default function RoundTripResultsLite() {
     }
   };
 
+  // Use the outbound group's day color for unified NEXT hover
   const outboundHdr = getHeaderParts(groups[0]?.rows || []);
   const nextHoverColor = outboundHdr.chipColor || "#00BFFF";
 
