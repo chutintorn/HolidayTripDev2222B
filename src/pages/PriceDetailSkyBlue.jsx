@@ -650,7 +650,7 @@ export default function PriceDetailSkyBlue() {
   const headerRef = useRef(null);
   const passengerTopRef = useRef(null);
 
-  // Mobile flag (stable)
+  // Mobile / Desktop-TV flags (stable)
   const isMobile = useMemo(
     () =>
       typeof window !== "undefined"
@@ -658,6 +658,15 @@ export default function PriceDetailSkyBlue() {
         : false,
     []
   );
+  const isDesktopOrTV = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const mqDesktop = window.matchMedia("(min-width: 1024px)").matches;
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const looksTV = /Tizen|SmartTV|AppleTV|HbbTV|Web0S|WebOS|NetCast|Roku/i.test(ua);
+    const mqTV = window.matchMedia("(min-width: 1600px)").matches || looksTV;
+    return mqDesktop || mqTV;
+  }, []);
+  const didAutoScrollRef = useRef(false);
 
   /* ===== Smooth, header-aware scroll helper ===== */
   const [headerHeight, setHeaderHeight] = useState(64);
@@ -688,12 +697,19 @@ export default function PriceDetailSkyBlue() {
     window.scrollTo({ top: targetTop, behavior: "smooth" });
   }, [headerHeight]);
 
-  // 🔝 On mount: scroll smoothly to the passenger box (especially for mobile)
+  // 🔝 On mount: scroll smoothly to the passenger box for mobile **and** desktop/TV
   useEffect(() => {
+    if (didAutoScrollRef.current) return;
+    if (!(isMobile || isDesktopOrTV)) return;
+
+    didAutoScrollRef.current = true;
+    // Double RAF ensures layout + header height are settled
     requestAnimationFrame(() => {
-      if (isMobile) scrollToPassengerTop();
+      requestAnimationFrame(() => {
+        scrollToPassengerTop();
+      });
     });
-  }, [scrollToPassengerTop, isMobile]);
+  }, [isMobile, isDesktopOrTV, scrollToPassengerTop]);
 
   // Pricing (Redux)
   const requestKey = state?.requestKey || params.get("key") || null;
