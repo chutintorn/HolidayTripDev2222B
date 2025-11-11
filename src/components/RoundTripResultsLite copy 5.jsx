@@ -1,15 +1,19 @@
-// src/components/RoundTripResultsLite.jsx
 import React, { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 
 import { selectResults } from "../redux/searchSlice";
 import { flattenFlights } from "../utils/flattenFlights";
+
+// Pricing (แสดง inline total + โหลดข้อเสนอ)
 import {
   fetchPriceDetail,
   selectPriceFor,
   selectPricingStatus,
 } from "../redux/pricingSlice";
+
+// Seat map (เรียกทีละขา)
+import { fetchSeatMap } from "../redux/seatMapSlice";
 
 /* ---------- Helpers ---------- */
 const ymd = (s) => (typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "");
@@ -45,13 +49,11 @@ const dowColors = {
 function getHeaderParts(rows) {
   const first = Array.isArray(rows) ? rows[0] : null;
   if (!first) {
-    return { origin: "", destination: "", ddMMM: "", dow: "", chipColor: "#FFF" };
+    return { origin: "", destination: "", ddMMM: "", dow: "", chipColor: "#00BFFF" };
   }
   const depDate = toLocalDate(first?.departureDate);
   const ddMMM = depDate
-    ? depDate
-        .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
-        .toUpperCase()
+    ? depDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase()
     : "";
   const dow = depDate ? depDate.toLocaleDateString("en-GB", { weekday: "short" }) : "";
   return {
@@ -59,23 +61,66 @@ function getHeaderParts(rows) {
     destination: first?.destination || "",
     ddMMM,
     dow,
-    chipColor: dowColors[dow] || "#FFF",
+    chipColor: dowColors[dow] || "#00BFFF",
+  };
+}
+
+/* soft accent background helper */
+const hexToRgba = (hex, alpha = 0.18) => {
+  const m = hex?.trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
+  if (!m) return `rgba(0,0,0,${alpha})`;
+  let h = m[1];
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+/* ---------- Debug packet builder ---------- */
+function buildDebugPackets(offers, secToken) {
+  const API_BASE =
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE) ||
+    "http://localhost:3100";
+  const priceUrl = `${API_BASE}/pricedetails`;
+  const seatUrl = `${API_BASE}/seat-map`;
+  const commonHeaders = { "Content-Type": "application/json" };
+  const headersWithToken = secToken
+    ? { ...commonHeaders, "security-token": secToken }
+    : commonHeaders;
+
+  const bodyPreview = (offers || []).map((o) => ({
+    fareKey: o?.fareKey,
+    journeyKey: o?.journeyKey,
+  }));
+
+  return {
+    priceUrl,
+    seatUrl,
+    priceHeaders: headersWithToken,
+    seatHeaders: headersWithToken,
+    bodyPreview,
   };
 }
 
 /* ============================================================
- * LiteCard (70% sizing) — matches JourneyTable card UI
- * Props:
- * - row
- * - currency
- * - selected (bool)
- * - open (bool)
- * - onSelect()   // select Lite fare
- * - onToggle()   // toggle details
+ * LiteCard (UI)
  * ============================================================ */
-function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle }) {
+function LiteCard({
+  row,
+  currency = "THB",
+  selected,
+  open,
+  onSelect,
+  onToggle,
+  accent = "#00BFFF",
+}) {
   return (
-    <article className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center">
+    <article
+      style={{ "--dow": accent }}
+      className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
+    >
       {/* LEFT META */}
       <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
         <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
@@ -106,9 +151,7 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
           {/* Foot meta */}
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
             <span>
-              {row.aircraftDescription
-                ? `${row.aircraftDescription} • ${row.duration}`
-                : row.duration}
+              {row.aircraftDescription ? `${row.aircraftDescription} • ${row.duration}` : row.duration}
             </span>
             <span>•</span>
             <span>Nonstop</span>
@@ -124,14 +167,14 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
         </div>
       </div>
 
-      {/* RIGHT — price, Select, Details toggle */}
+      {/* RIGHT */}
       <div className="flex flex-col items-end gap-1.5">
         <div className="text-right">
           <span
             className="font-bold text-[20px] leading-none px-2 py-1 rounded"
             style={{
               color: selected ? "#4927F5" : "#0b4f8a",
-              backgroundColor: selected ? "#e6f8ff" : "transparent",
+              backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent",
             }}
           >
             {fmtMoney(row.fareAmountIncludingTax, currency)}
@@ -143,9 +186,7 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
           onClick={onSelect}
           className={
             "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
-            (selected
-              ? "bg-[#0a65a0] hover:bg-[#26c9ff]"
-              : "bg-[#0B73B1] hover:bg-[#26c9ff]")
+            (selected ? "bg-[#0a65a0] hover:bg-[var(--dow)]" : "bg-[#0B73B1] hover:bg-[var(--dow)]")
           }
         >
           Select
@@ -153,7 +194,12 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
 
         <button
           onClick={onToggle}
-          className="text-[11px] text-slate-700 border-b border-dashed border-slate-400"
+          className={
+            "text-[11px] border-b border-dashed transition-colors " +
+            (open
+              ? "text-blue-700 border-blue-300"
+              : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
+          }
         >
           {open ? "Hide details ▴" : "Details ▾"}
         </button>
@@ -166,46 +212,48 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
         }`}
         aria-hidden={!open}
       >
-        <div className="min-h-0 pt-2">
+        <div
+          className="min-h-0 pt-3 pb-3 px-3 rounded-lg"
+          style={{ backgroundColor: hexToRgba(accent, 0.12) }}
+        >
           <div className="relative pl-5">
-            <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-200 rounded" />
+            <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-300 rounded" />
             {/* Depart */}
-            <div className="relative my-2">
+            <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
-              <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+              <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
                 {row.departureTime} • Depart
               </div>
-              <div className="text-slate-500 text-[11px] mt-0.5">
+              <div className="text-slate-600 text-[12px] mt-0.5">
                 {row.originName || row.origin}
               </div>
             </div>
             {/* Note */}
-            <div className="relative my-2">
+            <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
-              <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[10px] text-slate-700">
-                <div className="font-semibold">
-                  {row.marketingCarrier || "Nok Air"},{" "}
-                  {row.flightNumber || ""}
+              <div className="bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 shadow-sm">
+                <div className="font-bold text-blue-700 text-[14px]">
+                  {row.marketingCarrier || "Nok Air"}, {row.flightNumber || ""}
                 </div>
                 <div className="text-slate-500">Short-haul</div>
-                <div className="text-[10px] mt-0.5">
+                <div className="text-[11px] mt-1">
                   {row.perPaxCo2 || "48kg CO₂e"} • est. emissions
                 </div>
               </div>
             </div>
             {/* Arrive */}
-            <div className="relative my-2">
+            <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
-              <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+              <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
                 {row.arrivalTime} • Arrive
               </div>
-              <div className="text-slate-500 text-[11px] mt-0.5">
+              <div className="text-slate-600 text-[12px] mt-0.5">
                 {row.destinationName || row.destination}
               </div>
             </div>
           </div>
 
-          <div className="mt-2 pt-2 border-t border-dashed text-[10px]">
+          <div className="mt-3 pt-2 border-t border-dashed text-[12px] font-medium text-blue-700">
             ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
           </div>
         </div>
@@ -214,19 +262,19 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
   );
 }
 
-/* ---------- One leg box: header + list of Lite cards, optional inline NEXT (one-way) ---------- */
+/* ---------- One leg box ---------- */
 function LegBox({
   title,
   rows,
   currency = "THB",
   fallbackToken = "",
-  onSelect,            // (selection|null) => void
+  onSelect,
   showInlineNext = false,
-  onInlineNext,        // () => void
-  inlinePriceKey = "", // request key for pricing state when inline button is shown
+  onInlineNext,
+  inlinePriceKey = "",
 }) {
   const [openId, setOpenId] = useState(null);
-  const [selected, setSelected] = useState(null); // selection object
+  const [selected, setSelected] = useState(null);
 
   const inlineStatus = useSelector(selectPricingStatus(inlinePriceKey));
   const inlineDetail = useSelector(selectPriceFor(inlinePriceKey));
@@ -242,11 +290,11 @@ function LegBox({
   const hdr = getHeaderParts(rows);
 
   const pickLite = (row) => {
-    const fareKey = row?.fareKey; // LITE key
-    if (!fareKey) return;
+    const fareKey = row?.fareKey;
+    const journeyKey = row?.journeyKey;
+    if (!fareKey || !journeyKey) return;
 
-    // Toggle off if same card clicked again
-    if (selected?.fareKey === fareKey && selected?.journeyKey === row.journeyKey) {
+    if (selected?.fareKey === fareKey && selected?.journeyKey === journeyKey) {
       setSelected(null);
       onSelect?.(null);
       return;
@@ -255,7 +303,7 @@ function LegBox({
     const selection = {
       brand: "LITE",
       fareKey,
-      journeyKey: row.journeyKey,
+      journeyKey,
       securityToken: row.securityToken || fallbackToken,
       currency,
       row,
@@ -265,12 +313,13 @@ function LegBox({
   };
 
   return (
-    <div className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm">
-      {/* Title + header line — scaled to 200% */}
+    <div
+      className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm"
+      style={{ "--dow": hdr.chipColor }}
+    >
+      {/* Title + header */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-wrap text-[200%] leading-tight">
-        {title && (
-          <div className="text-slate-700 font-semibold text-[0.5em]">{title}</div>
-        )}
+        {title && <div className="text-slate-700 font-semibold text-[0.5em]">{title}</div>}
         {(hdr.origin || hdr.destination) && (
           <div className="text-blue-600 font-semibold text-[0.9em]">
             {hdr.origin} → {hdr.destination}
@@ -287,7 +336,7 @@ function LegBox({
         )}
       </div>
 
-      {/* List of Lite cards */}
+      {/* Cards */}
       <div className="flex flex-col gap-3 px-3 pb-3">
         {rows.map((row, idx) => {
           const cardId = row.id || `${row.flightNumber}-${idx}`;
@@ -304,12 +353,13 @@ function LegBox({
               open={open}
               onSelect={() => pickLite(row)}
               onToggle={() => setOpenId(open ? null : cardId)}
+              accent={hdr.chipColor}
             />
           );
         })}
       </div>
 
-      {/* Inline NEXT for one-way */}
+      {/* Inline NEXT (one-way only) */}
       {showInlineNext && (
         <div className="px-4 py-3 flex items-center justify-end gap-3 border-t">
           {inlineStatus === "loading" && (
@@ -326,9 +376,9 @@ function LegBox({
             </div>
           )}
           <button
-            onClick={onInlineNext}
+            onClick={() => onInlineNext?.(selected)}
             disabled={!selected?.fareKey || inlineStatus === "loading"}
-            className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-[#26c9ff] disabled:opacity-60 text-xs transition-colors"
+            className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-[var(--dow)] disabled:opacity-60 text-xs transition-colors"
           >
             {inlineStatus === "loading" ? "Please wait…" : "NEXT"}
           </button>
@@ -338,23 +388,28 @@ function LegBox({
   );
 }
 
-/* ---------- Main (one-way = inline NEXT; roundtrip = unified NEXT) ---------- */
+/* ---------- Main ---------- */
 export default function RoundTripResultsLite() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const raw = useSelector(selectResults);
 
-  // Unwrap common API shapes
   const payload = raw?.data ?? raw;
   const token = raw?.securityToken || payload?.securityToken || "";
   const currency = raw?.currency || "THB";
 
-  // Flatten once
   const rows = useMemo(() => {
     if (!payload) return [];
     const input = Array.isArray(payload) ? payload : [payload];
     const out = flattenFlights(input, token) || [];
-    return out.filter((r) => r && (r.id || r.flightNumber) && (r.origin || r.destination));
+    // sanitize IATA & กรองแถวเสีย
+    return out
+      .map((r) => ({
+        ...r,
+        origin: (r.origin || "").trim().toUpperCase(),
+        destination: (r.destination || "").trim().toUpperCase(),
+      }))
+      .filter((r) => r && (r.id || r.flightNumber) && (r.origin || r.destination));
   }, [payload, token]);
 
   if (!rows.length) {
@@ -365,14 +420,15 @@ export default function RoundTripResultsLite() {
     );
   }
 
-  /* Group by direction first */
+  /* Group by direction */
   const byDirMap = rows.reduce((acc, r) => {
-    const dir = `${(r.origin || "").trim()}-${(r.destination || "").trim()}`;
+    const o = (r.origin || "").trim().toUpperCase();
+    const d = (r.destination || "").trim().toUpperCase();
+    const dir = `${o}-${d}`;
     (acc[dir] ||= []).push(r);
     return acc;
   }, {});
 
-  let groups = [];
   const dirEntries = Object.entries(byDirMap)
     .filter(([k]) => !!k && k !== "-")
     .map(([key, arr]) => {
@@ -385,6 +441,7 @@ export default function RoundTripResultsLite() {
     })
     .sort(byAscDate);
 
+  let groups = [];
   if (dirEntries.length >= 2) {
     groups = [
       { title: "Depart", rows: dirEntries[0].rows },
@@ -396,24 +453,65 @@ export default function RoundTripResultsLite() {
     groups = [{ title: "Depart", rows }];
   }
 
-  // Track selections
   const [selectedOutbound, setSelectedOutbound] = useState(null);
   const [selectedInbound, setSelectedInbound] = useState(null);
 
   const isRoundTrip = groups.length === 2;
 
-  /* ---------- ONE-WAY: inline NEXT inside the leg box ---------- */
+  /* ===================== ONE-WAY ===================== */
   if (!isRoundTrip) {
-    // requestKey convention (one-way): fareKey
     const requestKey = selectedOutbound?.fareKey || "";
 
-    const doInlineNext = async () => {
-      if (!selectedOutbound) return;
+    const doInlineNext = async (currentSelection) => {
+      const sel = currentSelection || selectedOutbound;
+      if (!sel) return;
+
+      const offers = [sel];
+      const secToken = sel?.securityToken || token || "";
+      const dbg = buildDebugPackets(offers, secToken);
+
       try {
-        await dispatch(fetchPriceDetail({ offers: [selectedOutbound] })).unwrap();
-        navigate("/skyblue-price-detail", { state: { requestKey } });
+        const priceP = dispatch(
+          fetchPriceDetail({ offers, currency, includeSeats: false })
+        ).unwrap();
+
+        const seatP = dispatch(fetchSeatMap({ offers })).unwrap();
+
+        const [priceRes, seatRes] = await Promise.allSettled([priceP, seatP]);
+
+        if (priceRes.status !== "fulfilled") {
+          console.error("Pricing failed:", priceRes.reason);
+          return;
+        }
+
+        const seatOk = seatRes.status === "fulfilled";
+        const seatError = seatOk ? null : (seatRes.reason?.message || "Seat map failed.");
+        const seatRaw = seatOk ? seatRes.value : null;
+
+        navigate("/skyblue-price-detail", {
+          state: {
+            requestKey,
+            debug: {
+              pricingRequest: {
+                url: dbg.priceUrl,
+                method: "POST",
+                headers: dbg.priceHeaders,
+                body: dbg.bodyPreview,
+              },
+              seatRequest: {
+                url: dbg.seatUrl,
+                method: "POST",
+                headers: dbg.seatHeaders,
+                body: dbg.bodyPreview,
+              },
+              seatResponse: seatRaw,
+              seatOk,
+              seatError,
+            },
+          },
+        });
       } catch (e) {
-        console.error("Pricing failed", e);
+        console.error("Unexpected NEXT error (one-way):", e);
       }
     };
 
@@ -433,10 +531,9 @@ export default function RoundTripResultsLite() {
     );
   }
 
-  /* ---------- ROUNDTRIP: unified NEXT below both boxes ---------- */
+  /* ===================== ROUND-TRIP ===================== */
   const canProceed = !!(selectedOutbound && selectedInbound);
 
-  // requestKey convention (roundtrip): fareKeyA+fareKeyB
   const requestKey = useMemo(() => {
     const a = selectedOutbound?.fareKey || "";
     const b = selectedInbound?.fareKey || "";
@@ -444,26 +541,96 @@ export default function RoundTripResultsLite() {
   }, [selectedOutbound, selectedInbound]);
 
   const pricingStatus = useSelector(selectPricingStatus(requestKey));
-  const priceDetail   = useSelector(selectPriceFor(requestKey));
+  const priceDetail = useSelector(selectPriceFor(requestKey));
 
   const handleUnifiedNext = async () => {
     if (!canProceed || pricingStatus === "loading") return;
+
+    const offers = [selectedOutbound, selectedInbound].filter(Boolean);
+
+    const secToken =
+      selectedOutbound?.securityToken ||
+      selectedInbound?.securityToken ||
+      token ||
+      "";
+
+    const dbgBoth = buildDebugPackets(offers, secToken);
+    const seatReqOutbound = buildDebugPackets([selectedOutbound], secToken);
+    const seatReqInbound = buildDebugPackets([selectedInbound], secToken);
+
     try {
-      await dispatch(
-        fetchPriceDetail({
-          offers: [selectedOutbound, selectedInbound],
-          currency,
-        })
+      const priceP = dispatch(
+        fetchPriceDetail({ offers, currency, includeSeats: false })
       ).unwrap();
 
-      navigate("/skyblue-price-detail", { state: { requestKey } });
+      const seatOutP = dispatch(fetchSeatMap({ offers: [selectedOutbound] })).unwrap();
+      const seatInP = dispatch(fetchSeatMap({ offers: [selectedInbound] })).unwrap();
+
+      const [priceRes, seatOutRes, seatInRes] = await Promise.allSettled([
+        priceP,
+        seatOutP,
+        seatInP,
+      ]);
+
+      if (priceRes.status !== "fulfilled") {
+        console.error("Pricing failed:", priceRes.reason);
+        return;
+      }
+
+      const seatOkOutbound = seatOutRes.status === "fulfilled";
+      const seatOkInbound = seatInRes.status === "fulfilled";
+
+      const seatErrors = [];
+      if (!seatOkOutbound)
+        seatErrors.push(seatOutRes.reason?.message || "Seat map (outbound) failed.");
+      if (!seatOkInbound)
+        seatErrors.push(seatInRes.reason?.message || "Seat map (inbound) failed.");
+
+      const seatResponses = [
+        seatOkOutbound ? seatOutRes.value : null,
+        seatOkInbound ? seatInRes.value : null,
+      ];
+
+      navigate("/skyblue-price-detail", {
+        state: {
+          requestKey,
+          debug: {
+            pricingRequest: {
+              url: dbgBoth.priceUrl,
+              method: "POST",
+              headers: dbgBoth.priceHeaders,
+              body: dbgBoth.bodyPreview,
+            },
+            seatRequest: [
+              {
+                url: seatReqOutbound.seatUrl,
+                method: "POST",
+                headers: seatReqOutbound.seatHeaders,
+                body: seatReqOutbound.bodyPreview,
+              },
+              {
+                url: seatReqInbound.seatUrl,
+                method: "POST",
+                headers: seatReqInbound.seatHeaders,
+                body: seatReqInbound.bodyPreview,
+              },
+            ],
+            seatResponse: seatResponses,
+            seatOk: seatOkOutbound && seatOkInbound,
+            seatError: seatErrors.length ? seatErrors.join(" | ") : null,
+          },
+        },
+      });
     } catch (e) {
-      console.error("Pricing failed", e);
+      console.error("Unexpected NEXT error (round-trip):", e);
     }
   };
 
+  const outboundHdr = getHeaderParts(groups[0]?.rows || []);
+  const nextHoverColor = outboundHdr.chipColor || "#00BFFF";
+
   return (
-    <div className="w-full flex flex-col gap-6 mt-4">
+    <div className="w-full flex flex-col gap-6 mt-4" style={{ "--dow": nextHoverColor }}>
       <LegBox
         title="Depart"
         rows={groups[0].rows}
@@ -482,8 +649,7 @@ export default function RoundTripResultsLite() {
 
       <div className="mt-2 flex items-center justify-between rounded-xl border bg-white p-3 shadow">
         <div className="text-xs text-gray-600">
-          {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}{" "}
-          &nbsp;&nbsp;
+          {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}&nbsp;&nbsp;
           {selectedInbound ? "✓ Return selected" : "• Choose a return"}
           {pricingStatus === "loading" && (
             <span className="ml-3 text-blue-600">Getting offers…</span>
@@ -493,7 +659,7 @@ export default function RoundTripResultsLite() {
         <button
           className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-colors ${
             canProceed && pricingStatus !== "loading"
-              ? "bg-blue-600 text-white hover:bg-[#26c9ff]"
+              ? "bg-blue-600 text-white hover:bg-[var(--dow)]"
               : "bg-gray-300 text-gray-600"
           }`}
           disabled={!canProceed || pricingStatus === "loading"}

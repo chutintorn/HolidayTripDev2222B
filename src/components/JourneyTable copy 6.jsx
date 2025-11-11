@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { selectResults, selectSearch } from "../redux/searchSlice";
+import { selectResults } from "../redux/searchSlice";
 import {
   fetchPriceDetail,
   selectPricingStatus,
@@ -12,8 +12,6 @@ import {
   selectSeatMapStatus,
 } from "../redux/seatMapSlice"; // <-- ensure file exists & reducer registered
 import { flattenFlights } from "../utils/flattenFlights";
-import PaxChips from "./PaxChips";
-import { derivePax } from "../utils/pax";
 
 /** ---- Local-safe date helpers ---- */
 const ymd = (s) => (typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "");
@@ -119,10 +117,7 @@ export default function JourneyTable({
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Pull data from redux
   const globalResults = useSelector(selectResults);
-  const search = useSelector(selectSearch);
-
   const raw = resultsOverride ?? globalResults;
 
   const currency =
@@ -141,13 +136,6 @@ export default function JourneyTable({
     const out = flattenFlights(input, securityToken) || [];
     return out.filter((r) => r && (r.id || r.flightNumber) && (r.origin || r.destination));
   }, [payload, securityToken]);
-
-  // derive pax (for chips and "/N pax" label)
-  const pax = useMemo(
-    () => derivePax(search?.params || search?.results || payload || raw || {}),
-    [search, payload, raw]
-  );
-  const totalPax = (pax.adult || 0) + (pax.child || 0) + (pax.infant || 0);
 
   const [selectedRow, setSelectedRow] = useState(null);
   const [selectedFare, setSelectedFare] = useState(null);
@@ -189,7 +177,7 @@ export default function JourneyTable({
   // --- NEXT: fire /pricedetails and /seat-map in parallel (seat is best-effort)
   const handleInternalNext = async () => {
     if (!selectedFare?.journeyKey || !selectedFare?.fareKey) return;
-    console.log("NEXT with", selectedFare);
+
     if (typeof onNext === "function") {
       onNext({
         journeyKey: selectedFare.journeyKey,
@@ -321,7 +309,7 @@ export default function JourneyTable({
             </span>
           )}
           <span className="font-semibold text-[0.9em]">
-            {rows[0]?.origin}  {rows[0]?.destination}
+            {rows[0]?.origin} → {rows[0]?.destination}
           </span>
           {ddMMM && (
             <>
@@ -334,9 +322,6 @@ export default function JourneyTable({
               </span>
             </>
           )}
-
-          {/* Pax chips on the far right */}
-          <PaxChips source={search?.params || search?.results || payload || raw} />
         </h2>
       )}
 
@@ -413,19 +398,7 @@ export default function JourneyTable({
                   >
                     {fmtMoney(row.fareAmountIncludingTax, currency)}
                   </span>
-
-                  {/* NEW: ADT/CHD before "/ pax" line, same font size */}
-                  <div className="text-[10px] text-slate-500">
-                    <span className="mr-2">ADT {pax.adult || 0}</span>
-                    {(pax.child || 0) > 0 && (
-                      <span className="mr-2">CHD {pax.child}</span>
-                    )}
-                    {/* If you also want INF, uncomment:
-                    {(pax.infant || 0) > 0 && (
-                      <span className="mr-2">INF {pax.infant}</span>
-                    )} */}
-                    / {totalPax} pax*
-                  </div>
+                  <div className="text-[10px] text-slate-500">/5 pax*</div>
                 </div>
 
                 <button
@@ -490,7 +463,7 @@ export default function JourneyTable({
                 : "bg-gray-300 cursor-not-allowed")
             }
           >
-            {nextLoading ? "Loading..." : "NEXT"} 
+            {nextLoading ? "Loading..." : "NEXT"}
           </button>
         )}
       </div>

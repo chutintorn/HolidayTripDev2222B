@@ -3,8 +3,9 @@ import { configureStore } from '@reduxjs/toolkit';
 import language from './languageSlice';
 import search from './searchSlice';
 import pricing from './pricingSlice';
-import airports from './airportsSlice';      // ⬅ keep if you already have it
-import filters from './filtersSlice';        // ⬅ NEW: sidebar filters (Asia-only, stops, etc.)
+import airports from './airportsSlice';   // keep if you have it
+import filters from './filtersSlice';     // keep if you have it
+import seatMap from './seatMapSlice';     // ⬅ NEW: register seat map reducer
 
 // Load initial language from localStorage (fallback 'en')
 function loadPreloadedState() {
@@ -22,8 +23,9 @@ export const store = configureStore({
     language,   // existing language state
     search,     // flight search state/results
     pricing,    // price detail per offer
-    airports,   // optional: only if you created airportsSlice
-    filters,    // ⬅ NEW: sidebar filter state used by JourneyTable / RoundTrip
+    airports,   // optional
+    filters,    // optional
+    seatMap,    // ⬅ NEW: seat map state (required if you dispatch fetchSeatMap)
   },
   preloadedState: loadPreloadedState(),
   // default middleware & devTools are fine

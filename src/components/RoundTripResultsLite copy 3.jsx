@@ -45,7 +45,7 @@ const dowColors = {
 function getHeaderParts(rows) {
   const first = Array.isArray(rows) ? rows[0] : null;
   if (!first) {
-    return { origin: "", destination: "", ddMMM: "", dow: "", chipColor: "#FFF" };
+    return { origin: "", destination: "", ddMMM: "", dow: "", chipColor: "#00BFFF" };
   }
   const depDate = toLocalDate(first?.departureDate);
   const ddMMM = depDate
@@ -59,23 +59,40 @@ function getHeaderParts(rows) {
     destination: first?.destination || "",
     ddMMM,
     dow,
-    chipColor: dowColors[dow] || "#FFF",
+    chipColor: dowColors[dow] || "#00BFFF",
   };
 }
 
+/* soft accent background helper */
+const hexToRgba = (hex, alpha = 0.18) => {
+  const m = hex?.trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
+  if (!m) return `rgba(0,0,0,${alpha})`;
+  let h = m[1];
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 /* ============================================================
- * LiteCard (70% sizing) — matches JourneyTable card UI
- * Props:
- * - row
- * - currency
- * - selected (bool)
- * - open (bool)
- * - onSelect()   // select Lite fare
- * - onToggle()   // toggle details
+ * LiteCard (70% sizing) — with enhanced inline details styling
  * ============================================================ */
-function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle }) {
+function LiteCard({
+  row,
+  currency = "THB",
+  selected,
+  open,
+  onSelect,
+  onToggle,
+  accent = "#00BFFF",
+}) {
   return (
-    <article className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center">
+    <article
+      style={{ "--dow": accent }}
+      className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
+    >
       {/* LEFT META */}
       <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
         <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
@@ -130,8 +147,8 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
           <span
             className="font-bold text-[20px] leading-none px-2 py-1 rounded"
             style={{
-              color: selected ? "#4927F5" : "#0b4f8a",
-              backgroundColor: selected ? "#e6f8ff" : "transparent",
+              color: selected ? "#4927F5" : "#0b4f8a", // keep text same
+              backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent", // only bg changes
             }}
           >
             {fmtMoney(row.fareAmountIncludingTax, currency)}
@@ -144,8 +161,8 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
           className={
             "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
             (selected
-              ? "bg-[#0a65a0] hover:bg-[#26c9ff]"
-              : "bg-[#0B73B1] hover:bg-[#26c9ff]")
+              ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
+              : "bg-[#0B73B1] hover:bg-[var(--dow)]")
           }
         >
           Select
@@ -153,59 +170,67 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
 
         <button
           onClick={onToggle}
-          className="text-[11px] text-slate-700 border-b border-dashed border-slate-400"
+          className={
+            "text-[11px] border-b border-dashed transition-colors " +
+            (open
+              ? "text-blue-700 border-blue-300"
+              : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
+          }
         >
           {open ? "Hide details ▴" : "Details ▾"}
         </button>
       </div>
 
-      {/* INLINE DETAILS */}
+      {/* INLINE DETAILS — enhanced with accent tint + bigger blue labels */}
       <div
         className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
           open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
         }`}
         aria-hidden={!open}
       >
-        <div className="min-h-0 pt-2">
+        <div
+          className="min-h-0 pt-3 pb-3 px-3 rounded-lg"
+          style={{ backgroundColor: hexToRgba(accent, 0.12) }}
+        >
           <div className="relative pl-5">
-            <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-200 rounded" />
+            <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-300 rounded" />
             {/* Depart */}
-            <div className="relative my-2">
+            <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
-              <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+              <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
                 {row.departureTime} • Depart
               </div>
-              <div className="text-slate-500 text-[11px] mt-0.5">
+              <div className="text-slate-600 text-[12px] mt-0.5">
                 {row.originName || row.origin}
               </div>
             </div>
             {/* Note */}
-            <div className="relative my-2">
+            <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
-              <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[10px] text-slate-700">
-                <div className="font-semibold">
+              <div className="bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 shadow-sm">
+                <div className="font-bold text-blue-700 text-[14px]">
                   {row.marketingCarrier || "Nok Air"},{" "}
                   {row.flightNumber || ""}
                 </div>
                 <div className="text-slate-500">Short-haul</div>
-                <div className="text-[10px] mt-0.5">
+                <div className="text-[11px] mt-1">
                   {row.perPaxCo2 || "48kg CO₂e"} • est. emissions
                 </div>
               </div>
             </div>
             {/* Arrive */}
-            <div className="relative my-2">
+            <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
-              <div className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-slate-200">
+              <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
                 {row.arrivalTime} • Arrive
               </div>
-              <div className="text-slate-500 text-[11px] mt-0.5">
+              <div className="text-slate-600 text-[12px] mt-0.5">
                 {row.destinationName || row.destination}
               </div>
             </div>
           </div>
 
-          <div className="mt-2 pt-2 border-t border-dashed text-[10px]">
+          <div className="mt-3 pt-2 border-t border-dashed text-[12px] font-medium text-blue-700">
             ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
           </div>
         </div>
@@ -214,19 +239,19 @@ function LiteCard({ row, currency = "THB", selected, open, onSelect, onToggle })
   );
 }
 
-/* ---------- One leg box: header + list of Lite cards, optional inline NEXT (one-way) ---------- */
+/* ---------- One leg box ---------- */
 function LegBox({
   title,
   rows,
   currency = "THB",
   fallbackToken = "",
-  onSelect,            // (selection|null) => void
+  onSelect,
   showInlineNext = false,
-  onInlineNext,        // () => void
-  inlinePriceKey = "", // request key for pricing state when inline button is shown
+  onInlineNext,
+  inlinePriceKey = "",
 }) {
   const [openId, setOpenId] = useState(null);
-  const [selected, setSelected] = useState(null); // selection object
+  const [selected, setSelected] = useState(null);
 
   const inlineStatus = useSelector(selectPricingStatus(inlinePriceKey));
   const inlineDetail = useSelector(selectPriceFor(inlinePriceKey));
@@ -242,10 +267,9 @@ function LegBox({
   const hdr = getHeaderParts(rows);
 
   const pickLite = (row) => {
-    const fareKey = row?.fareKey; // LITE key
+    const fareKey = row?.fareKey;
     if (!fareKey) return;
 
-    // Toggle off if same card clicked again
     if (selected?.fareKey === fareKey && selected?.journeyKey === row.journeyKey) {
       setSelected(null);
       onSelect?.(null);
@@ -265,8 +289,11 @@ function LegBox({
   };
 
   return (
-    <div className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm">
-      {/* Title + header line — scaled to 200% */}
+    <div
+      className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm"
+      style={{ "--dow": hdr.chipColor }}
+    >
+      {/* Title + header */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-wrap text-[200%] leading-tight">
         {title && (
           <div className="text-slate-700 font-semibold text-[0.5em]">{title}</div>
@@ -287,7 +314,7 @@ function LegBox({
         )}
       </div>
 
-      {/* List of Lite cards */}
+      {/* Cards */}
       <div className="flex flex-col gap-3 px-3 pb-3">
         {rows.map((row, idx) => {
           const cardId = row.id || `${row.flightNumber}-${idx}`;
@@ -304,12 +331,13 @@ function LegBox({
               open={open}
               onSelect={() => pickLite(row)}
               onToggle={() => setOpenId(open ? null : cardId)}
+              accent={hdr.chipColor}
             />
           );
         })}
       </div>
 
-      {/* Inline NEXT for one-way */}
+      {/* Inline NEXT */}
       {showInlineNext && (
         <div className="px-4 py-3 flex items-center justify-end gap-3 border-t">
           {inlineStatus === "loading" && (
@@ -328,7 +356,7 @@ function LegBox({
           <button
             onClick={onInlineNext}
             disabled={!selected?.fareKey || inlineStatus === "loading"}
-            className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-[#26c9ff] disabled:opacity-60 text-xs transition-colors"
+            className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-[var(--dow)] disabled:opacity-60 text-xs transition-colors"
           >
             {inlineStatus === "loading" ? "Please wait…" : "NEXT"}
           </button>
@@ -338,18 +366,16 @@ function LegBox({
   );
 }
 
-/* ---------- Main (one-way = inline NEXT; roundtrip = unified NEXT) ---------- */
+/* ---------- Main ---------- */
 export default function RoundTripResultsLite() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const raw = useSelector(selectResults);
 
-  // Unwrap common API shapes
   const payload = raw?.data ?? raw;
   const token = raw?.securityToken || payload?.securityToken || "";
   const currency = raw?.currency || "THB";
 
-  // Flatten once
   const rows = useMemo(() => {
     if (!payload) return [];
     const input = Array.isArray(payload) ? payload : [payload];
@@ -365,7 +391,7 @@ export default function RoundTripResultsLite() {
     );
   }
 
-  /* Group by direction first */
+  /* Group by direction */
   const byDirMap = rows.reduce((acc, r) => {
     const dir = `${(r.origin || "").trim()}-${(r.destination || "").trim()}`;
     (acc[dir] ||= []).push(r);
@@ -396,15 +422,13 @@ export default function RoundTripResultsLite() {
     groups = [{ title: "Depart", rows }];
   }
 
-  // Track selections
   const [selectedOutbound, setSelectedOutbound] = useState(null);
   const [selectedInbound, setSelectedInbound] = useState(null);
 
   const isRoundTrip = groups.length === 2;
 
-  /* ---------- ONE-WAY: inline NEXT inside the leg box ---------- */
+  /* ONE-WAY */
   if (!isRoundTrip) {
-    // requestKey convention (one-way): fareKey
     const requestKey = selectedOutbound?.fareKey || "";
 
     const doInlineNext = async () => {
@@ -433,10 +457,9 @@ export default function RoundTripResultsLite() {
     );
   }
 
-  /* ---------- ROUNDTRIP: unified NEXT below both boxes ---------- */
+  /* ROUNDTRIP */
   const canProceed = !!(selectedOutbound && selectedInbound);
 
-  // requestKey convention (roundtrip): fareKeyA+fareKeyB
   const requestKey = useMemo(() => {
     const a = selectedOutbound?.fareKey || "";
     const b = selectedInbound?.fareKey || "";
@@ -462,8 +485,11 @@ export default function RoundTripResultsLite() {
     }
   };
 
+  const outboundHdr = getHeaderParts(groups[0]?.rows || []);
+  const nextHoverColor = outboundHdr.chipColor || "#00BFFF";
+
   return (
-    <div className="w-full flex flex-col gap-6 mt-4">
+    <div className="w-full flex flex-col gap-6 mt-4" style={{ "--dow": nextHoverColor }}>
       <LegBox
         title="Depart"
         rows={groups[0].rows}
@@ -493,7 +519,7 @@ export default function RoundTripResultsLite() {
         <button
           className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-colors ${
             canProceed && pricingStatus !== "loading"
-              ? "bg-blue-600 text-white hover:bg-[#26c9ff]"
+              ? "bg-blue-600 text-white hover:bg-[var(--dow)]"
               : "bg-gray-300 text-gray-600"
           }`}
           disabled={!canProceed || pricingStatus === "loading"}

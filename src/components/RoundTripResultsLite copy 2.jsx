@@ -95,7 +95,7 @@ function LiteCard({
           </span>
 
           <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
-            {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin} → {row.destination}
+            {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin}  {row.destination}
           </div>
 
           {/* Timeline */}

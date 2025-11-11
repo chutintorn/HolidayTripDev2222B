@@ -1,20 +1,15 @@
 // src/pages/PriceDetailSkyBlue.jsx
-import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+  memo,
+  useRef,
+} from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { selectPriceFor } from "../redux/pricingSlice";
-
-// Components
-import TravellerForm from "../components/TravellerForm";
-import BundleCard from "../components/BundleCard";
-import ContactInformation from "../components/ContactInformation";
-import RowCard from "../components/RowCard";
-import Chip from "../components/Chip";
-import Modal from "../components/Modal";
-import PrettyBlock from "../components/PrettyBlock";
-
-// Utils
-import { paxFromFirstPricingDetails, extractLegs, hhmm, formatDDMMM } from "../utils/pricingHelpers";
 
 /* ========================= Strings ========================= */
 const STR = {
@@ -142,6 +137,527 @@ const STR = {
   },
 };
 
+/* ========================= Helpers ========================= */
+function firstPricingDetailsBucket(root) {
+  if (!root || typeof root !== "object") return null;
+  if (Array.isArray(root.pricingDetails)) return root.pricingDetails;
+  if (root.data && Array.isArray(root.data.pricingDetails))
+    return root.data.pricingDetails;
+  if (Array.isArray(root.airlines) && root.airlines[0]?.pricingDetails)
+    return Array.isArray(root.airlines[0].pricingDetails)
+      ? root.airlines[0].pricingDetails
+      : null;
+  if (
+    root.data &&
+    Array.isArray(root.data.airlines) &&
+    root.data.airlines[0]?.pricingDetails
+  )
+    return Array.isArray(root.data.airlines[0].pricingDetails)
+      ? root.data.airlines[0].pricingDetails
+      : null;
+  return null;
+}
+
+function paxFromFirstPricingDetails(detailLike) {
+  const arr = firstPricingDetailsBucket(detailLike);
+  const out = { adult: 0, child: 0, infant: 0 };
+  if (!Array.isArray(arr)) {
+    out.adult = 1;
+    return out;
+  }
+  arr.forEach((p) => {
+    const code = String(p?.paxTypeCode ?? p?.pax_type ?? "").toLowerCase();
+    const n = Number(p?.paxCount ?? p?.count ?? 0) || 0;
+    if (/^(adult|adt)$/.test(code)) out.adult += n;
+    else if (/^(child|chd)$/.test(code)) out.child += n;
+    else if (/^(infant|inf)$/.test(code)) out.infant += n;
+  });
+  if (!out.adult) out.adult = 1;
+  return out;
+}
+
+function safeDate(s) {
+  if (!s) return null;
+  const str = typeof s === "string" ? s.replace(" ", "T") : s;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatDDMMM(d) {
+  if (!d) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mon = [
+    "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
+  ][d.getMonth()];
+  return `${dd}-${mon}`;
+}
+
+function hhmm(d) {
+  if (!d) return "";
+  return `${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes()
+  ).padStart(2, "0")}`;
+}
+
+/* ====== Segment extraction ====== */
+function looksLikeSegment(x) {
+  if (!x || typeof x !== "object") return false;
+  const o = x.origin || x.from || x.depAirport || x.departureAirport;
+  const d = x.destination || x.to || x.arrAirport || x.arrivalAirport;
+  const dep =
+    x.departureTime ||
+    x.departureDateTime ||
+    x.dep ||
+    x.depTime ||
+    x.std ||
+    x.offBlockTime;
+  return Boolean(o && d && dep);
+}
+
+function deepCollectSegments(node, out = []) {
+  if (!node) return out;
+  if (Array.isArray(node)) {
+    for (const v of node) deepCollectSegments(v, out);
+    return out;
+  }
+  if (typeof node === "object") {
+    if (looksLikeSegment(node)) out.push(node);
+    for (const k of Object.keys(node)) deepCollectSegments(node[k], out);
+    return out;
+  }
+  return out;
+}
+
+function normalizeSegment(x) {
+  return {
+    origin: x.origin || x.from || x.depAirport || x.departureAirport || "",
+    destination: x.destination || x.to || x.arrAirport || x.arrivalAirport || "",
+    depTime: safeDate(
+      x.departureTime ||
+        x.departureDateTime ||
+        x.depTime ||
+        x.dep ||
+        x.std ||
+        x.offBlockTime
+    ),
+    arrTime: safeDate(
+      x.arrivalTime ||
+        x.arrivalDateTime ||
+        x.arrTime ||
+        x.arr ||
+        x.sta ||
+        x.onBlockTime
+    ),
+    fn: x.flightNumber || x.flightNo || x.fn || x.marketingFlightNumber || "",
+    dir: (x.direction || x.dir || "").toString().toUpperCase(),
+  };
+}
+
+function extractLegs(raw) {
+  if (!raw) return [];
+
+  const roots = Array.isArray(raw) ? raw : [raw];
+  const bucket = new Map();
+
+  for (const root of roots) {
+    const segs = deepCollectSegments(root);
+    const maybeRootSeg = looksLikeSegment(root) ? [root] : [];
+    const all = [...segs, ...maybeRootSeg];
+
+    for (const s of all) {
+      const n = normalizeSegment(s);
+      if (!n.fn || !n.depTime || !n.origin || !n.destination) continue;
+      const key = `${n.origin}|${n.destination}|${n.depTime.toISOString()}`;
+      if (!bucket.has(key)) bucket.set(key, n);
+    }
+  }
+
+  const cleaned = [...bucket.values()].sort((a, b) => a.depTime - b.depTime);
+
+  return cleaned.map((n, i) => {
+    const inferred =
+      n.dir === "OUT" || n.dir === "IN"
+        ? n.dir
+        : i === 0
+        ? "OUT"
+        : i === 1
+        ? "IN"
+        : `SEG-${i + 1}`;
+    return {
+      key: `${inferred}-${i + 1}`,
+      origin: n.origin,
+      destination: n.destination,
+      depTime: n.depTime,
+      arrTime: n.arrTime,
+      fn: n.fn,
+      dir: inferred,
+    };
+  });
+}
+
+/* ===== UI bits ===== */
+const Chip = memo(function Chip({ ok, children }) {
+  return (
+    <span
+      className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+        ok
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+          : "bg-sky-50 text-sky-800 border border-sky-200"
+      }`}
+    >
+      {children}
+    </span>
+  );
+});
+
+const RowCard = memo(function RowCard({ left, right, onClick }) {
+  return (
+    <div className="border border-slate-200 rounded-xl p-3 bg-white flex items-center justify-between">
+      <div className="flex items-center gap-3">{left}</div>
+      <button
+        onClick={onClick}
+        className="px-3 py-2 rounded-lg border border-cyan-500 text-cyan-700 font-semibold min-w-[110px]"
+      >
+        {right}
+      </button>
+    </div>
+  );
+});
+
+/* ============== Simple Modal ============== */
+const Modal = memo(function Modal({ open, onClose, children }) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 bg-black/45 flex items-center justify-center z-50 will-change-transform"
+      onClick={onClose}
+    >
+      <div
+        className="w-[92vw] max-w-3xl max-h-[90vh] overflow-auto bg-white rounded-xl border border-slate-200 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+});
+
+/* ============== Traveller Form ============== */
+const TravellerForm = memo(function TravellerForm({
+  t,
+  value,
+  onChange,
+  onSave,
+  showSave = true,
+  points = 95,
+}) {
+  const [local, setLocal] = useState(value || {});
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => setLocal(value || {}), [value]);
+
+  const set = useCallback((k, v) => {
+    const next = { ...local, [k]: v };
+    setLocal(next);
+    onChange?.(next);
+  }, [local, onChange]);
+
+  const required = useCallback(
+    (k) => ((local[k] || "").trim()).length > 0,
+    [local]
+  );
+
+  const validate = useCallback(() => {
+    const e = {};
+    ["firstName", "lastName", "dob"].forEach((k) => {
+      if (!required(k)) e[k] = t.required;
+    });
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }, [required, t.required]);
+
+  const save = useCallback(() => {
+    if (!validate()) return;
+    onSave?.(local);
+  }, [local, onSave, validate]);
+
+  return (
+    <div className="p-4">
+      {/* Gender */}
+      <div className="mb-3">
+        <div className="text-sm text-slate-600 mb-1">{t.passengerDetails}</div>
+        <div className="inline-flex border border-slate-300 rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => set("gender", "M")}
+            className={`px-3 py-2 text-sm ${
+              local.gender === "M" ? "bg-sky-50 text-sky-700" : "bg-white text-slate-800"
+            }`}
+          >
+            {t.male}
+          </button>
+          <button
+            type="button"
+            onClick={() => set("gender", "F")}
+            className={`px-3 py-2 text-sm border-l border-slate-300 ${
+              local.gender === "F" ? "bg-sky-50 text-sky-700" : "bg-white text-slate-800"
+            }`}
+          >
+            {t.female}
+          </button>
+        </div>
+      </div>
+
+      {/* Names */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <input
+            placeholder={t.firstName}
+            value={local.firstName || ""}
+            onChange={(e) => set("firstName", e.target.value)}
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+              errors.firstName ? "border-red-400" : "border-slate-300"
+            }`}
+          />
+          {errors.firstName && (
+            <div className="text-red-600 text-xs mt-1">{t.required}</div>
+          )}
+        </div>
+        <div>
+          <input
+            placeholder={t.lastName}
+            value={local.lastName || ""}
+            onChange={(e) => set("lastName", e.target.value)}
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+              errors.lastName ? "border-red-400" : "border-slate-300"
+            }`}
+          />
+          {errors.lastName && (
+            <div className="text-red-600 text-xs mt-1">{t.required}</div>
+          )}
+        </div>
+      </div>
+
+      {/* Country + DOB */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+        <div>
+          <select
+            value={local.country || "Thailand"}
+            onChange={(e) => set("country", e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+          >
+            <option>Thailand</option>
+            <option>Singapore</option>
+            <option>Malaysia</option>
+            <option>Vietnam</option>
+            <option>Indonesia</option>
+          </select>
+        </div>
+        <div>
+          <input
+            placeholder={t.dob}
+            value={local.dob || ""}
+            onChange={(e) => set("dob", e.target.value)}
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+              errors.dob ? "border-red-400" : "border-slate-300"
+            }`}
+          />
+          {errors.dob && (
+            <div className="text-red-600 text-xs mt-1">{t.required}</div>
+          )}
+        </div>
+      </div>
+
+      {/* Member & email (lookup) */}
+      <div className="mt-3">
+        <input
+          placeholder={t.memberId}
+          value={local.memberId || ""}
+          onChange={(e) => set("memberId", e.target.value)}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-3"
+        />
+        <div className="p-3 border border-slate-300 rounded-lg bg-slate-50">
+          <div className="text-slate-900 mb-2">• {t.earnPoints}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+            <input
+              placeholder={t.email}
+              value={local.email || ""}
+              onChange={(e) => set("email", e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg border border-cyan-500 text-cyan-700 font-semibold bg-white"
+              onClick={() => alert("🔎 Lookup member by email (stub)")}
+            >
+              {t.search}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 text-slate-900">
+          {t.pointsAfter} <span className="font-bold">95 {t.points}</span>
+        </div>
+      </div>
+
+      {showSave && (
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={save}
+            className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold"
+          >
+            {t.save}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
+
+/* ========================= Bundle Selector ========================= */
+const BundleCard = memo(function BundleCard({
+  name,
+  checked,
+  onChange,
+  title,
+  subtitle,
+  features,
+  priceLabel,
+  accent = "#3b82f6",
+}) {
+  return (
+    <label
+      className={`flex items-start gap-3 border-2 rounded-xl p-3 cursor-pointer w-full ${
+        checked ? "bg-sky-50" : "bg-white"
+      }`}
+      style={{ borderColor: checked ? accent : "#e5e7eb" }}
+    >
+      <input
+        type="radio"
+        name={name}
+        checked={checked}
+        onChange={onChange}
+        className="mt-1"
+      />
+      <div className="flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-extrabold">{title}</div>
+            <div className="text-blue-600 text-xs font-semibold">{subtitle}</div>
+          </div>
+          {priceLabel && (
+            <div className="font-bold whitespace-nowrap">{priceLabel}</div>
+          )}
+        </div>
+        <ul className="mt-2 ml-5 text-slate-700 text-sm list-disc">
+          {features.map((f, i) => (
+            <li key={i} className="mb-1">
+              {f}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </label>
+  );
+});
+
+/* ========================= Contact Information ========================= */
+const ContactInformation = memo(function ContactInformation({
+  t,
+  value,
+  onChange,
+  showErrors,
+}) {
+  const [local, setLocal] = useState(
+    value || { dialCode: "+66", phone: "", email: "", optIn: false }
+  );
+
+  useEffect(
+    () => setLocal(value || { dialCode: "+66", phone: "", email: "", optIn: false }),
+    [value]
+  );
+
+  const set = useCallback((k, v) => {
+    const next = { ...local, [k]: v };
+    setLocal(next);
+    onChange?.(next);
+  }, [local, onChange]);
+
+  const phoneErr = showErrors && !local.phone.trim();
+  const emailErr = showErrors && !local.email.trim();
+
+  const label = useCallback(
+    (text) => (
+      <span>
+        {text} <span className="text-red-500">*</span>
+      </span>
+    ),
+    []
+  );
+
+  return (
+    <div className="mt-3 bg-slate-100 rounded-xl p-4 border border-slate-300">
+      <h3 className="mt-0 text-base font-semibold">{t.contact}</h3>
+
+      <div className="grid grid-cols-[140px_1fr] max-[480px]:grid-cols-1 gap-2">
+        <div>
+          <div className="text-xs text-slate-600 mb-1">{label("+ Code")}</div>
+          <select
+            value={local.dialCode}
+            onChange={(e) => set("dialCode", e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-white"
+          >
+            <option value="+66">+66</option>
+            <option value="+60">+60</option>
+            <option value="+65">+65</option>
+            <option value="+84">+84</option>
+            <option value="+62">+62</option>
+          </select>
+        </div>
+
+        <div>
+          <div className="text-xs text-slate-600 mb-1">{label(t.emailAddress)}</div>
+          <input
+            value={local.email}
+            onChange={(e) => set("email", e.target.value)}
+            placeholder="name@example.com"
+            className={`w-full rounded-lg border px-3 py-2 bg-white ${
+              emailErr ? "border-red-400" : "border-slate-300"
+            }`}
+          />
+          {emailErr && (
+            <div className="text-red-600 text-xs mt-1">{t.required}</div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2">
+        <div className="text-xs text-slate-600 mb-1">{label(t.mobilePhone)}</div>
+        <input
+          value={local.phone}
+          onChange={(e) => set("phone", e.target.value)}
+          placeholder="8x-xxxxxxx"
+          className={`w-full rounded-lg border px-3 py-2 bg-white ${
+            phoneErr ? "border-red-400" : "border-slate-300"
+          }`}
+        />
+        {phoneErr && (
+          <div className="text-red-600 text-xs mt-1">{t.required}</div>
+        )}
+      </div>
+
+      <label className="flex items-center gap-2 mt-3 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          checked={local.optIn || false}
+          onChange={(e) => set("optIn", e.target.checked)}
+        />
+        {t.marketingOptIn}
+      </label>
+    </div>
+  );
+});
+
 /* ===== Debug helpers (for viewing requests) ===== */
 function buildCurl({ url, method = "POST", headers = {}, body = null }) {
   const h = Object.entries(headers)
@@ -150,6 +666,16 @@ function buildCurl({ url, method = "POST", headers = {}, body = null }) {
   const d = body ? `--data '${JSON.stringify(body)}'` : "";
   return `curl -X ${method} ${h} ${d} ${JSON.stringify(url)}`;
 }
+
+const PrettyBlock = ({ title, children, actions = null }) => (
+  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+    <div className="flex items-center justify-between mb-2">
+      <div className="font-semibold">{title}</div>
+      {actions}
+    </div>
+    {children}
+  </div>
+);
 
 /* ========================= Page ========================= */
 export default function PriceDetailSkyBlue() {
@@ -161,7 +687,7 @@ export default function PriceDetailSkyBlue() {
   const [lang, setLang] = useState(state?.lang === "th" ? "th" : "en");
   const t = STR[lang];
 
-  // Debug from navigation state
+  // Debug from navigation state (from JourneyTable)
   const debug = state?.debug || null;
 
   // ----- Seat-map response (success or error) -----
@@ -335,7 +861,10 @@ export default function PriceDetailSkyBlue() {
     [updateForm, scrollToPassengerTop]
   );
 
-  const isComplete = useCallback((v) => v && v.firstName && v.lastName && v.dob, []);
+  const isComplete = useCallback(
+    (v) => v && v.firstName && v.lastName && v.dob,
+    []
+  );
 
   const firstAdultName = useMemo(
     () =>
@@ -391,7 +920,11 @@ export default function PriceDetailSkyBlue() {
         id: "premium",
         title: "Premium Flex",
         subtitle: lang === "th" ? "ประหยัดสูงสุด 20%" : "Save up to 20%",
-        features: ["7 kg carry-on baggage", "20 kg baggage allowance", "Standard/Hot seat"],
+        features: [
+          "7 kg carry-on baggage",
+          "20 kg baggage allowance",
+          "Standard/Hot seat",
+        ],
         addOnAmount: 450.0,
         accent: "#f43f5e",
       },
@@ -406,7 +939,15 @@ export default function PriceDetailSkyBlue() {
     return found.length
       ? found
       : [
-          { key: "OUT-1", origin: "", destination: "", depTime: null, arrTime: null, fn: "", dir: "OUT" },
+          {
+            key: "OUT-1",
+            origin: "",
+            destination: "",
+            depTime: null,
+            arrTime: null,
+            fn: "",
+            dir: "OUT",
+          },
         ];
   }, [detail?.raw]);
 
@@ -424,9 +965,17 @@ export default function PriceDetailSkyBlue() {
   );
 
   /* ==== Contact information ==== */
-  const [contact, setContact] = useState({ dialCode: "+66", phone: "", email: "", optIn: false });
+  const [contact, setContact] = useState({
+    dialCode: "+66",
+    phone: "",
+    email: "",
+    optIn: false,
+  });
   const [showContactErrors, setShowContactErrors] = useState(false);
-  const contactValid = useMemo(() => contact.phone.trim() && contact.email.trim(), [contact.phone, contact.email]);
+  const contactValid = useMemo(
+    () => contact.phone.trim() && contact.email.trim(),
+    [contact.phone, contact.email]
+  );
   const canContinue = useMemo(
     () => travellers.every((p) => isComplete(forms[p.id])) && contactValid,
     [travellers, forms, isComplete, contactValid]
@@ -451,7 +1000,11 @@ export default function PriceDetailSkyBlue() {
   return (
     <div className="font-sans bg-gray-50 min-h-screen">
       {/* Nok Holiday themed header */}
-      <div ref={headerRef} className="sticky top-0 z-20 w-full border-b bg-[#e3f8ff]" style={{ minHeight: 64 }}>
+      <div
+        ref={headerRef}
+        className="sticky top-0 z-20 w-full border-b bg-[#e3f8ff]"
+        style={{ minHeight: 64 }}
+      >
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
           {/* Brand + logo */}
           <div className="flex items-center gap-3">
@@ -464,9 +1017,7 @@ export default function PriceDetailSkyBlue() {
                 height={32}
                 loading="lazy"
                 decoding="async"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
               />
               <span className="font-bold text-[170%] text-blue-600 tracking-tight transition-colors duration-300 group-hover:text-[#ffe657]">
                 Nok Holiday
@@ -480,7 +1031,11 @@ export default function PriceDetailSkyBlue() {
                 setLang("th");
                 requestAnimationFrame(() => scrollToPassengerTop());
               }}
-              className={`px-3 py-1 border rounded ${lang === "th" ? "bg-blue-600 text-white" : "border-blue-600 text-blue-600"}`}
+              className={`px-3 py-1 border rounded ${
+                lang === "th"
+                  ? "bg-blue-600 text-white"
+                  : "border-blue-600 text-blue-600"
+              }`}
             >
               ไทย
             </button>
@@ -489,7 +1044,11 @@ export default function PriceDetailSkyBlue() {
                 setLang("en");
                 requestAnimationFrame(() => scrollToPassengerTop());
               }}
-              className={`px-3 py-1 border rounded ${lang === "en" ? "bg-blue-600 text-white" : "border-blue-600 text-blue-600"}`}
+              className={`px-3 py-1 border rounded ${
+                lang === "en"
+                  ? "bg-blue-600 text-white"
+                  : "border-blue-600 text-blue-600"
+              }`}
             >
               English
             </button>
@@ -519,7 +1078,9 @@ export default function PriceDetailSkyBlue() {
                   <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 font-bold">
                     <div>{travellers[0].label}</div>
                     <Chip ok={isComplete(forms[travellers[0].id])}>
-                      {isComplete(forms[travellers[0].id]) ? t.completed : t.incomplete}
+                      {isComplete(forms[travellers[0].id])
+                        ? t.completed
+                        : t.incomplete}
                     </Chip>
                   </div>
 
@@ -558,16 +1119,28 @@ export default function PriceDetailSkyBlue() {
                 ))}
 
                 {/* Contact Information */}
-                <ContactInformation t={t} value={contact} onChange={setContact} showErrors={showContactErrors} />
+                <ContactInformation
+                  t={t}
+                  value={contact}
+                  onChange={setContact}
+                  showErrors={showContactErrors}
+                />
 
                 {/* ===== Bundle groups: one per segment ===== */}
                 <div className="mt-5">
                   {legs.map((leg, idx) => {
-                    const labelGuess = leg.dir === "IN" ? t.ret : leg.dir === "OUT" ? t.depart : `${t.segment} ${idx + 1}`;
+                    const labelGuess =
+                      leg.dir === "IN"
+                        ? t.ret
+                        : leg.dir === "OUT"
+                        ? t.depart
+                        : `${t.segment} ${idx + 1}`;
 
                     const name = `bundle-${leg.key}`;
                     const headerText = [
-                      leg.origin && leg.destination ? `${leg.origin} → ${leg.destination}` : null,
+                      leg.origin && leg.destination
+                        ? `${leg.origin} → ${leg.destination}`
+                        : null,
                       leg.fn ? leg.fn : null,
                       leg.depTime ? `${formatDDMMM(leg.depTime)} ${hhmm(leg.depTime)}` : null,
                       leg.arrTime ? `→ ${hhmm(leg.arrTime)}` : null,
@@ -576,7 +1149,10 @@ export default function PriceDetailSkyBlue() {
                       .join(" • ");
 
                     return (
-                      <div key={leg.key} className="mb-4 p-3 rounded-xl border border-slate-200 bg-white">
+                      <div
+                        key={leg.key}
+                        className="mb-4 p-3 rounded-xl border border-slate-200 bg-white"
+                      >
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-green-600 text-white grid place-items-center font-extrabold flex-shrink-0">
                             ★
@@ -586,7 +1162,9 @@ export default function PriceDetailSkyBlue() {
                           </div>
                         </div>
 
-                        <div className="text-slate-600 text-sm mt-2 mb-3">{t.selectOneBundle}</div>
+                        <div className="text-slate-600 text-sm mt-2 mb-3">
+                          {t.selectOneBundle}
+                        </div>
 
                         <div className="flex flex-col gap-2">
                           {bundles.map((b) => (
@@ -622,7 +1200,9 @@ export default function PriceDetailSkyBlue() {
             <h3 className="text-lg font-semibold mb-3">{t.priceSummary}</h3>
 
             {!requestKey && !state?.priceDetail && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 mb-3">{t.noKey}</div>
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 mb-3">
+                {t.noKey}
+              </div>
             )}
 
             {detail ? (
@@ -640,9 +1220,12 @@ export default function PriceDetailSkyBlue() {
                   <div className="h-px bg-slate-200 col-span-full my-1" />
 
                   <div className="text-emerald-900 font-bold">{t.total}</div>
-                  <div className="text-xl text-sky-700 font-extrabold">{fmt(grandTotal, currency)}</div>
+                  <div className="text-xl text-sky-700 font-extrabold">
+                    {fmt(grandTotal, currency)}
+                  </div>
                 </div>
 
+                {/* Debug request/response buttons */}
                 {(debug || hasSeatResult) && (
                   <div className="mt-4 grid gap-2">
                     <PrettyBlock title="Debug">
@@ -655,7 +1238,7 @@ export default function PriceDetailSkyBlue() {
                             {t.viewPriceReq}
                           </button>
                         )}
-                        {debug?.seatRequest && (
+                        {debug?.seatMapRequest && (
                           <button
                             onClick={() => setOpenSeatReq(true)}
                             className="px-3 py-2 rounded-md border border-slate-300 hover:border-blue-400 hover:text-blue-700 bg-white text-sm"
@@ -679,14 +1262,20 @@ export default function PriceDetailSkyBlue() {
                 <button
                   disabled={!canContinue}
                   className={`mt-4 w-full px-4 py-3 rounded-full font-bold text-white ${
-                    canContinue ? "bg-sky-500 hover:bg-sky-600" : "bg-gray-400 cursor-not-allowed"
+                    canContinue
+                      ? "bg-sky-500 hover:bg-sky-600"
+                      : "bg-gray-400 cursor-not-allowed"
                   }`}
                   onClick={() => {
                     if (!contactValid) setShowContactErrors(true);
                     if (!canContinue) return;
                     alert(
                       "✅ Continue to seats / add-ons.\n\n" +
-                        JSON.stringify({ pax, forms, contact, selectedBundles, legs }, null, 2)
+                        JSON.stringify(
+                          { pax, forms, contact, selectedBundles, legs },
+                          null,
+                          2
+                        )
                     );
                     requestAnimationFrame(() => scrollToPassengerTop());
                   }}
@@ -715,7 +1304,9 @@ export default function PriceDetailSkyBlue() {
               </>
             ) : (
               (requestKey || state?.priceDetail) && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded text-rose-800">{t.noDetail}</div>
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded text-rose-800">
+                  {t.noDetail}
+                </div>
               )
             )}
           </aside>
@@ -759,7 +1350,12 @@ export default function PriceDetailSkyBlue() {
       <Modal open={openPriceReq} onClose={() => setOpenPriceReq(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{t.requestPreview} — Price</div>
-          <button onClick={() => setOpenPriceReq(false)} className="text-xl leading-none" aria-label={t.close} title={t.close}>
+          <button
+            onClick={() => setOpenPriceReq(false)}
+            className="text-xl leading-none"
+            aria-label={t.close}
+            title={t.close}
+          >
             ×
           </button>
         </div>
@@ -770,7 +1366,9 @@ export default function PriceDetailSkyBlue() {
                 title="cURL"
                 actions={
                   <button
-                    onClick={() => onCopy(buildCurl(debug.pricingRequest), "priceCurl")}
+                    onClick={() =>
+                      onCopy(buildCurl(debug.pricingRequest), "priceCurl")
+                    }
                     className="px-2 py-1 rounded border border-slate-300 bg-white text-xs"
                     title={t.copyCurl}
                   >
@@ -782,7 +1380,9 @@ export default function PriceDetailSkyBlue() {
               </PrettyBlock>
               <div className="h-3" />
               <PrettyBlock title="JSON">
-                <pre className="text-xs overflow-auto">{JSON.stringify(debug.pricingRequest, null, 2)}</pre>
+                <pre className="text-xs overflow-auto">
+                  {JSON.stringify(debug.pricingRequest, null, 2)}
+                </pre>
               </PrettyBlock>
             </>
           ) : (
@@ -795,18 +1395,25 @@ export default function PriceDetailSkyBlue() {
       <Modal open={openSeatReq} onClose={() => setOpenSeatReq(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{t.requestPreview} — Seat map</div>
-          <button onClick={() => setOpenSeatReq(false)} className="text-xl leading-none" aria-label={t.close} title={t.close}>
+          <button
+            onClick={() => setOpenSeatReq(false)}
+            className="text-xl leading-none"
+            aria-label={t.close}
+            title={t.close}
+          >
             ×
           </button>
         </div>
         <div className="p-4">
-          {debug?.seatRequest ? (
+          {debug?.seatMapRequest ? (
             <>
               <PrettyBlock
                 title="cURL"
                 actions={
                   <button
-                    onClick={() => onCopy(buildCurl(debug.seatRequest), "seatCurl")}
+                    onClick={() =>
+                      onCopy(buildCurl(debug.seatMapRequest), "seatCurl")
+                    }
                     className="px-2 py-1 rounded border border-slate-300 bg-white text-xs"
                     title={t.copyCurl}
                   >
@@ -814,11 +1421,13 @@ export default function PriceDetailSkyBlue() {
                   </button>
                 }
               >
-                <pre className="text-xs overflow-auto">{buildCurl(debug.seatRequest)}</pre>
+                <pre className="text-xs overflow-auto">{buildCurl(debug.seatMapRequest)}</pre>
               </PrettyBlock>
               <div className="h-3" />
               <PrettyBlock title="JSON">
-                <pre className="text-xs overflow-auto">{JSON.stringify(debug.seatRequest, null, 2)}</pre>
+                <pre className="text-xs overflow-auto">
+                  {JSON.stringify(debug.seatMapRequest, null, 2)}
+                </pre>
               </PrettyBlock>
             </>
           ) : (
@@ -830,15 +1439,26 @@ export default function PriceDetailSkyBlue() {
       {/* ===== Debug: Seat-map RESPONSE modal ===== */}
       <Modal open={openSeatResp} onClose={() => setOpenSeatResp(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <div className="font-extrabold">{seatRaw ? t.seatRespTitle : t.seatErrorTitle}</div>
-          <button onClick={() => setOpenSeatResp(false)} className="text-xl leading-none" aria-label={t.close} title={t.close}>
+          <div className="font-extrabold">
+            {seatRaw ? t.seatRespTitle : t.seatErrorTitle}
+          </div>
+          <button
+            onClick={() => setOpenSeatResp(false)}
+            className="text-xl leading-none"
+            aria-label={t.close}
+            title={t.close}
+          >
             ×
           </button>
         </div>
         <div className="p-4">
           {seatRaw ? (
             <PrettyBlock title="JSON">
-              <pre className="text-xs overflow-auto">{typeof seatRaw === "string" ? seatRaw : JSON.stringify(seatRaw, null, 2)}</pre>
+              <pre className="text-xs overflow-auto">
+                {typeof seatRaw === "string"
+                  ? seatRaw
+                  : JSON.stringify(seatRaw, null, 2)}
+              </pre>
             </PrettyBlock>
           ) : seatError ? (
             <PrettyBlock title="Error">
