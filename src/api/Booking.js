@@ -2,7 +2,7 @@
 // Map UI form -> backend (NOK) schema. Keep backend as-is.
 
 export async function searchFlights(form, { signal } = {}) {
-  const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production-76d7.up.railway.app";
+  const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic2222b-production.up.railway.app";
 
   // Normalize IATA + dates
   const origin = String(form.origin || "").trim().toUpperCase();
