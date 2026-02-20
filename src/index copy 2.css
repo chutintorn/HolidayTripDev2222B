@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* -------------------------------------------
+   RSuite DatePicker / DateRangePicker polish
+   ------------------------------------------- */
+@layer components {
+  /* Ensure the popup floats above other UI */
+  .rs-picker-popup {
+    @apply z-60;
+  }
+
+  /* Make the two-month menu comfortably wide on md+ screens */
+  @media (min-width: 768px) {
+    .rs-picker-daterange-menu {
+      min-width: 560px;
+    }
+  }
+  /* Mobile friendliness: let the popup fit viewport width */
+  @media (max-width: 767px) {
+    .rs-picker-daterange-menu {
+      width: calc(100vw - 2rem);
+      max-width: calc(100vw - 2rem);
+    }
+  }
+
+  /* Input (toggle) inside our picker wrapper */
+  .ibe-datepicker .rs-picker-toggle {
+    @apply h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 shadow-sm;
+  }
+
+  .ibe-datepicker .rs-picker-toggle:hover {
+    @apply bg-slate-50;
+  }
+
+  .ibe-datepicker .rs-picker-toggle.rs-btn,
+  .ibe-datepicker .rs-picker-toggle .rs-picker-toggle-value,
+  .ibe-datepicker .rs-picker-toggle .rs-picker-toggle-placeholder {
+    @apply text-[16px] text-slate-800;
+  }
+
+  /* Focus ring + border on focus */
+  .ibe-datepicker .rs-picker-focused .rs-picker-toggle,
+  .ibe-datepicker .rs-picker-toggle:focus-within {
+    @apply ring ring-sky-200/70 border-sky-500;
+  }
+
+  /* Calendar panel look */
+  .rs-calendar {
+    @apply rounded-2xl border border-slate-200 shadow-lg;
+  }
+
+  .rs-calendar-header {
+    @apply px-3 py-2;
+  }
+
+  .rs-calendar-header .rs-calendar-header-title {
+    @apply font-semibold;
+  }
+
+  /* Day cell sizing + shape */
+  .rs-calendar-table-cell-content {
+    @apply w-9 h-9 leading-9 rounded-full;
+  }
+
+  /* Today marker */
+  .rs-calendar-table-cell-is-today .rs-calendar-table-cell-content {
+    @apply border border-sky-400;
+  }
+
+  /* Selected / in-range colors */
+  .rs-calendar-table-cell-selected .rs-calendar-table-cell-content,
+  .rs-calendar-table-cell-selected-start .rs-calendar-table-cell-content,
+  .rs-calendar-table-cell-selected-end .rs-calendar-table-cell-content,
+  .rs-calendar-table-cell-in-range .rs-calendar-table-cell-content {
+    @apply bg-sky-600 text-white;
+  }
+
+  /* Disabled days: muted, no strikethrough */
+  .rs-calendar-table-cell-disabled .rs-calendar-table-cell-content {
+    @apply text-slate-300 no-underline;
+  }
+}
+
+/* ----------------------------------------------------
+   (Optional) react-datepicker polish (kept from yours)
+   Safe to remove if you no longer use react-datepicker
+   ---------------------------------------------------- */
+@layer components {
+  .rdp-input {
+    @apply block w-full rounded-xl border border-gray-300 shadow-sm
+           px-4 py-3 text-base
+           focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50;
+  }
+
+  .rdp-calendar {
+    @apply rounded-xl border shadow-lg bg-white p-2 text-sm;
+  }
+
+  .react-datepicker__header {
+    @apply bg-white border-b px-3 py-2;
+  }
+
+  .react-datepicker__current-month,
+  .react-datepicker__year-read-view--selected-year,
+  .react-datepicker__month-read-view--selected-month {
+    @apply font-semibold;
+  }
+
+  .react-datepicker__day {
+    @apply w-9 h-9 leading-9;
+  }
+
+  .react-datepicker__day--selected,
+  .react-datepicker__day--in-selecting-range,
+  .react-datepicker__day--in-range {
+    @apply bg-blue-600 text-white;
+  }
+
+  .react-datepicker__day--keyboard-selected {
+    @apply bg-blue-100 text-blue-700;
+  }
+}

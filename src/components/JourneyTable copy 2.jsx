@@ -1,20 +1,20 @@
-// src/components/JourneyTable.jsx
 import React, { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { selectResults } from "../redux/searchSlice";
-import {
-  fetchPriceDetail,
-  selectPricingStatus,
-} from "../redux/pricingSlice";
-import {
-  fetchSeatMap,
-  selectSeatMapStatus,
-} from "../redux/seatMapSlice"; // <-- ensure file exists & reducer registered
+import { selectResults, selectSearch } from "../redux/searchSlice";
+import { fetchPriceDetail, selectPricingStatus } from "../redux/pricingSlice";
+import { fetchSeatMap, selectSeatMapStatus } from "../redux/seatMapSlice";
+import { setSelectedOfferLegs } from "../redux/offerSelectionSlice";
 import { flattenFlights } from "../utils/flattenFlights";
+import PaxChips from "./PaxChips";
+import { derivePax } from "../utils/pax";
 
-/** ---- Local-safe date helpers ---- */
-const ymd = (s) => (typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "");
+// ✅ NEW: flight selection summary
+import FlightSelectionSummary from "./FlightSelectionSummary";
+
+/** ------ Local-safe date helpers ---- */
+const ymd = (s) =>
+  typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "";
 const toLocalDate = (s) => {
   const dstr = ymd(s);
   if (!dstr) return null;
@@ -117,7 +117,10 @@ export default function JourneyTable({
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  // Pull data from redux
   const globalResults = useSelector(selectResults);
+  const search = useSelector(selectSearch);
+
   const raw = resultsOverride ?? globalResults;
 
   const currency =
@@ -134,20 +137,42 @@ export default function JourneyTable({
     if (!payload) return [];
     const input = Array.isArray(payload) ? payload : [payload];
     const out = flattenFlights(input, securityToken) || [];
-    return out.filter((r) => r && (r.id || r.flightNumber) && (r.origin || r.destination));
+    return out.filter(
+      (r) => r && (r.id || r.flightNumber) && (r.origin || r.destination)
+    );
   }, [payload, securityToken]);
+
+  // derive pax (for chips and "/N pax" label)
+  const pax = useMemo(
+    () => derivePax(search?.params || search?.results || payload || raw || {}),
+    [search, payload, raw]
+  );
+  const totalPax = (pax.adult || 0) + (pax.child || 0) + (pax.infant || 0);
 
   const [selectedRow, setSelectedRow] = useState(null);
   const [selectedFare, setSelectedFare] = useState(null);
   const [openId, setOpenId] = useState(null);
 
+  // ✅ NEW: Tabs for UX (Depart / Return / View Selection)
+  const [tab, setTab] = useState("depart"); // "depart" | "return" | "view"
+
   // Local loading only for NEXT, so we can always navigate on seat failure
   const [nextLoading, setNextLoading] = useState(false);
+
+  // ✅ IMPORTANT FIX: hooks must be called BEFORE any early-return
+  const requestKey = selectedFare?.fareKey || "";
+  const pricingStatus = useSelector(selectPricingStatus(requestKey));
+  const seatStatus = useSelector(selectSeatMapStatus(requestKey));
+
+  // ✅ allow NEXT only when selectedFare is valid and not loading
+  const canNext =
+    !!(selectedFare?.journeyKey && selectedFare?.fareKey) && !nextLoading;
 
   if (!rows.length) {
     return (
       <div className="mt-6 rounded-xl border bg-amber-50 text-amber-900 p-4">
-        No flights to display. The response may be empty or in an unexpected format.
+        No flights to display. The response may be empty or in an unexpected
+        format.
       </div>
     );
   }
@@ -164,10 +189,32 @@ export default function JourneyTable({
       securityToken: row.securityToken || securityToken,
       currency,
       row,
+      // ✅ include common fields so summary can show route and price
+      origin: row.origin,
+      destination: row.destination,
+      fareAmountIncludingTax: row.fareAmountIncludingTax,
     };
 
     setSelectedRow(row);
     setSelectedFare(selection);
+
+    // ✅ update Redux store with fareKey/journeyKey (as legs[])
+    dispatch(
+      setSelectedOfferLegs([
+        {
+          direction: "OUT",
+          journeyKey: selection.journeyKey ?? null,
+          fareKey: selection.fareKey ?? null,
+          securityToken: selection.securityToken ?? null,
+          currency: selection.currency ?? currency ?? null,
+          row: selection.row ?? row ?? null,
+          origin: selection.origin ?? row?.origin ?? null,
+          destination: selection.destination ?? row?.destination ?? null,
+          fareAmountIncludingTax:
+            selection.fareAmountIncludingTax ?? row?.fareAmountIncludingTax ?? null,
+        },
+      ])
+    );
 
     if (typeof onSelectRow === "function") {
       onSelectRow(selection);
@@ -178,6 +225,24 @@ export default function JourneyTable({
   const handleInternalNext = async () => {
     if (!selectedFare?.journeyKey || !selectedFare?.fareKey) return;
     console.log("NEXT with", selectedFare);
+
+    dispatch(
+      setSelectedOfferLegs([
+        {
+          direction: "OUT",
+          journeyKey: selectedFare.journeyKey ?? null,
+          fareKey: selectedFare.fareKey ?? null,
+          securityToken: selectedFare.securityToken ?? null,
+          currency: selectedFare.currency ?? currency ?? null,
+          row: selectedFare.row ?? selectedRow ?? null,
+          origin: selectedFare.origin ?? selectedRow?.origin ?? null,
+          destination: selectedFare.destination ?? selectedRow?.destination ?? null,
+          fareAmountIncludingTax:
+            selectedFare.fareAmountIncludingTax ?? selectedRow?.fareAmountIncludingTax ?? null,
+        },
+      ])
+    );
+
     if (typeof onNext === "function") {
       onNext({
         journeyKey: selectedFare.journeyKey,
@@ -194,20 +259,23 @@ export default function JourneyTable({
       },
     ];
 
-    // ===== Build debug info (URL + headers) to carry via navigate =====
     const API_BASE =
       (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE) ||
       "http://localhost:3100";
     const priceUrl = `${API_BASE}/pricedetails`;
-    const seatUrl  = `${API_BASE}/seat-map`;
+    const seatUrl = `${API_BASE}/seat-map`;
     const commonHeaders = { "Content-Type": "application/json" };
     const priceHeaders = {
       ...commonHeaders,
-      ...(selectedFare.securityToken ? { securitytoken: selectedFare.securityToken } : {}),
+      ...(selectedFare.securityToken
+        ? { securitytoken: selectedFare.securityToken }
+        : {}),
     };
     const seatHeaders = {
       ...commonHeaders,
-      ...(selectedFare.securityToken ? { securitytoken: selectedFare.securityToken } : {}),
+      ...(selectedFare.securityToken
+        ? { securitytoken: selectedFare.securityToken }
+        : {}),
     };
 
     setNextLoading(true);
@@ -216,34 +284,33 @@ export default function JourneyTable({
         fetchPriceDetail({
           offers,
           currency,
-          includeSeats: false, // only /pricedetails here
+          includeSeats: false,
         })
       ).unwrap();
 
       const seatP = dispatch(fetchSeatMap({ offers, agencyCode: "" })).unwrap();
 
-      // Wait for both, but only pricing controls navigation
       const [priceRes, seatRes] = await Promise.allSettled([priceP, seatP]);
 
       if (priceRes.status !== "fulfilled") {
         console.error("Pricing failed:", priceRes.reason);
-        return; // do not navigate if no pricing
+        return;
       }
 
       const seatOk = seatRes.status === "fulfilled";
-      const seatError = seatOk ? null : (seatRes.reason?.message || "Seat map failed.");
-      const seatRaw = seatOk ? seatRes.value : null; // <-- capture seat-map response body
+      const seatError = seatOk
+        ? null
+        : seatRes.reason?.message || "Seat map failed.";
+      const seatRaw = seatOk ? seatRes.value : null;
 
-      const requestKey = selectedFare.fareKey; // one-leg => key === fareKey
+      const requestKey = selectedFare.fareKey;
 
       navigate("/skyblue-price-detail", {
         state: {
           requestKey,
-          // for response modal / badges
           seatOk,
           seatError,
           seatRaw,
-          // a single 'debug' object so PriceDetail can keep showing the two buttons
           debug: {
             pricingRequest: {
               url: priceUrl,
@@ -257,7 +324,6 @@ export default function JourneyTable({
               headers: seatHeaders,
               body: { offers, agencyCode: "" },
             },
-            // optional: also mirror response into debug if you prefer to read it there
             seatResponse: seatRaw,
             seatOk,
             seatError,
@@ -278,7 +344,9 @@ export default function JourneyTable({
         .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
         .toUpperCase()
     : "";
-  const dow = depDate ? depDate.toLocaleDateString("en-GB", { weekday: "short" }) : "";
+  const dow = depDate
+    ? depDate.toLocaleDateString("en-GB", { weekday: "short" })
+    : "";
   const dowColors = {
     Mon: "#FFD700",
     Tue: "#FF69B4",
@@ -288,18 +356,60 @@ export default function JourneyTable({
     Sat: "#CF9FFF",
     Sun: "#FF4500",
   };
-  const accent = dowColors[dow] || "#00BFFF"; // fallback color
+  const accent = dowColors[dow] || "#00BFFF";
   const containerStyle = { "--dow": accent };
 
-  // (Optional) Read redux statuses if you still want to show small error lines before navigating
-  
-  
-  const requestKey = selectedFare?.fareKey || "";
-  const pricingStatus = useSelector(selectPricingStatus(requestKey));
-  const seatStatus = useSelector(selectSeatMapStatus(requestKey));
+  // ✅ selectedOffers for summary (one-way = 1 leg)
+  const selectedOffersForSummary = useMemo(() => {
+    if (!selectedFare) return [];
+    return [
+      {
+        origin: selectedFare.origin || selectedFare.row?.origin,
+        destination: selectedFare.destination || selectedFare.row?.destination,
+        journeyKey: selectedFare.journeyKey,
+        fareKey: selectedFare.fareKey,
+        securityToken: selectedFare.securityToken,
+        currency: selectedFare.currency || currency,
+        // important price field
+        fareAmountIncludingTax:
+          selectedFare.fareAmountIncludingTax ??
+          selectedFare.row?.fareAmountIncludingTax ??
+          null,
+      },
+    ];
+  }, [selectedFare, currency]);
 
-  const canNext =
-    !!(selectedFare?.journeyKey && selectedFare?.fareKey) && !nextLoading;
+  // ✅ tabs: same size, View Selection on rightmost.
+  const TabButton = ({ id, label, right = false, disabled: dis = false }) => {
+    const active = tab === id;
+
+    // View Selection idle => accent day-color
+    const viewIdleStyle =
+      id === "view" && !active && !dis
+        ? { backgroundColor: accent, color: "#111827", borderColor: accent }
+        : null;
+
+    return (
+      <button
+        type="button"
+        onClick={() => !dis && setTab(id)}
+        disabled={!!dis}
+        className={[
+          "px-4 py-2 rounded-md text-[12px] font-bold border transition-colors",
+          "min-w-[140px] text-center", // ✅ same size
+          right ? "ml-auto" : "",
+          dis
+            ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+            : active
+            ? "bg-blue-600 text-white border-blue-600"
+            : "bg-white text-slate-700 border-slate-200 hover:border-[var(--dow)]",
+        ].join(" ")}
+        style={viewIdleStyle}
+      >
+        {label}
+      </button>
+    );
+  };
 
   return (
     <div className="w-full" style={containerStyle}>
@@ -311,7 +421,7 @@ export default function JourneyTable({
             </span>
           )}
           <span className="font-semibold text-[0.9em]">
-            {rows[0]?.origin}  {rows[0]?.destination}
+            {rows[0]?.origin} {rows[0]?.destination}
           </span>
           {ddMMM && (
             <>
@@ -324,128 +434,181 @@ export default function JourneyTable({
               </span>
             </>
           )}
+
+          <PaxChips source={search?.params || search?.results || payload || raw} />
         </h2>
       )}
 
-      {/* RESULT CARDS */}
-      <div className="flex flex-col gap-3">
-        {rows.map((row, idx) => {
-          const cardId = row.id || `${row.flightNumber}-${idx}`;
-          const open = openId === cardId;
-          const selected = selectedRow?.fareKey === row.fareKey;
+      {/* ✅ Tabs row */}
+      <div className="mb-3 flex items-center gap-2 w-full">
+        <div className="flex items-center gap-2">
+          <TabButton id="depart" label="Depart" />
+          {/* one-way: keep Return disabled for now (roundtrip later) */}
+          <TabButton id="return" label="Return" disabled />
+        </div>
 
-          return (
-            <article
-              key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
-              style={{ "--dow": accent }}
-              className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
-            >
-              {/* LEFT META */}
-              <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
-                <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
-                  <img
-                    className="w-full h-full object-cover"
-                    alt="Nok Air"
-                    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
-                  />
-                </div>
-                <div>
-                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
-                    Economy
-                  </span>
-
-                  <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
-                    {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin} → {row.destination}
-                  </div>
-
-                  {/* Timeline */}
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <div className="text-[18px] font-extrabold">{row.departureTime}</div>
-                    <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
-                      <span className="absolute left-0 right-0 mx-auto -top-[7px] block h-[1px] w-[80px] bg-slate-300 rounded" />
-                    </div>
-                    <div className="text-[18px] font-extrabold">{row.arrivalTime}</div>
-                  </div>
-
-                  {/* Foot meta */}
-                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
-                    <span>
-                      {row.aircraftDescription
-                        ? `${row.aircraftDescription} • ${row.duration}`
-                        : row.duration}
-                    </span>
-                    <span>•</span>
-                    <span>Nonstop</span>
-                    <span>•</span>
-                    <span>7 kg per person</span>
-                    {row.co2 && (
-                      <>
-                        <span>•</span>
-                        <span>{row.co2}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* RIGHT — price / actions */}
-              <div className="flex flex-col items-end gap-1.5">
-                <div className="text-right">
-                  <span
-                    className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
-                    style={{
-                      color: selected ? "#4927F5" : "#0b4f8a",
-                      backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent",
-                    }}
-                  >
-                    {fmtMoney(row.fareAmountIncludingTax, currency)}
-                  </span>
-                  <div className="text-[10px] text-slate-500">/5 pax*</div>
-                </div>
-
-                <button
-                  onClick={() => selectLite(row)}
-                  className={
-                    "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
-                    (selected
-                      ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
-                      : "bg-[#0B73B1] hover:bg-[var(--dow)]")
-                  }
-                >
-                  {selected ? "Selected" : "Select"}
-                </button>
-
-                <button
-                  onClick={() => setOpenId(open ? null : cardId)}
-                  className={
-                    "text-[11px] border-b border-dashed transition-colors " +
-                    (open
-                      ? "text-blue-700 border-blue-300"
-                      : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
-                  }
-                >
-                  {open ? "Hide details ▴" : "Details ▾"}
-                </button>
-              </div>
-
-              {/* INLINE DETAILS (expanded) */}
-              <div
-                className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
-                  open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
-                }`}
-                aria-hidden={!open}
-              >
-                <InlineDetails row={row} accent={accent} />
-              </div>
-            </article>
-          );
-        })}
+        <TabButton
+          id="view"
+          label="View Selection"
+          right
+          disabled={selectedOffersForSummary.length < 1}
+        />
       </div>
 
-      {/* Footer */}
+      {/* ✅ View Selection panel (only show when tab=view) */}
+      {tab === "view" && (
+        <div className="mb-3">
+          <FlightSelectionSummary
+            lang="en"
+            selectedOffers={selectedOffersForSummary}
+            requireTwoLegs={false}
+            showDetails={false}
+            paxCount={totalPax}
+            currency={currency}
+          />
+        </div>
+      )}
+
+      {/* RESULT CARDS */}
+      {tab !== "view" && (
+        <div className="flex flex-col gap-3">
+          {rows.map((row, idx) => {
+            const cardId = row.id || `${row.flightNumber}-${idx}`;
+            const open = openId === cardId;
+
+            const selected = selectedRow?.fareKey === row.fareKey;
+
+            return (
+              <article
+                key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
+                style={{ "--dow": accent }}
+                className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
+              >
+                {/* LEFT META */}
+                <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
+                  <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
+                    <img
+                      className="w-full h-full object-cover"
+                      alt="Nok Air"
+                      src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
+                    />
+                  </div>
+                  <div>
+                    <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
+                      Economy
+                    </span>
+
+                    <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
+                      {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin} →{" "}
+                      {row.destination}
+                    </div>
+
+                    {/* Timeline */}
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <div className="text-[18px] font-extrabold">
+                        {row.departureTime}
+                      </div>
+                      <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
+                        <span className="absolute left-0 right-0 mx-auto -top-[7px] block h-[1px] w-[80px] bg-slate-300 rounded" />
+                      </div>
+                      <div className="text-[18px] font-extrabold">
+                        {row.arrivalTime}
+                      </div>
+                    </div>
+
+                    {/* Foot meta */}
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
+                      <span>
+                        {row.aircraftDescription
+                          ? `${row.aircraftDescription} • ${row.duration}`
+                          : row.duration}
+                      </span>
+                      <span>•</span>
+                      <span>Nonstop</span>
+                      <span>•</span>
+                      <span>7 kg per person</span>
+                      {row.co2 && (
+                        <>
+                          <span>•</span>
+                          <span>{row.co2}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT — price / actions */}
+                <div className="flex flex-col items-end gap-1.5">
+                  <div className="text-right">
+                    <span
+                      className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
+                      style={{
+                        color: selected ? "#4927F5" : "#0b4f8a",
+                        backgroundColor: selected
+                          ? hexToRgba(accent, 0.18)
+                          : "transparent",
+                      }}
+                    >
+                      {fmtMoney(row.fareAmountIncludingTax, currency)}
+                    </span>
+
+                    <div className="text-[10px] text-slate-500">
+                      <span className="mr-2">ADT {pax.adult || 0}</span>
+                      {(pax.child || 0) > 0 && (
+                        <span className="mr-2">CHD {pax.child}</span>
+                      )}
+                      / {totalPax} pax*
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => selectLite(row)}
+                    className={
+                      "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
+                      (selected
+                        ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
+                        : "bg-[#0B73B1] hover:bg-[var(--dow)]")
+                    }
+                  >
+                    {selected ? "Selected" : "Select"}
+                  </button>
+
+                  <button
+                    onClick={() => setOpenId(open ? null : cardId)}
+                    className={
+                      "text-[11px] border-b border-dashed transition-colors " +
+                      (open
+                        ? "text-blue-700 border-blue-300"
+                        : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
+                    }
+                  >
+                    {open ? "Hide details ▴" : "Details ▾"}
+                  </button>
+                </div>
+
+                {/* INLINE DETAILS (expanded) */}
+                <div
+                  className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
+                    open
+                      ? "grid-rows-[1fr] border-slate-200"
+                      : "grid-rows-[0fr] border-transparent"
+                  }`}
+                  aria-hidden={!open}
+                >
+                  <InlineDetails row={row} accent={accent} />
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Footer (NEXT original stays as-is) */}
       <div className="mt-2 flex items-center justify-end gap-2">
         {nextLoading && (
-          <div className="text-xs text-slate-600">Loading price & seat map…</div>
+          <div className="text-xs text-slate-600">
+            Loading price & seat map…
+          </div>
         )}
         {!nextLoading && pricingStatus === "failed" && (
           <div className="text-xs text-red-600">Failed to load price.</div>
@@ -465,7 +628,7 @@ export default function JourneyTable({
                 : "bg-gray-300 cursor-not-allowed")
             }
           >
-            {nextLoading ? "Loading..." : "NEXT"} 
+            {nextLoading ? "Loading..." : "NEXT"}
           </button>
         )}
       </div>

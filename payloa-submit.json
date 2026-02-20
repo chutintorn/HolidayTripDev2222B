@@ -1,0 +1,157 @@
+{
+    "agencyCode": "{{agency_code}}",
+    "actionType": "summary",
+    // "actionType": "create",
+    "passengerInfos": [
+        {
+            "paxNumber": 1,
+            "title": "MS",
+            "firstName": "Paweena",
+            "lastName": "Test",
+            "middleName": "",
+            "age": 36,
+            "dateOfBirth": "1987-01-12",
+            "email": "cancelgo25@gmail.com",
+            "mobilePhone": "+66916548569",
+            "passengerType": "Adult",
+            "gender": "Male",
+            "nationality": "TH",
+            "flightFareKey": [
+                {
+                    "fareKey": "DMKCNX20251022020100USD_67:URAMAX00",
+                    "journeyKey": "DMKCNX20251022020100USD_DD12220251022",
+                    "extraService": [
+                        {
+                            "flightNumber": "DD122",
+                            "ssrCode": "BG05"
+                        }
+                    ],
+                    "selectedSeat": [
+                        {
+                            "flightNumber": "DD122",
+                            "rowNumber": 3,
+                            "seatSelected": "B"
+                        }
+                    ]
+                },
+                {
+                    "fareKey": "CNXDMK20251025020100USD_1198:URAXTR00",
+                    "journeyKey": "CNXDMK20251025020100USD_DD99720251025",
+                    "extraService": [
+                        {
+                            "flightNumber": "DD997",
+                            "ssrCode": "BG05"
+                        }
+                    ],
+                    "selectedSeat": [
+                        {
+                            "flightNumber": "DD997",
+                            "rowNumber": 5,
+                            "seatSelected": "B"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "paxNumber": 2,
+            "title": "MR",
+            "firstName": "Anukul",
+            "lastName": "Test",
+            "middleName": "",
+            "age": 36,
+            "dateOfBirth": "1987-05-12",
+            "passengerType": "Adult",
+            "gender": "Male",
+            "nationality": "TH",
+            "flightFareKey": [
+                {
+                    "fareKey": "DMKCNX20251022020100USD_67:URAMAX00",
+                    "journeyKey": "DMKCNX20251022020100USD_DD12220251022",
+                    "extraService": [
+                        {
+                            "flightNumber": "DD122",
+                            "ssrCode": "BG05"
+                        },
+                        {
+                            "flightNumber": "DD122",
+                            "ssrCode": "RFND"
+                        }
+                    ],
+                    "selectedSeat": [
+                        {
+                            "flightNumber": "DD122",
+                            "rowNumber": 5,
+                            "seatSelected": "A"
+                        }
+                    ]
+                },
+                {
+                    "fareKey": "CNXDMK20251025020100USD_1198:URAXTR00",
+                    "journeyKey": "CNXDMK20251025020100USD_DD99720251025",
+                    "extraService": [
+                        {
+                            "flightNumber": "DD997",
+                            "ssrCode": "BG05"
+                        }
+                    ],
+                    "selectedSeat": [
+                        {
+                            "flightNumber": "DD997",
+                            "rowNumber": 5,
+                            "seatSelected": "A"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "paxNumber": 3,
+            "title": "MR",
+            "firstName": "Anuwat",
+            "lastName": "Test",
+            "middleName": "",
+            "age": 36,
+            "dateOfBirth": "1987-05-12",
+            "passengerType": "Child",
+            "gender": "Male",
+            "nationality": "TH",
+            "flightFareKey": [
+                {
+                    "fareKey": "DMKCNX20251022020100USD_67:URAMAX00",
+                    "journeyKey": "DMKCNX20251022020100USD_DD12220251022",
+                    "extraService": [
+                        {
+                            "flightNumber": "DD122",
+                            "ssrCode": "BG05"
+                        }
+                    ],
+                    "selectedSeat": [
+                        {
+                            "flightNumber": "DD122",
+                            "rowNumber": 5,
+                            "seatSelected": "C"
+                        }
+                    ]
+                },
+                {
+                    "fareKey": "CNXDMK20251025020100USD_1198:URAXTR00",
+                    "journeyKey": "CNXDMK20251025020100USD_DD99720251025",
+                    "extraService": [
+                        {
+                            "flightNumber": "DD997",
+                            "ssrCode": "BG05"
+                        }
+                    ],
+                    "selectedSeat": [
+                        {
+                            "flightNumber": "DD997",
+                            "rowNumber": 5,
+                            "seatSelected": "C"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

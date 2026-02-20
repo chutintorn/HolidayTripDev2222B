@@ -1,9 +1,12 @@
+// src/components/RoundTripResultsLite.jsx
 import React, { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 
-import { selectResults } from "../redux/searchSlice";
+import { selectResults, selectSearch } from "../redux/searchSlice";
 import { flattenFlights } from "../utils/flattenFlights";
+import PaxChips from "./PaxChips";
+import { derivePax } from "../utils/pax";
 
 // Pricing
 import {
@@ -65,7 +68,6 @@ function getHeaderParts(rows) {
   };
 }
 
-/* soft accent background helper */
 const hexToRgba = (hex, alpha = 0.18) => {
   const m = hex?.trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
   if (!m) return `rgba(0,0,0,${alpha})`;
@@ -86,7 +88,6 @@ function buildDebugPackets(offers, secToken) {
   const priceUrl = `${API_BASE}/pricedetails`;
   const seatUrl = `${API_BASE}/seat-map`;
   const commonHeaders = { "Content-Type": "application/json" };
-  // match the header casing that works in your one-way flow
   const headersWithToken = secToken
     ? { ...commonHeaders, securitytoken: secToken }
     : commonHeaders;
@@ -113,7 +114,13 @@ function LiteCard({
   onSelect,
   onToggle,
   accent = "#00BFFF",
+  paxCounts,
 }) {
+  const a = paxCounts?.adult || 0;
+  const c = paxCounts?.child || 0;
+  const i = paxCounts?.infant || 0;
+  const totalPax = a + c + i;
+
   return (
     <article
       style={{ "--dow": accent }}
@@ -137,7 +144,6 @@ function LiteCard({
             {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin} → {row.destination}
           </div>
 
-          {/* Timeline */}
           <div className="flex items-center gap-3 mt-0.5">
             <div className="text-[18px] font-extrabold">{row.departureTime}</div>
             <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
@@ -146,7 +152,6 @@ function LiteCard({
             <div className="text-[18px] font-extrabold">{row.arrivalTime}</div>
           </div>
 
-          {/* Foot meta */}
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
             <span>
               {row.aircraftDescription ? `${row.aircraftDescription} • ${row.duration}` : row.duration}
@@ -177,7 +182,12 @@ function LiteCard({
           >
             {fmtMoney(row.fareAmountIncludingTax, currency)}
           </span>
-          <div className="text-[10px] text-slate-500">/5 pax*</div>
+          <div className="text-[10px] text-slate-500">
+            <span className="mr-2">ADT {paxCounts?.adult || 0}</span>
+            {(paxCounts?.child || 0) > 0 && <span className="mr-2">CHD {paxCounts?.child}</span>}
+            {(paxCounts?.infant || 0) > 0 && <span className="mr-2">INF {paxCounts?.infant}</span>}
+            / {totalPax} pax*
+          </div>
         </div>
 
         <button
@@ -203,7 +213,6 @@ function LiteCard({
         </button>
       </div>
 
-      {/* INLINE DETAILS */}
       <div
         className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
           open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
@@ -216,7 +225,7 @@ function LiteCard({
         >
           <div className="relative pl-5">
             <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-300 rounded" />
-            {/* Depart */}
+
             <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
               <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
@@ -226,7 +235,7 @@ function LiteCard({
                 {row.originName || row.origin}
               </div>
             </div>
-            {/* Note */}
+
             <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
               <div className="bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 shadow-sm">
@@ -239,7 +248,7 @@ function LiteCard({
                 </div>
               </div>
             </div>
-            {/* Arrive */}
+
             <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
               <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
@@ -270,6 +279,7 @@ function LegBox({
   showInlineNext = false,
   onInlineNext,
   inlinePriceKey = "",
+  paxCounts,
 }) {
   const [openId, setOpenId] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -310,13 +320,11 @@ function LegBox({
     onSelect?.(selection);
   };
 
-
   return (
     <div
       className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm"
       style={{ "--dow": hdr.chipColor }}
     >
-      {/* Title + header */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-wrap text-[200%] leading-tight">
         {title && <div className="text-slate-700 font-semibold text-[0.5em]">{title}</div>}
         {(hdr.origin || hdr.destination) && (
@@ -333,9 +341,9 @@ function LegBox({
             {hdr.dow}
           </span>
         )}
+        <PaxChips source={paxCounts} className="ml-auto" />
       </div>
 
-      {/* Cards */}
       <div className="flex flex-col gap-3 px-3 pb-3">
         {rows.map((row, idx) => {
           const cardId = row.id || `${row.flightNumber}-${idx}`;
@@ -353,12 +361,12 @@ function LegBox({
               onSelect={() => pickLite(row)}
               onToggle={() => setOpenId(open ? null : cardId)}
               accent={hdr.chipColor}
+              paxCounts={paxCounts}
             />
           );
         })}
       </div>
 
-      {/* Inline NEXT (one-way only) */}
       {showInlineNext && (
         <div className="px-4 py-3 flex items-center justify-end gap-3 border-t">
           {inlineStatus === "loading" && (
@@ -379,7 +387,7 @@ function LegBox({
             disabled={!selected?.fareKey || inlineStatus === "loading"}
             className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-[var(--dow)] disabled:opacity-60 text-xs transition-colors"
           >
-            {inlineStatus === "loading" ? "Please wait…" : "NEXT"} 
+            {inlineStatus === "loading" ? "Please wait…" : "NEXT"}
           </button>
         </div>
       )}
@@ -387,34 +395,21 @@ function LegBox({
   );
 }
 
-/* -------- derive pax robustly from many possible shapes -------- */
-function derivePax(source) {
-  const pick = (...keys) => keys.find((k) => Number.isFinite(+k)) ?? undefined;
-
-  const s = source || {};
-  const a = pick(s.adult, s.adt, s.Adult, s.ADT, s.pax?.adult, s.search?.adult, s.search?.adt);
-  const c = pick(s.child, s.chd, s.Child, s.CHD, s.pax?.child, s.search?.child, s.search?.chd);
-  const i = pick(s.infant, s.inf, s.Infant, s.INF, s.pax?.infant, s.search?.infant, s.search?.inf);
-
-  return {
-    adult: Number.isFinite(+a) ? +a : 1,
-    child: Number.isFinite(+c) ? +c : 0,
-    infant: Number.isFinite(+i) ? +i : 0,
-  };
-}
-
 /* ---------- Main ---------- */
 export default function RoundTripResultsLite() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const raw = useSelector(selectResults);
+  const search = useSelector(selectSearch);
 
   const payload = raw?.data ?? raw;
   const token = raw?.securityToken || payload?.securityToken || "";
   const currency = raw?.currency || "THB";
 
-  // derive pax (fallback 1/0/0)
-  const pax = useMemo(() => derivePax(raw || payload || {}), [raw, payload]);
+  const pax = useMemo(
+    () => derivePax(search?.params || search?.results || payload || raw || {}),
+    [search, payload, raw]
+  );
 
   const rows = useMemo(() => {
     if (!payload) return [];
@@ -437,7 +432,6 @@ export default function RoundTripResultsLite() {
     );
   }
 
-  /* Group by direction */
   const byDirMap = rows.reduce((acc, r) => {
     const o = (r.origin || "").trim().toUpperCase();
     const d = (r.destination || "").trim().toUpperCase();
@@ -473,7 +467,6 @@ export default function RoundTripResultsLite() {
   const [selectedOutbound, setSelectedOutbound] = useState(null);
   const [selectedInbound, setSelectedInbound] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-
 
   const isRoundTrip = groups.length === 2;
 
@@ -521,7 +514,15 @@ export default function RoundTripResultsLite() {
             state: {
               requestKey,
               priceDetail,
-              pax, // << carry pax in state
+              pax,
+
+              // ✅ NEW (works for one-way & round-trip)
+              selectedOffers: offers,
+
+              // ✅ backward compatible (one-way)
+              fareKey: offers[0].fareKey,
+              journeyKey: offers[0].journeyKey,
+
               debug: {
                 pricingRequest: {
                   url: dbg.priceUrl,
@@ -558,6 +559,7 @@ export default function RoundTripResultsLite() {
           showInlineNext={true}
           onInlineNext={doInlineNext}
           inlinePriceKey={requestKey}
+          paxCounts={pax}
         />
       </div>
     );
@@ -573,17 +575,11 @@ export default function RoundTripResultsLite() {
 
   const canProceed = !!(selectedOutbound && selectedInbound);
 
-
   const pricingStatus = useSelector(selectPricingStatus(requestKey));
   const priceDetail = useSelector(selectPriceFor(requestKey));
 
-  // console.log({ selectedOutbound, selectedInbound, canProceed, pricingStatus });
-    // if (!canProceed || pricingStatus === "loading") return;
-
   const handleUnifiedNext = async () => {
-
-    // console.log("Unified NEXT clicked with", { selectedOutbound, selectedInbound, canProceed, pricingStatus });
-    if (!canProceed  || submitting) return;
+    if (!canProceed || submitting) return;
     setSubmitting(true);
 
     const offers = [selectedOutbound, selectedInbound]
@@ -593,7 +589,7 @@ export default function RoundTripResultsLite() {
         fareKey: sel.fareKey,
         securityToken: sel.securityToken,
       }));
-      console.log("Offers for NEXT:", offers);
+
     const secToken =
       selectedOutbound?.securityToken ||
       selectedInbound?.securityToken ||
@@ -645,7 +641,15 @@ export default function RoundTripResultsLite() {
           state: {
             requestKey,
             priceDetail: pricedPayload,
-            pax, // << carry pax in state
+            pax,
+
+            // ✅ NEW: pass BOTH legs to PriceDetail
+            selectedOffers: offers,
+
+            // ✅ backward compatible: also pass OUT leg at top-level
+            fareKey: offers[0]?.fareKey || "",
+            journeyKey: offers[0]?.journeyKey || "",
+
             debug: {
               pricingRequest: {
                 url: dbgBoth.priceUrl,
@@ -676,6 +680,8 @@ export default function RoundTripResultsLite() {
       );
     } catch (e) {
       console.error("Unexpected NEXT error (round-trip):", e);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -690,6 +696,7 @@ export default function RoundTripResultsLite() {
         currency={currency}
         fallbackToken={token}
         onSelect={setSelectedOutbound}
+        paxCounts={pax}
       />
       <LegBox
         title="Return"
@@ -697,6 +704,7 @@ export default function RoundTripResultsLite() {
         currency={currency}
         fallbackToken={token}
         onSelect={setSelectedInbound}
+        paxCounts={pax}
       />
 
       <div className="mt-2 flex items-center justify-between rounded-xl border bg-white p-3 shadow">
@@ -709,17 +717,16 @@ export default function RoundTripResultsLite() {
         </div>
 
         <button
-  className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-colors ${
-    canProceed && pricingStatus !== "loading" && !submitting
-      ? "bg-blue-600 text-white hover:bg-[var(--dow)]"
-      : "bg-gray-300 text-gray-600"
-  }`}
-  disabled={!canProceed || pricingStatus === "loading" || submitting}
-  onClick={handleUnifiedNext}
->
-  {submitting || pricingStatus === "loading" ? "Please wait…" : "NEXT"}
-</button>
-
+          className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-colors ${
+            canProceed && pricingStatus !== "loading" && !submitting
+              ? "bg-blue-600 text-white hover:bg-[var(--dow)]"
+              : "bg-gray-300 text-gray-600"
+          }`}
+          disabled={!canProceed || pricingStatus === "loading" || submitting}
+          onClick={handleUnifiedNext}
+        >
+          {submitting || pricingStatus === "loading" ? "Please wait…" : "NEXT"}
+        </button>
       </div>
 
       {pricingStatus === "succeeded" && priceDetail && (

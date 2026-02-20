@@ -2,23 +2,24 @@
 import React, { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { selectResults } from "../redux/searchSlice";
-import {
-  fetchPriceDetail,
-  selectPriceFor,
-  selectPricingStatus,
-} from "../redux/pricingSlice";
+import { selectResults, selectSearch } from "../redux/searchSlice";
+import { fetchPriceDetail, selectPricingStatus } from "../redux/pricingSlice";
+import { fetchSeatMap, selectSeatMapStatus } from "../redux/seatMapSlice"; // <-- ensure file exists & reducer registered
+import { setSelectedOfferLegs } from "../redux/offerSelectionSlice"; // ✅ NEW
 import { flattenFlights } from "../utils/flattenFlights";
+import PaxChips from "./PaxChips";
+import { derivePax } from "../utils/pax";
 
-/** ---- Local-safe date helpers ---- */
-const ymd = (s) => (typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "");
+/** ------ Local-safe date helpers ---- */
+const ymd = (s) =>
+  typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "";
 const toLocalDate = (s) => {
   const dstr = ymd(s);
   if (!dstr) return null;
   const y = Number(dstr.slice(0, 4));
-  const m = Number(dstr.slice(5, 7)) - 1; // 0-based
+  const m = Number(dstr.slice(5, 7)) - 1;
   const d = Number(dstr.slice(8, 10));
-  const date = new Date(y, m, d); // local midnight
+  const date = new Date(y, m, d);
   return isNaN(date) ? null : date;
 };
 
@@ -33,19 +34,74 @@ const fmtMoney = (n, currency = "THB") => {
   })}`;
 };
 
-/**
- * JourneyTable (One-way view)
- *
- * Props:
- * - resultsOverride?: object | array
- * - currencyOverride?: string
- * - securityTokenOverride?: string
- * - titleOverride?: string
- * - hideHeader?: boolean
- * - showNextButton?: boolean         // default false
- * - onSelectRow?: (selection) => {}  // receives selected fare/row object
- * - onNext?: ({ journeyKey, fareKey }) => {} // optional override for NEXT action
- */
+/** ---- Hex → rgba for soft accent backgrounds ---- */
+const hexToRgba = (hex, alpha = 0.18) => {
+  const m = hex?.trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
+  if (!m) return `rgba(0,0,0,${alpha})`;
+  let h = m[1];
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+/** ---- Inline details (presentational only) ---- */
+function InlineDetails({ row, accent }) {
+  return (
+    <div
+      className="min-h-0 pt-3 pb-3 px-3 rounded-lg"
+      style={{ backgroundColor: hexToRgba(accent, 0.12) }}
+    >
+      <div className="relative pl-5">
+        <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-300 rounded" />
+
+        {/* Depart */}
+        <div className="relative my-3">
+          <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+          <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
+            {(row?.departureTime || "").toString()} • Depart
+          </div>
+          <div className="text-slate-600 text-[12px] mt-0.5">
+            {row?.originName || row?.origin}
+          </div>
+        </div>
+
+        {/* Note */}
+        <div className="relative my-3">
+          <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+          <div className="bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 shadow-sm">
+            <div className="font-bold text-blue-700 text-[14px]">
+              {row?.marketingCarrier || "Nok Air"},{" "}
+              {row?.flightNumber || ""}
+            </div>
+            <div className="text-slate-500">Short-haul</div>
+            <div className="text-[11px] mt-1">
+              {row?.perPaxCo2 || "48kg CO₂e"} • est. emissions
+            </div>
+          </div>
+        </div>
+
+        {/* Arrive */}
+        <div className="relative my-3">
+          <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
+          <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
+            {(row?.arrivalTime || "").toString()} • Arrive
+          </div>
+          <div className="text-slate-600 text-[12px] mt-0.5">
+            {row?.destinationName || row?.destination}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 pt-2 border-t border-dashed text-[12px] font-medium text-blue-700">
+        ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
+      </div>
+    </div>
+  );
+}
+
 export default function JourneyTable({
   resultsOverride = null,
   currencyOverride,
@@ -54,111 +110,123 @@ export default function JourneyTable({
   hideHeader = false,
   showNextButton = false,
   onSelectRow,
-  onNext, // optional override
+  onNext,
 }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Global results from Redux (fallbacks for token/currency)
+  // Pull data from redux
   const globalResults = useSelector(selectResults);
+  const search = useSelector(selectSearch);
 
-  // Choose which results to render: per-leg override or global
   const raw = resultsOverride ?? globalResults;
 
-  // Common top-level fields most backends include
   const currency =
     currencyOverride || raw?.currency || globalResults?.currency || "THB";
-
   const securityToken =
     securityTokenOverride ||
     raw?.securityToken ||
     globalResults?.securityToken ||
     "";
 
-  // Many APIs wrap arrays under `data`. If not, use the object/array directly.
   const payload = raw?.data ?? raw;
 
-  // Build display rows from the raw payload and keep only well-formed rows.
   const rows = useMemo(() => {
     if (!payload) return [];
     const input = Array.isArray(payload) ? payload : [payload];
     const out = flattenFlights(input, securityToken) || [];
-    return out.filter((r) => r && (r.id || r.flightNumber) && (r.origin || r.destination));
+    return out.filter(
+      (r) => r && (r.id || r.flightNumber) && (r.origin || r.destination)
+    );
   }, [payload, securityToken]);
 
-  const [selectedRow, setSelectedRow] = useState(null);
-  const [selectedFare, setSelectedFare] = useState(null); // { brand, fareKey, journeyKey, ... }
+  // derive pax (for chips and "/N pax" label)
+  const pax = useMemo(
+    () => derivePax(search?.params || search?.results || payload || raw || {}),
+    [search, payload, raw]
+  );
+  const totalPax = (pax.adult || 0) + (pax.child || 0) + (pax.infant || 0);
 
-  // If empty, show a helpful hint (keeps layout stable)
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [selectedFare, setSelectedFare] = useState(null);
+  const [openId, setOpenId] = useState(null);
+
+  // Local loading only for NEXT, so we can always navigate on seat failure
+  const [nextLoading, setNextLoading] = useState(false);
+
+  // ✅ IMPORTANT FIX: hooks must be called BEFORE any early-return
+  const requestKey = selectedFare?.fareKey || "";
+  const pricingStatus = useSelector(selectPricingStatus(requestKey));
+  const seatStatus = useSelector(selectSeatMapStatus(requestKey));
+
+  // ✅ allow NEXT only when selectedFare is valid and not loading
+  const canNext =
+    !!(selectedFare?.journeyKey && selectedFare?.fareKey) && !nextLoading;
+
   if (!rows.length) {
     return (
       <div className="mt-6 rounded-xl border bg-amber-50 text-amber-900 p-4">
-        No flights to display. The response may be empty or in an unexpected format.
+        No flights to display. The response may be empty or in an unexpected
+        format.
       </div>
     );
   }
 
-  /** Columns to render */
-  const cols = [
-    "departureTime",
-    "arrivalTime",
-    "duration",
-    "flightNumber",
-    "aircraftDescription",
-    "fareAmountIncludingTax",
-    "nokXtraAmount",
-    "nokMaxAmount",
-  ];
-
-  const label = (col) => {
-    if (col === "fareAmountIncludingTax") return "Nok Lite";
-    if (col === "nokXtraAmount") return "Nok X-TRA";
-    if (col === "nokMaxAmount") return "Nok MAX";
-    if (col === "departureTime") return "Departure";
-    if (col === "arrivalTime") return "Arrival";
-    if (col === "flightNumber") return "Flight";
-    if (col === "aircraftDescription") return "Aircraft";
-    return col;
-  };
-
-  /** Fare selection (map LITE/X-TRA/MAX -> fareKey) */
-  const pickFare = (row, col) => {
-    let fareKey = "";
-    let brand = "";
-    if (col === "fareAmountIncludingTax") {
-      fareKey = row.fareKey;   // LITE
-      brand = "LITE";
-    } else if (col === "nokXtraAmount") {
-      fareKey = row.farekey1;  // X-TRA
-      brand = "XTRA";
-    } else if (col === "nokMaxAmount") {
-      fareKey = row.farekey2;  // MAX
-      brand = "MAX";
-    }
+  // --- Select (NO API here)
+  const selectLite = (row) => {
+    const fareKey = row?.fareKey;
     if (!fareKey) return;
 
     const selection = {
-      brand,
+      brand: "LITE",
       fareKey,
       journeyKey: row.journeyKey,
       securityToken: row.securityToken || securityToken,
       currency,
-      row, // full row if needed upstream
+      row,
     };
 
     setSelectedRow(row);
     setSelectedFare(selection);
+
+    // ✅ NEW: update Redux store with fareKey/journeyKey (as legs[])
+    dispatch(
+      setSelectedOfferLegs([
+        {
+          direction: "OUT", // JourneyTable = outbound
+          journeyKey: selection.journeyKey ?? null,
+          fareKey: selection.fareKey ?? null,
+          securityToken: selection.securityToken ?? null,
+          currency: selection.currency ?? currency ?? null,
+          row: selection.row ?? row ?? null,
+        },
+      ])
+    );
 
     if (typeof onSelectRow === "function") {
       onSelectRow(selection);
     }
   };
 
-  /** Default NEXT behavior (send only journeyKey + fareKey, like RoundTripResultsLite) */
+  // --- NEXT: fire /pricedetails and /seat-map in parallel (seat is best-effort)
   const handleInternalNext = async () => {
     if (!selectedFare?.journeyKey || !selectedFare?.fareKey) return;
+    console.log("NEXT with", selectedFare);
 
-    // If parent provides onNext, delegate to it
+    // ✅ ensure Redux has the latest selection even if user jumps fast
+    dispatch(
+      setSelectedOfferLegs([
+        {
+          direction: "OUT",
+          journeyKey: selectedFare.journeyKey ?? null,
+          fareKey: selectedFare.fareKey ?? null,
+          securityToken: selectedFare.securityToken ?? null,
+          currency: selectedFare.currency ?? currency ?? null,
+          row: selectedFare.row ?? selectedRow ?? null,
+        },
+      ])
+    );
+
     if (typeof onNext === "function") {
       onNext({
         journeyKey: selectedFare.journeyKey,
@@ -167,32 +235,98 @@ export default function JourneyTable({
       return;
     }
 
-    // Else dispatch internally in "offers" form (single item)
+    const offers = [
+      {
+        journeyKey: selectedFare.journeyKey,
+        fareKey: selectedFare.fareKey,
+        securityToken: selectedFare.securityToken,
+      },
+    ];
+
+    // ===== Build debug info (URL + headers) to carry via navigate =====
+    const API_BASE =
+      (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE) ||
+      "http://localhost:3100";
+    const priceUrl = `${API_BASE}/pricedetails`;
+    const seatUrl = `${API_BASE}/seat-map`;
+    const commonHeaders = { "Content-Type": "application/json" };
+    const priceHeaders = {
+      ...commonHeaders,
+      ...(selectedFare.securityToken
+        ? { securitytoken: selectedFare.securityToken }
+        : {}),
+    };
+    const seatHeaders = {
+      ...commonHeaders,
+      ...(selectedFare.securityToken
+        ? { securitytoken: selectedFare.securityToken }
+        : {}),
+    };
+
+    setNextLoading(true);
     try {
-      await dispatch(
+      const priceP = dispatch(
         fetchPriceDetail({
-          offers: [
-            {
-              journeyKey: selectedFare.journeyKey,
-              fareKey: selectedFare.fareKey,
-              securityToken: selectedFare.securityToken,
-            },
-          ],
+          offers,
           currency,
+          includeSeats: false, // only /pricedetails here
         })
       ).unwrap();
 
-      // After success, navigate to the dedicated detail page.
-      // One-way requestKey convention: fareKey.
-      const requestKey = selectedFare.fareKey;
-      navigate("/skyblue-price-detail", { state: { requestKey } });
-      // Or: navigate(`/skyblue-price-detail?key=${encodeURIComponent(requestKey)}`);
+      const seatP = dispatch(fetchSeatMap({ offers, agencyCode: "" })).unwrap();
+
+      // Wait for both, but only pricing controls navigation
+      const [priceRes, seatRes] = await Promise.allSettled([priceP, seatP]);
+
+      if (priceRes.status !== "fulfilled") {
+        console.error("Pricing failed:", priceRes.reason);
+        return; // do not navigate if no pricing
+      }
+
+      const seatOk = seatRes.status === "fulfilled";
+      const seatError = seatOk
+        ? null
+        : seatRes.reason?.message || "Seat map failed.";
+      const seatRaw = seatOk ? seatRes.value : null; // <-- capture seat-map response body
+
+      const requestKey = selectedFare.fareKey; // one-leg => key === fareKey
+
+      navigate("/skyblue-price-detail", {
+        state: {
+          requestKey,
+          // for response modal / badges
+          seatOk,
+          seatError,
+          seatRaw,
+          // a single 'debug' object so PriceDetail can keep showing the two buttons
+          debug: {
+            pricingRequest: {
+              url: priceUrl,
+              method: "POST",
+              headers: priceHeaders,
+              body: { offers, currency, includeSeats: false },
+            },
+            seatMapRequest: {
+              url: seatUrl,
+              method: "POST",
+              headers: seatHeaders,
+              body: { offers, agencyCode: "" },
+            },
+            // optional: also mirror response into debug if you prefer to read it there
+            seatResponse: seatRaw,
+            seatOk,
+            seatError,
+          },
+        },
+      });
     } catch (e) {
-      console.error("Pricing failed", e);
+      console.error("Unexpected NEXT error:", e);
+    } finally {
+      setNextLoading(false);
     }
   };
 
-  /** Header date (local-safe) */
+  // ===== Day color (same theme as header) =====
   const depDate = toLocalDate(rows[0]?.departureDate);
   const ddMMM = depDate
     ? depDate
@@ -211,119 +345,184 @@ export default function JourneyTable({
     Sat: "#CF9FFF",
     Sun: "#FF4500",
   };
-
-  // For showing inline pricing result for the currently selected fare
-  const statusKey = selectedFare?.fareKey || "";
-  const selectedStatus = useSelector(selectPricingStatus(statusKey));
-  const selectedDetail = useSelector(selectPriceFor(statusKey));
-
-  const canNext =
-    !!(selectedFare?.journeyKey && selectedFare?.fareKey) &&
-    selectedStatus !== "loading";
+  const accent = dowColors[dow] || "#00BFFF"; // fallback color
+  const containerStyle = { "--dow": accent };
 
   return (
-    <div className="journey-table-wrapper w-full">
+    <div className="w-full" style={containerStyle}>
       {!hideHeader && (
-        <h2 className="ml-3 mb-2 text-blue-600 flex items-center gap-2 flex-wrap">
+        <h2 className="ml-1 mb-2 text-blue-700 flex items-center gap-2 flex-wrap text-[200%] leading-tight">
           {titleOverride && (
-            <span className="text-slate-700 text-sm font-semibold">
+            <span className="text-slate-700 font-semibold text-[0.6em]">
               {titleOverride}
             </span>
           )}
-          <span>
-            {rows[0]?.origin} → {rows[0]?.destination}
+          <span className="font-semibold text-[0.9em]">
+            {rows[0]?.origin} {rows[0]?.destination}
           </span>
           {ddMMM && (
             <>
-              <span className="text-slate-700 text-sm">{ddMMM}</span>
+              <span className="text-slate-700 text-[0.65em]">{ddMMM}</span>
               <span
-                className="text-sm font-semibold px-2 py-0.5 rounded"
-                style={{
-                  backgroundColor: "#000",
-                  color: dowColors[dow] || "#FFF",
-                }}
+                className="font-semibold px-3 py-1 rounded text-[0.6em]"
+                style={{ backgroundColor: "#000", color: accent }}
               >
                 {dow}
               </span>
             </>
           )}
+
+          {/* Pax chips on the far right */}
+          <PaxChips source={search?.params || search?.results || payload || raw} />
         </h2>
       )}
 
-      {/* Full-width table with horizontal scroll when needed */}
-      <div className="w-full overflow-x-auto rounded-xl border bg-white">
-        <table className="w-full min-w-[860px] text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              {cols.map((c) => (
-                <th key={c} className="px-3 py-2 text-left font-semibold">
-                  {label(c)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
-                className="border-t last:border-b-0"
+      {/* RESULT CARDS */}
+      <div className="flex flex-col gap-3">
+        {rows.map((row, idx) => {
+          const cardId = row.id || `${row.flightNumber}-${idx}`;
+          const open = openId === cardId;
+
+          // ✅ keep your existing "selected highlight" logic
+          const selected = selectedRow?.fareKey === row.fareKey;
+
+          return (
+            <article
+              key={row.id || `${row.flightNumber}-${row.departureTime}-${idx}`}
+              style={{ "--dow": accent }}
+              className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
+            >
+              {/* LEFT META */}
+              <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
+                <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
+                  <img
+                    className="w-full h-full object-cover"
+                    alt="Nok Air"
+                    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
+                  />
+                </div>
+                <div>
+                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
+                    Economy
+                  </span>
+
+                  <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
+                    {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin} →{" "}
+                    {row.destination}
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <div className="text-[18px] font-extrabold">
+                      {row.departureTime}
+                    </div>
+                    <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
+                      <span className="absolute left-0 right-0 mx-auto -top-[7px] block h-[1px] w-[80px] bg-slate-300 rounded" />
+                    </div>
+                    <div className="text-[18px] font-extrabold">
+                      {row.arrivalTime}
+                    </div>
+                  </div>
+
+                  {/* Foot meta */}
+                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
+                    <span>
+                      {row.aircraftDescription
+                        ? `${row.aircraftDescription} • ${row.duration}`
+                        : row.duration}
+                    </span>
+                    <span>•</span>
+                    <span>Nonstop</span>
+                    <span>•</span>
+                    <span>7 kg per person</span>
+                    {row.co2 && (
+                      <>
+                        <span>•</span>
+                        <span>{row.co2}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT — price / actions */}
+              <div className="flex flex-col items-end gap-1.5">
+                <div className="text-right">
+                  <span
+                    className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
+                    style={{
+                      color: selected ? "#4927F5" : "#0b4f8a",
+                      backgroundColor: selected
+                        ? hexToRgba(accent, 0.18)
+                        : "transparent",
+                    }}
+                  >
+                    {fmtMoney(row.fareAmountIncludingTax, currency)}
+                  </span>
+
+                  {/* ADT/CHD before "/ pax" line, same font size */}
+                  <div className="text-[10px] text-slate-500">
+                    <span className="mr-2">ADT {pax.adult || 0}</span>
+                    {(pax.child || 0) > 0 && (
+                      <span className="mr-2">CHD {pax.child}</span>
+                    )}
+                    / {totalPax} pax*
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => selectLite(row)}
+                  className={
+                    "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
+                    (selected
+                      ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
+                      : "bg-[#0B73B1] hover:bg-[var(--dow)]")
+                  }
+                >
+                  {selected ? "Selected" : "Select"}
+                </button>
+
+                <button
+                  onClick={() => setOpenId(open ? null : cardId)}
+                  className={
+                    "text-[11px] border-b border-dashed transition-colors " +
+                    (open
+                      ? "text-blue-700 border-blue-300"
+                      : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
+                  }
+                >
+                  {open ? "Hide details ▴" : "Details ▾"}
+                </button>
+              </div>
+
+              {/* INLINE DETAILS (expanded) */}
+              <div
+                className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
+                  open
+                    ? "grid-rows-[1fr] border-slate-200"
+                    : "grid-rows-[0fr] border-transparent"
+                }`}
+                aria-hidden={!open}
               >
-                {cols.map((col) => {
-                  const selectable = [
-                    "fareAmountIncludingTax",
-                    "nokXtraAmount",
-                    "nokMaxAmount",
-                  ].includes(col);
-
-                  const isSelected =
-                    selectedRow?.id === row.id &&
-                    selectedFare?.fareKey ===
-                      (col === "fareAmountIncludingTax"
-                        ? row.fareKey
-                        : col === "nokXtraAmount"
-                        ? row.farekey1
-                        : row.farekey2);
-
-                  const val = row[col];
-                  const priceText = selectable ? fmtMoney(val, currency) : "";
-
-                  return (
-                    <td
-                      key={col}
-                      onClick={() => selectable && pickFare(row, col)}
-                      className={[
-                        "px-3 py-2",
-                        selectable ? "font-semibold cursor-pointer" : "",
-                        isSelected ? "bg-yellow-200" : "",
-                      ].join(" ")}
-                    >
-                      {priceText || val || "—"}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                <InlineDetails row={row} accent={accent} />
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       {/* Footer */}
-      <div className="mt-3 flex items-center justify-end gap-3">
-        {selectedStatus === "loading" && (
-          <div className="text-sm text-slate-600">Loading price…</div>
-        )}
-        {selectedStatus === "failed" && (
-          <div className="text-sm text-red-600">Failed to load price.</div>
-        )}
-        {selectedStatus === "succeeded" && selectedDetail && (
-          <div className="text-sm font-medium">
-            {typeof selectedDetail.total !== "undefined"
-              ? `Total: ${fmtMoney(
-                  selectedDetail.total,
-                  selectedDetail.currency || selectedFare?.currency || currency
-                )}`
-              : "Pricing available."}
+      <div className="mt-2 flex items-center justify-end gap-2">
+        {nextLoading && (
+          <div className="text-xs text-slate-600">
+            Loading price & seat map…
           </div>
+        )}
+        {!nextLoading && pricingStatus === "failed" && (
+          <div className="text-xs text-red-600">Failed to load price.</div>
+        )}
+        {!nextLoading && seatStatus === "failed" && (
+          <div className="text-xs text-red-600">Failed to load seat map.</div>
         )}
 
         {showNextButton && (
@@ -331,13 +530,13 @@ export default function JourneyTable({
             onClick={handleInternalNext}
             disabled={!canNext}
             className={
-              "px-4 py-2 rounded-lg text-white text-sm " +
+              "px-3 py-1.5 rounded-md text-white text-xs transition-colors " +
               (canNext
-                ? "bg-blue-600 hover:bg-blue-700"
+                ? "bg-blue-600 hover:bg-[var(--dow)]"
                 : "bg-gray-300 cursor-not-allowed")
             }
           >
-            {selectedStatus === "loading" ? "Loading..." : "NEXT"}
+            {nextLoading ? "Loading..." : "NEXT"}
           </button>
         )}
       </div>

@@ -8,7 +8,7 @@ export default {
     from: "ต้นทาง",
     to: "ปลายทาง",
     depart: "ไป",
-    return: "กลับ",
+    return: "วันกลับ",
     tripType: "ประเภทธุรกรรม",
     oneway: "เที่ยวเดียว",
     roundtrip: "ไป-กลับ",

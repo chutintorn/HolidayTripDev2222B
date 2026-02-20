@@ -5,6 +5,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import BookingLanding from "./pages/BookingLanding";
 import ScrollDemo from "./pages/ScrollDemo";
 import PriceDetailSkyBlue from "./pages/PriceDetailSkyBlue";
+import ConfirmationPage from "./pages/ConfirmationPage"; // ✅ NEW
 
 export default function App() {
   return (
@@ -14,6 +15,9 @@ export default function App() {
 
       {/* new price detail page (TH/EN toggle, shows API pricing) */}
       <Route path="/skyblue-price-detail" element={<PriceDetailSkyBlue />} />
+
+      {/* ✅ confirmation page (one-page confirmation + payment) */}
+      <Route path="/confirmation" element={<ConfirmationPage />} />
 
       {/* catch-all → redirect to home */}
       <Route path="*" element={<Navigate to="/" replace />} />

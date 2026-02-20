@@ -1,14 +1,18 @@
 // src/redux/searchSlice.js
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { clearSelectedOfferLegs } from "./offerSelectionSlice"; // ✅ NEW
 
 // Thunk: POST /flights
 export const fetchSearchResults = createAsyncThunk(
   "search/fetch",
-  async (form, { rejectWithValue, signal }) => {
+  async (form, { rejectWithValue, signal, dispatch }) => {
     try {
+      // ✅ IMPORTANT: New search => reset View Selection immediately
+      dispatch(clearSelectedOfferLegs());
+
       const BASE = import.meta.env.VITE_API_BASE || "http://localhost:3100";
-    //const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production-76d7.up.railway.app";
-     //const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production.up.railway.app";
+      // const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production-76d7.up.railway.app";
+      // const BASE = import.meta.env.VITE_API_BASE || "https://nodebasic-production.up.railway.app";
 
       // Normalize IATA + dates
       const origin = String(form.origin || "").trim().toUpperCase();
@@ -21,8 +25,7 @@ export const fetchSearchResults = createAsyncThunk(
       if (origin && destination && depart) {
         journeys.push({ origin, destination, departureDate: depart });
 
-        // Previously: if (form.tripType === "roundtrip" && ret) { ... }
-        // Now: be tolerant—if a return date is present, add the reverse leg.
+        // be tolerant—if a return date is present, add the reverse leg.
         if (ret) {
           journeys.push({
             origin: destination,
@@ -71,7 +74,10 @@ export const fetchSearchResults = createAsyncThunk(
       // expected: { itineraries: [...], currency?, ... }
       return await res.json();
     } catch (e) {
-      return rejectWithValue(e.message || "Search failed");
+      if (e?.name === "AbortError") {
+        return rejectWithValue("Search aborted");
+      }
+      return rejectWithValue(e?.message || "Search failed");
     }
   }
 );
@@ -99,6 +105,8 @@ const searchSlice = createSlice({
       s.status = "loading";
       s.error = null;
       s.params = a.meta.arg;
+      // ✅ We already cleared selected offers in thunk start.
+      // (No need to do it here again.)
     });
     b.addCase(fetchSearchResults.fulfilled, (s, a) => {
       s.status = "succeeded";
