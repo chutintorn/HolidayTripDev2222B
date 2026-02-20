@@ -1,0 +1,409 @@
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+
+import TravellerForm from "../components/TravellerForm";
+import ContactInformation from "../components/ContactInformation";
+import Chip from "../components/Chip";
+import SeatMapPanel from "../components/SeatMapPanel";
+
+// ✅ NEW: Baggage panel (BGxx / SBxx per leg)
+import BaggagePanel from "../components/BaggagePanel";
+
+/* ========================= small hook: isMobile ========================= */
+function useIsMobile(query = "(max-width: 640px)") {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia(query);
+    const onChange = () => setIsMobile(!!mql.matches);
+    onChange();
+
+    if (mql.addEventListener) mql.addEventListener("change", onChange);
+    else mql.addListener(onChange);
+
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", onChange);
+      else mql.removeListener(onChange);
+    };
+  }, [query]);
+
+  return isMobile;
+}
+
+export default function PassengersPanel({
+  passengerTopRef,
+  t,
+  travellers,
+  forms,
+  showForm,
+  setShowForm,
+  updateForm,
+  isComplete,
+  firstAdultName,
+  titleFromForm,
+  snapshotRef,
+  scrollToPassengerTop,
+  ANCILLARY_TABS,
+  activeAncByPax,
+  setActiveAncByPax,
+  ancBtnClass,
+  contact,
+  setContact,
+  showContactErrors,
+  selectedOffers = [],
+  // ✅ NEW: pass price detail response down (must contain airlines[].availableExtraServices)
+  rawDetail,
+}) {
+  const deepCopy = (x) => JSON.parse(JSON.stringify(x || {}));
+  const isMobile = useIsMobile();
+
+  /* ========================= refs for each pax card ========================= */
+  const cardRefs = useRef({}); // { [paxId]: HTMLElement }
+
+  // ✅ GLOBAL last active ancillary tab (stick across passengers)
+  const lastAncRef = useRef(null);
+
+  /* ========================= smooth highlight ========================= */
+  const [flashPaxId, setFlashPaxId] = useState("");
+  const flashCard = (paxId) => {
+    setFlashPaxId(paxId);
+    window.setTimeout(() => setFlashPaxId(""), 650);
+  };
+
+  const FlashStyle = useMemo(
+    () => (
+      <style>{`
+        @keyframes paxFlash {
+          0%   { box-shadow: 0 0 0 0 rgba(2,132,199,0.0); border-color: #e2e8f0; }
+          20%  { box-shadow: 0 0 0 6px rgba(2,132,199,0.15); border-color: #7dd3fc; }
+          100% { box-shadow: 0 0 0 0 rgba(2,132,199,0.0); border-color: #e2e8f0; }
+        }
+        .pax-flash { animation: paxFlash 650ms ease-out; border-color:#7dd3fc !important; }
+      `}</style>
+    ),
+    []
+  );
+
+  /* ========================= stable smooth scroll (LESS JERK) ========================= */
+  const smoothScrollToPax = useCallback((paxId) => {
+    if (typeof window === "undefined") return;
+    const el = cardRefs.current[paxId];
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const currentY = window.scrollY || 0;
+
+    // ✅ as requested: 80px offset (for sticky header area)
+    const OFFSET = 80;
+
+    const targetY = Math.max(0, currentY + rect.top - OFFSET);
+    window.scrollTo({ top: targetY, behavior: "smooth" });
+  }, []);
+
+  /* ========================= open/close passenger ========================= */
+  const handleToggleView = (paxId) => {
+    setShowForm((s) => {
+      const nextOpen = !s[paxId];
+      if (nextOpen) snapshotRef.current[paxId] = deepCopy(forms[paxId] || {});
+      return { ...s, [paxId]: nextOpen };
+    });
+
+    const wasOpen = !!showForm[paxId];
+    if (!wasOpen) requestAnimationFrame(scrollToPassengerTop);
+  };
+
+  const handleSave = (paxId) => {
+    setShowForm((s) => ({ ...s, [paxId]: false }));
+    setActiveAncByPax?.((prev) => ({ ...prev, [paxId]: prev?.[paxId] ?? null }));
+  };
+
+  const handleCancel = (paxId) => {
+    const snap = snapshotRef?.current?.[paxId];
+    if (snap) updateForm(paxId, deepCopy(snap));
+    setShowForm((s) => ({ ...s, [paxId]: false }));
+    setActiveAncByPax?.((prev) => ({ ...prev, [paxId]: null }));
+  };
+
+  /* ========================= Next passenger (loop + STICK LAST TAB + SMOOTH) ========================= */
+  const findNextPaxIdLoop = (currentId) => {
+    const idx = travellers.findIndex((x) => x.id === currentId);
+    if (idx < 0) return "";
+    return travellers[(idx + 1) % travellers.length]?.id || "";
+  };
+
+  const openOnlyThisPassenger = useCallback(
+    (paxIdToOpen) => {
+      setShowForm((prev) => {
+        const next = { ...prev };
+        for (const p of travellers) next[p.id] = false;
+        next[paxIdToOpen] = true;
+        return next;
+      });
+    },
+    [setShowForm, travellers]
+  );
+
+  const goNextPassenger = (currentId) => {
+    const nextId = findNextPaxIdLoop(currentId);
+    if (!nextId) return;
+
+    // ✅ store scroll position BEFORE layout changes (reduce jerk)
+    const yBefore = typeof window !== "undefined" ? window.scrollY || 0 : 0;
+
+    openOnlyThisPassenger(nextId);
+
+    const nextType = travellers.find((x) => x.id === nextId)?.type;
+
+    const currentTab = activeAncByPax?.[currentId] ?? null;
+    const desiredTab = lastAncRef.current ?? currentTab ?? null;
+
+    setActiveAncByPax?.((prev) => ({
+      ...prev,
+      [nextId]: nextType === "INF" ? null : desiredTab,
+    }));
+
+    if (nextType !== "INF" && desiredTab) lastAncRef.current = desiredTab;
+
+    requestAnimationFrame(() => {
+      // ✅ restore to reduce jump from collapsing/expanding cards
+      if (typeof window !== "undefined") window.scrollTo({ top: yBefore });
+
+      requestAnimationFrame(() => {
+        flashCard(nextId);
+
+        // ✅ smooth to next pax on ALL devices (not only mobile)
+        requestAnimationFrame(() => smoothScrollToPax(nextId));
+      });
+    });
+  };
+
+  // ✅ click ancillary tab: update global last tab
+  const onClickAncTab = useCallback(
+    (paxId, tabKey) => {
+      setActiveAncByPax?.((prev) => {
+        const cur = prev?.[paxId] ?? null;
+        const next = cur === tabKey ? null : tabKey;
+
+        if (next) lastAncRef.current = next;
+
+        return { ...prev, [paxId]: next };
+      });
+    },
+    [setActiveAncByPax]
+  );
+
+  return (
+    <div className="min-w-0">
+      {FlashStyle}
+      <div ref={passengerTopRef} className="h-0" />
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4">
+        <h2 className="text-lg font-semibold mb-3">{t.travellers}</h2>
+
+        <div className="flex flex-col gap-3">
+          {travellers.map((p) => {
+            const v = forms[p.id] || {};
+            const ok = isComplete(v);
+            const open = !!showForm[p.id];
+
+            const hasName =
+              (v.firstName && v.firstName.trim()) || (v.lastName && v.lastName.trim());
+
+            const fullName =
+              v.firstName && v.lastName ? `${titleFromForm(v)} ${v.firstName} ${v.lastName}` : "";
+
+            const showAncillaryForThisPax = p.type !== "INF";
+            const activeForThisPax = activeAncByPax?.[p.id] ?? null;
+
+            return (
+              <div
+                key={p.id}
+                ref={(el) => {
+                  if (el) cardRefs.current[p.id] = el;
+                }}
+                className={[
+                  "border rounded-xl overflow-hidden bg-white border-slate-200",
+                  flashPaxId === p.id ? "pax-flash" : "",
+                ].join(" ")}
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-4 py-3 bg-slate-50 border-b border-slate-200">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <div className="font-extrabold">{p.label}</div>
+                    <Chip ok={ok}>{ok ? t.completed : t.incomplete}</Chip>
+
+                    {hasName ? (
+                      <div
+                        className="text-[11px] sm:text-xs text-slate-600 font-medium tracking-tight whitespace-normal break-words"
+                        style={{ textShadow: "0 0 6px rgba(15, 23, 42, 0.08)" }}
+                      >
+                        <span className="text-slate-800 font-semibold">{fullName}</span>
+                      </div>
+                    ) : null}
+
+                    {p.type === "INF" && firstAdultName ? (
+                      <span className="text-sky-900 text-sm break-words">
+                        {t.travellingWith} {firstAdultName}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleView(p.id)}
+                    className="w-full sm:w-auto px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm font-extrabold hover:border-blue-400 hover:text-blue-700"
+                  >
+                    {open ? t.hide : t.view}
+                  </button>
+                </div>
+
+                {open ? (
+                  <div className="border-t border-slate-200">
+                    <TravellerForm
+                      t={t}
+                      value={v}
+                      onChange={(next) => updateForm(p.id, next)}
+                      showSave={false}
+                      points={95}
+                    />
+
+                    <div className="px-3 sm:px-4 pb-4">
+                      <div className="pt-3 border-t border-slate-200 flex flex-col gap-4">
+                        <div
+                          className={
+                            showAncillaryForThisPax
+                              ? ["flex gap-2", "flex-col sm:flex-row", "w-full sm:w-auto"].join(" ")
+                              : "hidden"
+                          }
+                        >
+                          {showAncillaryForThisPax
+                            ? ANCILLARY_TABS.map((tab) => {
+                                const active = activeForThisPax === tab.key;
+                                return (
+                                  <button
+                                    key={`${p.id}-${tab.key}`}
+                                    type="button"
+                                    onClick={() => onClickAncTab(p.id, tab.key)}
+                                    className={[
+                                      "flex items-center justify-center",
+                                      "h-10 px-4 rounded-full font-semibold transition-colors",
+                                      "text-sm",
+                                      "w-full sm:w-auto",
+                                      "min-w-0 sm:min-w-[120px]",
+                                      ancBtnClass(active),
+                                    ].join(" ")}
+                                  >
+                                    {tab.label}
+                                  </button>
+                                );
+                              })
+                            : null}
+                        </div>
+
+                        <div className="w-full">
+                          <div className="flex items-center w-full gap-3">
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleSave(p.id)}
+                                className="shrink-0 rounded-lg px-3 py-1.5 bg-sky-600 text-white font-extrabold hover:bg-sky-700 text-[13px]"
+                              >
+                                {t.save}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleCancel(p.id)}
+                                className="shrink-0 rounded-lg px-3 py-1.5 border border-slate-300 bg-white text-slate-700 font-extrabold hover:border-slate-400 text-[13px]"
+                              >
+                                {t.cancel}
+                              </button>
+                            </div>
+
+                            <div className="ml-auto shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => goNextPassenger(p.id)}
+                                className={[
+                                  "inline-flex items-center justify-center",
+                                  "min-w-[180px] sm:min-w-[260px]",
+                                  "px-5 py-1.5",
+                                  "rounded-2xl",
+                                  "border border-sky-200",
+                                  "bg-gradient-to-r from-sky-100 to-sky-50",
+                                  "text-sky-700",
+                                  "font-semibold",
+                                  "text-[13px]",
+                                  "shadow-sm",
+                                  "hover:from-sky-100 hover:to-sky-100 hover:border-sky-300",
+                                  "transition-all duration-200",
+                                  "whitespace-nowrap",
+                                ].join(" ")}
+                              >
+                                {t?.nextPassenger ?? "Next passenger"} →
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {showAncillaryForThisPax ? (
+                        activeForThisPax ? (
+                          <div className="mt-3 border border-slate-200 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+                            {activeForThisPax === "seat" ? (
+                              <div>
+                                <div className="font-bold text-slate-900 mb-1">{t.ancSeat}</div>
+                                <SeatMapPanel paxId={p.id} selectedOffers={selectedOffers} t={t} />
+                              </div>
+                            ) : activeForThisPax === "bag" ? (
+                              <div>
+                                <div className="font-bold text-slate-900 mb-1">{t.ancBag}</div>
+                                <BaggagePanel
+                                  paxId={p.id}
+                                  selectedOffers={selectedOffers}
+                                  rawDetail={rawDetail}
+                                  t={t}
+                                />
+                              </div>
+                            ) : activeForThisPax === "meal" ? (
+                              <div>
+                                <div className="font-bold text-slate-900 mb-1">{t.ancMeal}</div>
+                                <div>Meal selection UI for this passenger.</div>
+                              </div>
+                            ) : activeForThisPax === "pb" ? (
+                              <div>
+                                <div className="font-bold text-slate-900 mb-1">{t.ancPb}</div>
+                                <div>Priority boarding UI for this passenger.</div>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="font-bold text-slate-900 mb-1">{t.ancAssist}</div>
+                                <div>Assist / special service UI for this passenger.</div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-3 border border-slate-200 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+                            {t.ancPickOne}
+                          </div>
+                        )
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4">
+          <ContactInformation
+            t={t}
+            value={contact}
+            onChange={setContact}
+            showErrors={showContactErrors}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

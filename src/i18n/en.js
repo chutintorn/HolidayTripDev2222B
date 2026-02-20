@@ -8,7 +8,7 @@ export default {
     from: "From",
     to: "To",
     depart: "Depart",
-    return: "Return",
+    return: "Return Date",
     tripType: "Trip Type",
     oneway: "One-way",
     roundtrip: "Round-trip",

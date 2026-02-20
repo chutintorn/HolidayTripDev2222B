@@ -1,7 +1,7 @@
 // src/redux/pricingSlice.js
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
-/** ----------------- Utilities ----------------- */
+/** ----------------- Utilities ------------------ */
 function normalizeOffersArg(arg, state) {
   const single = arg?.offer ? [arg.offer] : [];
   const many   = Array.isArray(arg?.offers) ? arg.offers : [];

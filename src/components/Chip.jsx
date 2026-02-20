@@ -4,16 +4,19 @@ import React, { memo } from "react";
 /**
  * Chip
  * Props:
- *  - ok?: boolean  -> toggles success vs neutral styling
+ *  - ok?: boolean       -> true = Completed (green), false = Incomplete (light red)
  *  - children: ReactNode -> chip label
- *  - className?: string  -> extra classes
+ *  - className?: string -> extra classes
  */
 function ChipBase({ ok = false, children, className = "" }) {
   const base =
     "inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full border whitespace-nowrap";
+
+  // ✅ Status colors
   const theme = ok
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-    : "bg-sky-50 text-sky-800 border-sky-200";
+    ? "bg-emerald-100 text-emerald-800 border-emerald-300" // Completed (green)
+    : "bg-red-100 text-red-800 border-red-300";            // Incomplete (light red)
+
   return <span className={`${base} ${theme} ${className}`}>{children}</span>;
 }
 

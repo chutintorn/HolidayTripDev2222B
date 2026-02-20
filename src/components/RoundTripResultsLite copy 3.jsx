@@ -3,13 +3,20 @@ import React, { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 
-import { selectResults } from "../redux/searchSlice";
+import { selectResults, selectSearch } from "../redux/searchSlice";
 import { flattenFlights } from "../utils/flattenFlights";
+import PaxChips from "./PaxChips";
+import { derivePax } from "../utils/pax";
+
+// Pricing
 import {
   fetchPriceDetail,
   selectPriceFor,
   selectPricingStatus,
 } from "../redux/pricingSlice";
+
+// Seat map
+import { fetchSeatMap } from "../redux/seatMapSlice";
 
 /* ---------- Helpers ---------- */
 const ymd = (s) => (typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "");
@@ -49,9 +56,7 @@ function getHeaderParts(rows) {
   }
   const depDate = toLocalDate(first?.departureDate);
   const ddMMM = depDate
-    ? depDate
-        .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
-        .toUpperCase()
+    ? depDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase()
     : "";
   const dow = depDate ? depDate.toLocaleDateString("en-GB", { weekday: "short" }) : "";
   return {
@@ -63,7 +68,6 @@ function getHeaderParts(rows) {
   };
 }
 
-/* soft accent background helper */
 const hexToRgba = (hex, alpha = 0.18) => {
   const m = hex?.trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
   if (!m) return `rgba(0,0,0,${alpha})`;
@@ -76,8 +80,31 @@ const hexToRgba = (hex, alpha = 0.18) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+/* ---------- Debug packet builder ---------- */
+function buildDebugPackets(offers, secToken) {
+  const API_BASE =
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE) ||
+    "http://localhost:3100";
+  const priceUrl = `${API_BASE}/pricedetails`;
+  const seatUrl = `${API_BASE}/seat-map`;
+  const commonHeaders = { "Content-Type": "application/json" };
+  const headersWithToken = secToken
+    ? { ...commonHeaders, securitytoken: secToken }
+    : commonHeaders;
+
+  const bodyPreview = { offers };
+
+  return {
+    priceUrl,
+    seatUrl,
+    priceHeaders: headersWithToken,
+    seatHeaders: headersWithToken,
+    bodyPreview,
+  };
+}
+
 /* ============================================================
- * LiteCard (70% sizing) — with enhanced inline details styling
+ * LiteCard (UI)
  * ============================================================ */
 function LiteCard({
   row,
@@ -87,7 +114,13 @@ function LiteCard({
   onSelect,
   onToggle,
   accent = "#00BFFF",
+  paxCounts,
 }) {
+  const a = paxCounts?.adult || 0;
+  const c = paxCounts?.child || 0;
+  const i = paxCounts?.infant || 0;
+  const totalPax = a + c + i;
+
   return (
     <article
       style={{ "--dow": accent }}
@@ -108,10 +141,9 @@ function LiteCard({
           </span>
 
           <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
-            {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin}  {row.destination}
+            {row.flightNumber || row.id}&nbsp;&nbsp;{row.origin} → {row.destination}
           </div>
 
-          {/* Timeline */}
           <div className="flex items-center gap-3 mt-0.5">
             <div className="text-[18px] font-extrabold">{row.departureTime}</div>
             <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
@@ -120,12 +152,9 @@ function LiteCard({
             <div className="text-[18px] font-extrabold">{row.arrivalTime}</div>
           </div>
 
-          {/* Foot meta */}
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
             <span>
-              {row.aircraftDescription
-                ? `${row.aircraftDescription} • ${row.duration}`
-                : row.duration}
+              {row.aircraftDescription ? `${row.aircraftDescription} • ${row.duration}` : row.duration}
             </span>
             <span>•</span>
             <span>Nonstop</span>
@@ -141,31 +170,34 @@ function LiteCard({
         </div>
       </div>
 
-      {/* RIGHT — price, Select, Details toggle */}
+      {/* RIGHT */}
       <div className="flex flex-col items-end gap-1.5">
         <div className="text-right">
           <span
             className="font-bold text-[20px] leading-none px-2 py-1 rounded"
             style={{
-              color: selected ? "#4927F5" : "#0b4f8a", // keep text same
-              backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent", // only bg changes
+              color: selected ? "#4927F5" : "#0b4f8a",
+              backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent",
             }}
           >
             {fmtMoney(row.fareAmountIncludingTax, currency)}
           </span>
-          <div className="text-[10px] text-slate-500">/5 pax*</div>
+          <div className="text-[10px] text-slate-500">
+            <span className="mr-2">ADT {paxCounts?.adult || 0}</span>
+            {(paxCounts?.child || 0) > 0 && <span className="mr-2">CHD {paxCounts?.child}</span>}
+            {(paxCounts?.infant || 0) > 0 && <span className="mr-2">INF {paxCounts?.infant}</span>}
+            / {totalPax} pax*
+          </div>
         </div>
 
         <button
           onClick={onSelect}
           className={
             "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
-            (selected
-              ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
-              : "bg-[#0B73B1] hover:bg-[var(--dow)]")
+            (selected ? "bg-[#0a65a0] hover:bg-[var(--dow)]" : "bg-[#0B73B1] hover:bg-[var(--dow)]")
           }
         >
-          Select
+          {selected ? "Selected" : "Select"}
         </button>
 
         <button
@@ -181,7 +213,6 @@ function LiteCard({
         </button>
       </div>
 
-      {/* INLINE DETAILS — enhanced with accent tint + bigger blue labels */}
       <div
         className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
           open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
@@ -194,7 +225,7 @@ function LiteCard({
         >
           <div className="relative pl-5">
             <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-300 rounded" />
-            {/* Depart */}
+
             <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
               <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
@@ -204,13 +235,12 @@ function LiteCard({
                 {row.originName || row.origin}
               </div>
             </div>
-            {/* Note */}
+
             <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
               <div className="bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 shadow-sm">
                 <div className="font-bold text-blue-700 text-[14px]">
-                  {row.marketingCarrier || "Nok Air"},{" "}
-                  {row.flightNumber || ""}
+                  {row.marketingCarrier || "Nok Air"}, {row.flightNumber || ""}
                 </div>
                 <div className="text-slate-500">Short-haul</div>
                 <div className="text-[11px] mt-1">
@@ -218,7 +248,7 @@ function LiteCard({
                 </div>
               </div>
             </div>
-            {/* Arrive */}
+
             <div className="relative my-3">
               <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
               <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
@@ -249,6 +279,7 @@ function LegBox({
   showInlineNext = false,
   onInlineNext,
   inlinePriceKey = "",
+  paxCounts,
 }) {
   const [openId, setOpenId] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -268,9 +299,10 @@ function LegBox({
 
   const pickLite = (row) => {
     const fareKey = row?.fareKey;
-    if (!fareKey) return;
+    const journeyKey = row?.journeyKey;
+    if (!fareKey || !journeyKey) return;
 
-    if (selected?.fareKey === fareKey && selected?.journeyKey === row.journeyKey) {
+    if (selected?.fareKey === fareKey && selected?.journeyKey === journeyKey) {
       setSelected(null);
       onSelect?.(null);
       return;
@@ -279,7 +311,7 @@ function LegBox({
     const selection = {
       brand: "LITE",
       fareKey,
-      journeyKey: row.journeyKey,
+      journeyKey,
       securityToken: row.securityToken || fallbackToken,
       currency,
       row,
@@ -293,11 +325,8 @@ function LegBox({
       className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm"
       style={{ "--dow": hdr.chipColor }}
     >
-      {/* Title + header */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-wrap text-[200%] leading-tight">
-        {title && (
-          <div className="text-slate-700 font-semibold text-[0.5em]">{title}</div>
-        )}
+        {title && <div className="text-slate-700 font-semibold text-[0.5em]">{title}</div>}
         {(hdr.origin || hdr.destination) && (
           <div className="text-blue-600 font-semibold text-[0.9em]">
             {hdr.origin} → {hdr.destination}
@@ -312,9 +341,9 @@ function LegBox({
             {hdr.dow}
           </span>
         )}
+        <PaxChips source={paxCounts} className="ml-auto" />
       </div>
 
-      {/* Cards */}
       <div className="flex flex-col gap-3 px-3 pb-3">
         {rows.map((row, idx) => {
           const cardId = row.id || `${row.flightNumber}-${idx}`;
@@ -332,12 +361,12 @@ function LegBox({
               onSelect={() => pickLite(row)}
               onToggle={() => setOpenId(open ? null : cardId)}
               accent={hdr.chipColor}
+              paxCounts={paxCounts}
             />
           );
         })}
       </div>
 
-      {/* Inline NEXT */}
       {showInlineNext && (
         <div className="px-4 py-3 flex items-center justify-end gap-3 border-t">
           {inlineStatus === "loading" && (
@@ -354,7 +383,7 @@ function LegBox({
             </div>
           )}
           <button
-            onClick={onInlineNext}
+            onClick={() => onInlineNext?.(selected)}
             disabled={!selected?.fareKey || inlineStatus === "loading"}
             className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-[var(--dow)] disabled:opacity-60 text-xs transition-colors"
           >
@@ -371,16 +400,28 @@ export default function RoundTripResultsLite() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const raw = useSelector(selectResults);
+  const search = useSelector(selectSearch);
 
   const payload = raw?.data ?? raw;
   const token = raw?.securityToken || payload?.securityToken || "";
   const currency = raw?.currency || "THB";
 
+  const pax = useMemo(
+    () => derivePax(search?.params || search?.results || payload || raw || {}),
+    [search, payload, raw]
+  );
+
   const rows = useMemo(() => {
     if (!payload) return [];
     const input = Array.isArray(payload) ? payload : [payload];
     const out = flattenFlights(input, token) || [];
-    return out.filter((r) => r && (r.id || r.flightNumber) && (r.origin || r.destination));
+    return out
+      .map((r) => ({
+        ...r,
+        origin: (r.origin || "").trim().toUpperCase(),
+        destination: (r.destination || "").trim().toUpperCase(),
+      }))
+      .filter((r) => r && (r.id || r.flightNumber) && (r.origin || r.destination));
   }, [payload, token]);
 
   if (!rows.length) {
@@ -391,14 +432,14 @@ export default function RoundTripResultsLite() {
     );
   }
 
-  /* Group by direction */
   const byDirMap = rows.reduce((acc, r) => {
-    const dir = `${(r.origin || "").trim()}-${(r.destination || "").trim()}`;
+    const o = (r.origin || "").trim().toUpperCase();
+    const d = (r.destination || "").trim().toUpperCase();
+    const dir = `${o}-${d}`;
     (acc[dir] ||= []).push(r);
     return acc;
   }, {});
 
-  let groups = [];
   const dirEntries = Object.entries(byDirMap)
     .filter(([k]) => !!k && k !== "-")
     .map(([key, arr]) => {
@@ -411,6 +452,7 @@ export default function RoundTripResultsLite() {
     })
     .sort(byAscDate);
 
+  let groups = [];
   if (dirEntries.length >= 2) {
     groups = [
       { title: "Depart", rows: dirEntries[0].rows },
@@ -424,20 +466,85 @@ export default function RoundTripResultsLite() {
 
   const [selectedOutbound, setSelectedOutbound] = useState(null);
   const [selectedInbound, setSelectedInbound] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const isRoundTrip = groups.length === 2;
 
-  /* ONE-WAY */
+  /* ===================== ONE-WAY ===================== */
   if (!isRoundTrip) {
     const requestKey = selectedOutbound?.fareKey || "";
 
-    const doInlineNext = async () => {
-      if (!selectedOutbound) return;
+    const doInlineNext = async (currentSelection) => {
+      const sel = currentSelection || selectedOutbound;
+      if (!sel?.fareKey || !sel?.journeyKey) return;
+
+      const offers = [
+        {
+          journeyKey: sel.journeyKey,
+          fareKey: sel.fareKey,
+          securityToken: sel.securityToken,
+        },
+      ];
+      const secToken = sel?.securityToken || token || "";
+      const dbg = buildDebugPackets(offers, secToken);
+
       try {
-        await dispatch(fetchPriceDetail({ offers: [selectedOutbound] })).unwrap();
-        navigate("/skyblue-price-detail", { state: { requestKey } });
+        const priceP = dispatch(
+          fetchPriceDetail({ offers, currency, includeSeats: false })
+        ).unwrap();
+
+        const seatP = dispatch(fetchSeatMap({ offers })).unwrap();
+
+        const [priceRes, seatRes] = await Promise.allSettled([priceP, seatP]);
+
+        if (priceRes.status !== "fulfilled") {
+          console.error("Pricing failed:", priceRes.reason);
+          return;
+        }
+
+        const priceDetail = priceRes.value;
+
+        const seatOk = seatRes.status === "fulfilled";
+        const seatError = seatOk ? null : (seatRes.reason?.message || "Seat map failed.");
+        const seatRaw = seatOk ? seatRes.value : null;
+
+        navigate(
+          `/skyblue-price-detail?adt=${pax.adult}&chd=${pax.child}&inf=${pax.infant}`,
+          {
+            state: {
+              requestKey,
+              priceDetail,
+              pax,
+
+              // ✅ NEW (works for one-way & round-trip)
+              selectedOffers: offers,
+
+              // ✅ backward compatible (one-way)
+              fareKey: offers[0].fareKey,
+              journeyKey: offers[0].journeyKey,
+
+              debug: {
+                pricingRequest: {
+                  url: dbg.priceUrl,
+                  method: "POST",
+                  headers: dbg.priceHeaders,
+                  body: dbg.bodyPreview,
+                },
+                seatRequest: {
+                  url: dbg.seatUrl,
+                  method: "POST",
+                  headers: dbg.seatHeaders,
+                  body: dbg.bodyPreview,
+                },
+                seatResponse: seatRaw,
+                seatOk,
+                seatError,
+              },
+            },
+          }
+        );
       } catch (e) {
-        console.error("Pricing failed", e);
+        console.error("Unexpected NEXT error (one-way):", e);
       }
     };
 
@@ -452,13 +559,13 @@ export default function RoundTripResultsLite() {
           showInlineNext={true}
           onInlineNext={doInlineNext}
           inlinePriceKey={requestKey}
+          paxCounts={pax}
         />
       </div>
     );
   }
 
-  /* ROUNDTRIP */
-  const canProceed = !!(selectedOutbound && selectedInbound);
+  /* ===================== ROUND-TRIP ===================== */
 
   const requestKey = useMemo(() => {
     const a = selectedOutbound?.fareKey || "";
@@ -466,22 +573,115 @@ export default function RoundTripResultsLite() {
     return [a, b].filter(Boolean).join("+") || "";
   }, [selectedOutbound, selectedInbound]);
 
+  const canProceed = !!(selectedOutbound && selectedInbound);
+
   const pricingStatus = useSelector(selectPricingStatus(requestKey));
-  const priceDetail   = useSelector(selectPriceFor(requestKey));
+  const priceDetail = useSelector(selectPriceFor(requestKey));
 
   const handleUnifiedNext = async () => {
-    if (!canProceed || pricingStatus === "loading") return;
+    if (!canProceed || submitting) return;
+    setSubmitting(true);
+
+    const offers = [selectedOutbound, selectedInbound]
+      .filter(Boolean)
+      .map((sel) => ({
+        journeyKey: sel.journeyKey,
+        fareKey: sel.fareKey,
+        securityToken: sel.securityToken,
+      }));
+
+    const secToken =
+      selectedOutbound?.securityToken ||
+      selectedInbound?.securityToken ||
+      token ||
+      "";
+
+    const dbgBoth = buildDebugPackets(offers, secToken);
+    const seatReqOutbound = buildDebugPackets([offers[0]], secToken);
+    const seatReqInbound = buildDebugPackets([offers[1]], secToken);
+
     try {
-      await dispatch(
-        fetchPriceDetail({
-          offers: [selectedOutbound, selectedInbound],
-          currency,
-        })
+      const priceP = dispatch(
+        fetchPriceDetail({ offers, currency, includeSeats: false })
       ).unwrap();
 
-      navigate("/skyblue-price-detail", { state: { requestKey } });
+      const seatOutP = dispatch(fetchSeatMap({ offers: [offers[0]] })).unwrap();
+      const seatInP = dispatch(fetchSeatMap({ offers: [offers[1]] })).unwrap();
+
+      const [priceRes, seatOutRes, seatInRes] = await Promise.allSettled([
+        priceP,
+        seatOutP,
+        seatInP,
+      ]);
+
+      if (priceRes.status !== "fulfilled") {
+        console.error("Pricing failed:", priceRes.reason);
+        return;
+      }
+
+      const pricedPayload = priceRes.value;
+
+      const seatOkOutbound = seatOutRes.status === "fulfilled";
+      const seatOkInbound = seatInRes.status === "fulfilled";
+
+      const seatErrors = [];
+      if (!seatOkOutbound)
+        seatErrors.push(seatOutRes.reason?.message || "Seat map (outbound) failed.");
+      if (!seatOkInbound)
+        seatErrors.push(seatInRes.reason?.message || "Seat map (inbound) failed.");
+
+      const seatResponses = [
+        seatOkOutbound ? seatOutRes.value : null,
+        seatOkInbound ? seatInRes.value : null,
+      ];
+
+      navigate(
+        `/skyblue-price-detail?adt=${pax.adult}&chd=${pax.child}&inf=${pax.infant}`,
+        {
+          state: {
+            requestKey,
+            priceDetail: pricedPayload,
+            pax,
+
+            // ✅ NEW: pass BOTH legs to PriceDetail
+            selectedOffers: offers,
+
+            // ✅ backward compatible: also pass OUT leg at top-level
+            fareKey: offers[0]?.fareKey || "",
+            journeyKey: offers[0]?.journeyKey || "",
+
+            debug: {
+              pricingRequest: {
+                url: dbgBoth.priceUrl,
+                method: "POST",
+                headers: dbgBoth.priceHeaders,
+                body: dbgBoth.bodyPreview,
+              },
+              seatRequest: [
+                {
+                  url: seatReqOutbound.seatUrl,
+                  method: "POST",
+                  headers: seatReqOutbound.seatHeaders,
+                  body: seatReqOutbound.bodyPreview,
+                },
+                {
+                  url: seatReqInbound.seatUrl,
+                  method: "POST",
+                  headers: seatReqInbound.seatHeaders,
+                  body: seatReqInbound.bodyPreview,
+                },
+              ],
+              seatResponse: seatResponses,
+              seatOk: seatOkOutbound && seatOkInbound,
+              seatError: seatErrors.length ? seatErrors.join(" | ") : null,
+            },
+          },
+        }
+      );
     } catch (e) {
-      console.error("Pricing failed", e);
+      console.error("Unexpected NEXT error (round-trip):", e);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -496,20 +696,20 @@ export default function RoundTripResultsLite() {
         currency={currency}
         fallbackToken={token}
         onSelect={setSelectedOutbound}
+        paxCounts={pax}
       />
-
       <LegBox
         title="Return"
         rows={groups[1].rows}
         currency={currency}
         fallbackToken={token}
         onSelect={setSelectedInbound}
+        paxCounts={pax}
       />
 
       <div className="mt-2 flex items-center justify-between rounded-xl border bg-white p-3 shadow">
         <div className="text-xs text-gray-600">
-          {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}{" "}
-          &nbsp;&nbsp;
+          {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}&nbsp;&nbsp;
           {selectedInbound ? "✓ Return selected" : "• Choose a return"}
           {pricingStatus === "loading" && (
             <span className="ml-3 text-blue-600">Getting offers…</span>
@@ -518,14 +718,14 @@ export default function RoundTripResultsLite() {
 
         <button
           className={`px-3 py-1.5 rounded-md font-semibold text-xs transition-colors ${
-            canProceed && pricingStatus !== "loading"
+            canProceed && pricingStatus !== "loading" && !submitting
               ? "bg-blue-600 text-white hover:bg-[var(--dow)]"
               : "bg-gray-300 text-gray-600"
           }`}
-          disabled={!canProceed || pricingStatus === "loading"}
+          disabled={!canProceed || pricingStatus === "loading" || submitting}
           onClick={handleUnifiedNext}
         >
-          {pricingStatus === "loading" ? "Please wait…" : "NEXT"}
+          {submitting || pricingStatus === "loading" ? "Please wait…" : "NEXT"}
         </button>
       </div>
 

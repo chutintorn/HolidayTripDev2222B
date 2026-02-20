@@ -1,662 +1,51 @@
 // src/pages/PriceDetailSkyBlue.jsx
-import React, {
-  useMemo,
-  useState,
-  useEffect,
-  useCallback,
-  memo,
-  useRef,
-} from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { selectPriceFor } from "../redux/pricingSlice";
 
-/* ========================= Strings ========================= */
-const STR = {
-  en: {
-    title: "Passenger details",
-    travellers: "Travellers",
-    adult: "Adult",
-    child: "Child",
-    infant: "Infant",
-    completed: "Completed",
-    incomplete: "Incomplete",
-    passengerDetails: "Passenger details",
-    male: "Male",
-    female: "Female",
-    firstName: "First/Given name",
-    lastName: "Family name/Surname",
-    country: "Country/Region",
-    dob: "Date of birth (DD/MM/YYYY)",
-    memberId: "Nok Holiday member ID",
-    email: "Email address (optional)",
-    earnPoints: "Earn Nok Holiday points for this guest",
-    search: "Search",
-    save: "Save",
-    cancel: "Cancel",
-    fillDetails: "Fill details",
-    edit: "Edit",
-    contact: "Contact Information",
-    travellingWith: "Travelling with",
-    // right
-    priceSummary: "Fare summary",
-    baseFare: "Base fare",
-    tax: "Taxes, fees & surcharges",
-    addons: "Add-ons",
-    total: "Total amount",
-    continue: "Continue",
-    back: "Back",
-    noKey: "No request key. Please go back and select a fare.",
-    noDetail: "No price detail found. Please select an offer again.",
-    raw: "Show raw response",
-    required: "This field is required",
-    pointsAfter: "Points rewarded after flight:",
-    points: "points",
-    mobilePhone: "Mobile Phone",
-    emailAddress: "E-mail",
-    marketingOptIn:
-      "I would like to receive news and special offers from Nok Holiday and accept the privacy policy.",
-    depart: "Depart",
-    ret: "Return",
-    addOnBundles: "Add-on bundles",
-    selectOneBundle: "Select one of the bundles",
-    included: "Included",
-    segment: "Segment",
-    // debug
-    viewPriceReq: "View price request",
-    viewSeatReq: "View seat-map request",
-    viewSeatResp: "View seat-map response",
-    seatRespTitle: "Seat-map response",
-    seatErrorTitle: "Seat-map error",
-    close: "Close",
-    requestPreview: "Request preview",
-    copyCurl: "Copy cURL",
-    curlCopied: "Copied!",
-    noSeatResponse: "No seat-map response available.",
-  },
-  th: {
-    title: "รายละเอียดผู้โดยสาร",
-    travellers: "ผู้โดยสาร",
-    adult: "ผู้ใหญ่",
-    child: "เด็ก",
-    infant: "ทารก",
-    completed: "เสร็จสิ้น",
-    incomplete: "ไม่สมบูรณ์",
-    passengerDetails: "รายละเอียดผู้โดยสาร",
-    male: "ชาย",
-    female: "หญิง",
-    firstName: "ชื่อ",
-    lastName: "นามสกุล",
-    country: "ประเทศ/ภูมิภาค",
-    dob: "วันเกิด (วัน/เดือน/ปี)",
-    memberId: "รหัสสมาชิก Nok Holiday",
-    email: "อีเมล (ไม่บังคับ)",
-    earnPoints: "สะสมคะแนน Nok Holiday สำหรับผู้โดยสารนี้",
-    search: "ค้นหา",
-    save: "บันทึก",
-    cancel: "ยกเลิก",
-    fillDetails: "กรอกข้อมูล",
-    edit: "แก้ไข",
-    contact: "ข้อมูลการติดต่อ",
-    travellingWith: "เดินทางกับ",
-    // right
-    priceSummary: "สรุปค่าโดยสาร",
-    baseFare: "ค่าโดยสารพื้นฐาน",
-    tax: "ภาษีและค่าธรรมเนียม",
-    addons: "ส่วนเสริม",
-    total: "ยอดรวม",
-    continue: "ดำเนินการต่อ",
-    back: "ย้อนกลับ",
-    noKey: "ไม่พบรหัสคำขอ กรุณาย้อนกลับและเลือกค่าโดยสารอีกครั้ง",
-    noDetail: "ไม่พบรายละเอียดราคา กรุณาเลือกเที่ยวบินอีกครั้ง",
-    raw: "แสดงข้อมูลดิบ",
-    required: "ต้องระบุ",
-    pointsAfter: "คะแนนที่จะได้รับหลังเดินทาง:",
-    points: "คะแนน",
-    mobilePhone: "เบอร์มือถือ",
-    emailAddress: "อีเมล",
-    marketingOptIn:
-      "ฉันต้องการรับข่าวสารและข้อเสนอพิเศษจาก Nok Holiday และยอมรับนโยบายความเป็นส่วนตัว",
-    depart: "ขาไป",
-    ret: "ขากลับ",
-    addOnBundles: "แพ็กเกจเสริม",
-    selectOneBundle: "เลือก 1 แพ็กเกจ",
-    included: "รวมในราคา",
-    segment: "ช่วงบิน",
-    // debug
-    viewPriceReq: "ดูคำขอราคาค่าโดยสาร",
-    viewSeatReq: "ดูคำขอแผนผังที่นั่ง",
-    viewSeatResp: "ดูผลลัพธ์แผนผังที่นั่ง",
-    seatRespTitle: "ผลลัพธ์แผนผังที่นั่ง",
-    seatErrorTitle: "ข้อผิดพลาดแผนผังที่นั่ง",
-    close: "ปิด",
-    requestPreview: "พรีวิวคำขอ",
-    copyCurl: "คัดลอก cURL",
-    curlCopied: "คัดลอกแล้ว!",
-    noSeatResponse: "ไม่มีผลลัพธ์แผนผังที่นั่ง",
-  },
-};
+// ✅ ADD: read saved seat selections from Redux
+import { selectAllSavedSeats } from "../redux/seatSelectionSlice";
 
-/* ========================= Helpers ========================= */
-function firstPricingDetailsBucket(root) {
-  if (!root || typeof root !== "object") return null;
-  if (Array.isArray(root.pricingDetails)) return root.pricingDetails;
-  if (root.data && Array.isArray(root.data.pricingDetails))
-    return root.data.pricingDetails;
-  if (Array.isArray(root.airlines) && root.airlines[0]?.pricingDetails)
-    return Array.isArray(root.airlines[0].pricingDetails)
-      ? root.airlines[0].pricingDetails
-      : null;
-  if (
-    root.data &&
-    Array.isArray(root.data.airlines) &&
-    root.data.airlines[0]?.pricingDetails
-  )
-    return Array.isArray(root.data.airlines[0].pricingDetails)
-      ? root.data.airlines[0].pricingDetails
-      : null;
-  return null;
-}
+// ✅ ADD: Flight panel (create file src/pages/FlightSummaryPanel.jsx)
+import FlightSummaryPanel from "./FlightSummaryPanel";
 
-function paxFromFirstPricingDetails(detailLike) {
-  const arr = firstPricingDetailsBucket(detailLike);
-  const out = { adult: 0, child: 0, infant: 0 };
-  if (!Array.isArray(arr)) {
-    out.adult = 1;
-    return out;
-  }
-  arr.forEach((p) => {
-    const code = String(p?.paxTypeCode ?? p?.pax_type ?? "").toLowerCase();
-    const n = Number(p?.paxCount ?? p?.count ?? 0) || 0;
-    if (/^(adult|adt)$/.test(code)) out.adult += n;
-    else if (/^(child|chd)$/.test(code)) out.child += n;
-    else if (/^(infant|inf)$/.test(code)) out.infant += n;
-  });
-  if (!out.adult) out.adult = 1;
-  return out;
-}
+// ✅ Split files (same folder level)
+import { STR } from "./strings";
+import PriceHeader from "./PriceHeader";
+import PassengersPanel from "./PassengersPanel";
+import FareSidebar from "./FareSidebar";
 
-function safeDate(s) {
-  if (!s) return null;
-  const str = typeof s === "string" ? s.replace(" ", "T") : s;
-  const d = new Date(str);
-  return isNaN(d.getTime()) ? null : d;
-}
+// Components still used in this file (debug)
+import PrettyBlock from "../components/PrettyBlock";
+import Modal from "../components/Modal";
+import submitHoldBooking from "../api/submitHoldBooking";
 
-function formatDDMMM(d) {
-  if (!d) return "";
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mon = [
-    "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
-  ][d.getMonth()];
-  return `${dd}-${mon}`;
-}
+// Utils
+import { paxFromFirstPricingDetails } from "../utils/pricingHelpers";
 
-function hhmm(d) {
-  if (!d) return "";
-  return `${String(d.getHours()).padStart(2, "0")}:${String(
-    d.getMinutes()
-  ).padStart(2, "0")}`;
-}
+/* ========================= Responsive helpers ========================= */
+function useMediaQuery(query, initial = false) {
+  const [matches, setMatches] = useState(initial);
 
-/* ====== Segment extraction ====== */
-function looksLikeSegment(x) {
-  if (!x || typeof x !== "object") return false;
-  const o = x.origin || x.from || x.depAirport || x.departureAirport;
-  const d = x.destination || x.to || x.arrAirport || x.arrivalAirport;
-  const dep =
-    x.departureTime ||
-    x.departureDateTime ||
-    x.dep ||
-    x.depTime ||
-    x.std ||
-    x.offBlockTime;
-  return Boolean(o && d && dep);
-}
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia(query);
 
-function deepCollectSegments(node, out = []) {
-  if (!node) return out;
-  if (Array.isArray(node)) {
-    for (const v of node) deepCollectSegments(v, out);
-    return out;
-  }
-  if (typeof node === "object") {
-    if (looksLikeSegment(node)) out.push(node);
-    for (const k of Object.keys(node)) deepCollectSegments(node[k], out);
-    return out;
-  }
-  return out;
-}
+    const onChange = () => setMatches(Boolean(mql.matches));
+    onChange();
 
-function normalizeSegment(x) {
-  return {
-    origin: x.origin || x.from || x.depAirport || x.departureAirport || "",
-    destination: x.destination || x.to || x.arrAirport || x.arrivalAirport || "",
-    depTime: safeDate(
-      x.departureTime ||
-        x.departureDateTime ||
-        x.depTime ||
-        x.dep ||
-        x.std ||
-        x.offBlockTime
-    ),
-    arrTime: safeDate(
-      x.arrivalTime ||
-        x.arrivalDateTime ||
-        x.arrTime ||
-        x.arr ||
-        x.sta ||
-        x.onBlockTime
-    ),
-    fn: x.flightNumber || x.flightNo || x.fn || x.marketingFlightNumber || "",
-    dir: (x.direction || x.dir || "").toString().toUpperCase(),
-  };
-}
+    if (mql.addEventListener) mql.addEventListener("change", onChange);
+    else mql.addListener(onChange);
 
-function extractLegs(raw) {
-  if (!raw) return [];
-
-  const roots = Array.isArray(raw) ? raw : [raw];
-  const bucket = new Map();
-
-  for (const root of roots) {
-    const segs = deepCollectSegments(root);
-    const maybeRootSeg = looksLikeSegment(root) ? [root] : [];
-    const all = [...segs, ...maybeRootSeg];
-
-    for (const s of all) {
-      const n = normalizeSegment(s);
-      if (!n.fn || !n.depTime || !n.origin || !n.destination) continue;
-      const key = `${n.origin}|${n.destination}|${n.depTime.toISOString()}`;
-      if (!bucket.has(key)) bucket.set(key, n);
-    }
-  }
-
-  const cleaned = [...bucket.values()].sort((a, b) => a.depTime - b.depTime);
-
-  return cleaned.map((n, i) => {
-    const inferred =
-      n.dir === "OUT" || n.dir === "IN"
-        ? n.dir
-        : i === 0
-        ? "OUT"
-        : i === 1
-        ? "IN"
-        : `SEG-${i + 1}`;
-    return {
-      key: `${inferred}-${i + 1}`,
-      origin: n.origin,
-      destination: n.destination,
-      depTime: n.depTime,
-      arrTime: n.arrTime,
-      fn: n.fn,
-      dir: inferred,
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", onChange);
+      else mql.removeListener(onChange);
     };
-  });
+  }, [query]);
+
+  return matches;
 }
-
-/* ===== UI bits ===== */
-const Chip = memo(function Chip({ ok, children }) {
-  return (
-    <span
-      className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-        ok
-          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-          : "bg-sky-50 text-sky-800 border border-sky-200"
-      }`}
-    >
-      {children}
-    </span>
-  );
-});
-
-const RowCard = memo(function RowCard({ left, right, onClick }) {
-  return (
-    <div className="border border-slate-200 rounded-xl p-3 bg-white flex items-center justify-between">
-      <div className="flex items-center gap-3">{left}</div>
-      <button
-        onClick={onClick}
-        className="px-3 py-2 rounded-lg border border-cyan-500 text-cyan-700 font-semibold min-w-[110px]"
-      >
-        {right}
-      </button>
-    </div>
-  );
-});
-
-/* ============== Simple Modal ============== */
-const Modal = memo(function Modal({ open, onClose, children }) {
-  if (!open) return null;
-  return (
-    <div
-      className="fixed inset-0 bg-black/45 flex items-center justify-center z-50 will-change-transform"
-      onClick={onClose}
-    >
-      <div
-        className="w-[92vw] max-w-3xl max-h-[90vh] overflow-auto bg-white rounded-xl border border-slate-200 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>
-  );
-});
-
-/* ============== Traveller Form ============== */
-const TravellerForm = memo(function TravellerForm({
-  t,
-  value,
-  onChange,
-  onSave,
-  showSave = true,
-  points = 95,
-}) {
-  const [local, setLocal] = useState(value || {});
-  const [errors, setErrors] = useState({});
-
-  useEffect(() => setLocal(value || {}), [value]);
-
-  const set = useCallback((k, v) => {
-    const next = { ...local, [k]: v };
-    setLocal(next);
-    onChange?.(next);
-  }, [local, onChange]);
-
-  const required = useCallback(
-    (k) => ((local[k] || "").trim()).length > 0,
-    [local]
-  );
-
-  const validate = useCallback(() => {
-    const e = {};
-    ["firstName", "lastName", "dob"].forEach((k) => {
-      if (!required(k)) e[k] = t.required;
-    });
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  }, [required, t.required]);
-
-  const save = useCallback(() => {
-    if (!validate()) return;
-    onSave?.(local);
-  }, [local, onSave, validate]);
-
-  return (
-    <div className="p-4">
-      {/* Gender */}
-      <div className="mb-3">
-        <div className="text-sm text-slate-600 mb-1">{t.passengerDetails}</div>
-        <div className="inline-flex border border-slate-300 rounded-lg overflow-hidden">
-          <button
-            type="button"
-            onClick={() => set("gender", "M")}
-            className={`px-3 py-2 text-sm ${
-              local.gender === "M" ? "bg-sky-50 text-sky-700" : "bg-white text-slate-800"
-            }`}
-          >
-            {t.male}
-          </button>
-          <button
-            type="button"
-            onClick={() => set("gender", "F")}
-            className={`px-3 py-2 text-sm border-l border-slate-300 ${
-              local.gender === "F" ? "bg-sky-50 text-sky-700" : "bg-white text-slate-800"
-            }`}
-          >
-            {t.female}
-          </button>
-        </div>
-      </div>
-
-      {/* Names */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <input
-            placeholder={t.firstName}
-            value={local.firstName || ""}
-            onChange={(e) => set("firstName", e.target.value)}
-            className={`w-full rounded-lg border px-3 py-2 text-sm ${
-              errors.firstName ? "border-red-400" : "border-slate-300"
-            }`}
-          />
-          {errors.firstName && (
-            <div className="text-red-600 text-xs mt-1">{t.required}</div>
-          )}
-        </div>
-        <div>
-          <input
-            placeholder={t.lastName}
-            value={local.lastName || ""}
-            onChange={(e) => set("lastName", e.target.value)}
-            className={`w-full rounded-lg border px-3 py-2 text-sm ${
-              errors.lastName ? "border-red-400" : "border-slate-300"
-            }`}
-          />
-          {errors.lastName && (
-            <div className="text-red-600 text-xs mt-1">{t.required}</div>
-          )}
-        </div>
-      </div>
-
-      {/* Country + DOB */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-        <div>
-          <select
-            value={local.country || "Thailand"}
-            onChange={(e) => set("country", e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-          >
-            <option>Thailand</option>
-            <option>Singapore</option>
-            <option>Malaysia</option>
-            <option>Vietnam</option>
-            <option>Indonesia</option>
-          </select>
-        </div>
-        <div>
-          <input
-            placeholder={t.dob}
-            value={local.dob || ""}
-            onChange={(e) => set("dob", e.target.value)}
-            className={`w-full rounded-lg border px-3 py-2 text-sm ${
-              errors.dob ? "border-red-400" : "border-slate-300"
-            }`}
-          />
-          {errors.dob && (
-            <div className="text-red-600 text-xs mt-1">{t.required}</div>
-          )}
-        </div>
-      </div>
-
-      {/* Member & email (lookup) */}
-      <div className="mt-3">
-        <input
-          placeholder={t.memberId}
-          value={local.memberId || ""}
-          onChange={(e) => set("memberId", e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-3"
-        />
-        <div className="p-3 border border-slate-300 rounded-lg bg-slate-50">
-          <div className="text-slate-900 mb-2">• {t.earnPoints}</div>
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
-            <input
-              placeholder={t.email}
-              value={local.email || ""}
-              onChange={(e) => set("email", e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <button
-              type="button"
-              className="px-4 py-2 rounded-lg border border-cyan-500 text-cyan-700 font-semibold bg-white"
-              onClick={() => alert("🔎 Lookup member by email (stub)")}
-            >
-              {t.search}
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-3 text-slate-900">
-          {t.pointsAfter} <span className="font-bold">95 {t.points}</span>
-        </div>
-      </div>
-
-      {showSave && (
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={save}
-            className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold"
-          >
-            {t.save}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-});
-
-/* ========================= Bundle Selector ========================= */
-const BundleCard = memo(function BundleCard({
-  name,
-  checked,
-  onChange,
-  title,
-  subtitle,
-  features,
-  priceLabel,
-  accent = "#3b82f6",
-}) {
-  return (
-    <label
-      className={`flex items-start gap-3 border-2 rounded-xl p-3 cursor-pointer w-full ${
-        checked ? "bg-sky-50" : "bg-white"
-      }`}
-      style={{ borderColor: checked ? accent : "#e5e7eb" }}
-    >
-      <input
-        type="radio"
-        name={name}
-        checked={checked}
-        onChange={onChange}
-        className="mt-1"
-      />
-      <div className="flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="font-extrabold">{title}</div>
-            <div className="text-blue-600 text-xs font-semibold">{subtitle}</div>
-          </div>
-          {priceLabel && (
-            <div className="font-bold whitespace-nowrap">{priceLabel}</div>
-          )}
-        </div>
-        <ul className="mt-2 ml-5 text-slate-700 text-sm list-disc">
-          {features.map((f, i) => (
-            <li key={i} className="mb-1">
-              {f}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </label>
-  );
-});
-
-/* ========================= Contact Information ========================= */
-const ContactInformation = memo(function ContactInformation({
-  t,
-  value,
-  onChange,
-  showErrors,
-}) {
-  const [local, setLocal] = useState(
-    value || { dialCode: "+66", phone: "", email: "", optIn: false }
-  );
-
-  useEffect(
-    () => setLocal(value || { dialCode: "+66", phone: "", email: "", optIn: false }),
-    [value]
-  );
-
-  const set = useCallback((k, v) => {
-    const next = { ...local, [k]: v };
-    setLocal(next);
-    onChange?.(next);
-  }, [local, onChange]);
-
-  const phoneErr = showErrors && !local.phone.trim();
-  const emailErr = showErrors && !local.email.trim();
-
-  const label = useCallback(
-    (text) => (
-      <span>
-        {text} <span className="text-red-500">*</span>
-      </span>
-    ),
-    []
-  );
-
-  return (
-    <div className="mt-3 bg-slate-100 rounded-xl p-4 border border-slate-300">
-      <h3 className="mt-0 text-base font-semibold">{t.contact}</h3>
-
-      <div className="grid grid-cols-[140px_1fr] max-[480px]:grid-cols-1 gap-2">
-        <div>
-          <div className="text-xs text-slate-600 mb-1">{label("+ Code")}</div>
-          <select
-            value={local.dialCode}
-            onChange={(e) => set("dialCode", e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-white"
-          >
-            <option value="+66">+66</option>
-            <option value="+60">+60</option>
-            <option value="+65">+65</option>
-            <option value="+84">+84</option>
-            <option value="+62">+62</option>
-          </select>
-        </div>
-
-        <div>
-          <div className="text-xs text-slate-600 mb-1">{label(t.emailAddress)}</div>
-          <input
-            value={local.email}
-            onChange={(e) => set("email", e.target.value)}
-            placeholder="name@example.com"
-            className={`w-full rounded-lg border px-3 py-2 bg-white ${
-              emailErr ? "border-red-400" : "border-slate-300"
-            }`}
-          />
-          {emailErr && (
-            <div className="text-red-600 text-xs mt-1">{t.required}</div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-2">
-        <div className="text-xs text-slate-600 mb-1">{label(t.mobilePhone)}</div>
-        <input
-          value={local.phone}
-          onChange={(e) => set("phone", e.target.value)}
-          placeholder="8x-xxxxxxx"
-          className={`w-full rounded-lg border px-3 py-2 bg-white ${
-            phoneErr ? "border-red-400" : "border-slate-300"
-          }`}
-        />
-        {phoneErr && (
-          <div className="text-red-600 text-xs mt-1">{t.required}</div>
-        )}
-      </div>
-
-      <label className="flex items-center gap-2 mt-3 text-sm text-slate-700">
-        <input
-          type="checkbox"
-          checked={local.optIn || false}
-          onChange={(e) => set("optIn", e.target.checked)}
-        />
-        {t.marketingOptIn}
-      </label>
-    </div>
-  );
-});
 
 /* ===== Debug helpers (for viewing requests) ===== */
 function buildCurl({ url, method = "POST", headers = {}, body = null }) {
@@ -667,33 +56,367 @@ function buildCurl({ url, method = "POST", headers = {}, body = null }) {
   return `curl -X ${method} ${h} ${d} ${JSON.stringify(url)}`;
 }
 
-const PrettyBlock = ({ title, children, actions = null }) => (
-  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-    <div className="flex items-center justify-between mb-2">
-      <div className="font-semibold">{title}</div>
-      {actions}
-    </div>
-    {children}
-  </div>
-);
+function toPassengerType(code) {
+  if (code === "ADT") return "Adult";
+  if (code === "CHD") return "Child";
+  if (code === "INF") return "Infant";
+  return "Adult";
+}
 
-/* ========================= Page ========================= */
+function toTitle(gender) {
+  if (gender === "F") return "MS";
+  return "MR";
+}
+
+// "DD/MM/YYYY" or "YYYY-MM-DD" -> "YYYY-MM-DD"
+function normalizeDob(dob) {
+  if (!dob) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dob)) return dob;
+
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dob);
+  if (m) {
+    const [, dd, mm, yyyy] = m;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return dob;
+}
+
+function calcAgeFromDob(isoDob) {
+  try {
+    const d = new Date(isoDob);
+    if (Number.isNaN(d.getTime())) return 0;
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    return Math.max(0, age);
+  } catch {
+    return 0;
+  }
+}
+
+/* ========================= ✅ Summary helpers (DOB + Age Years/Months) ========================= */
+function calcAgeYearsMonths(isoDob) {
+  try {
+    if (!isoDob) return { years: 0, months: 0 };
+    const dob = new Date(isoDob);
+    if (Number.isNaN(dob.getTime())) return { years: 0, months: 0 };
+
+    const now = new Date();
+    let years = now.getFullYear() - dob.getFullYear();
+    let months = now.getMonth() - dob.getMonth();
+
+    if (now.getDate() < dob.getDate()) months -= 1;
+    if (months < 0) {
+      years -= 1;
+      months += 12;
+    }
+    if (years < 0) return { years: 0, months: 0 };
+
+    return { years, months: Math.max(0, months) };
+  } catch {
+    return { years: 0, months: 0 };
+  }
+}
+
+function formatDobDisplay(isoDob) {
+  try {
+    if (!isoDob) return "";
+    const d = new Date(isoDob);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function formatAgeDisplay(isoDob) {
+  const { years, months } = calcAgeYearsMonths(isoDob);
+  if (!years && !months) return "";
+  return `${years} Years ${months} Months`;
+}
+
+function titleFromForm(v) {
+  if (v?.title) return v.title;
+  return toTitle(v?.gender);
+}
+
+function genderLabel(v, t) {
+  if (v?.gender === "M") return t.male;
+  if (v?.gender === "F") return t.female;
+  return v?.gender || "";
+}
+
+/* ========================= detect weekday from first leg ========================= */
+function extractIsoFromJourneyKey(journeyKey) {
+  const s = String(journeyKey || "");
+  const m = /(20\d{2})(\d{2})(\d{2})/.exec(s);
+  if (!m) return "";
+  const [, yyyy, mm, dd] = m;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function findFirstJourneyKeyDeep(obj, depth = 0) {
+  if (!obj || depth > 6) return "";
+  if (typeof obj === "string") return /(20\d{2}\d{2}\d{2})/.test(obj) ? obj : "";
+  if (Array.isArray(obj)) {
+    for (const it of obj) {
+      const r = findFirstJourneyKeyDeep(it, depth + 1);
+      if (r) return r;
+    }
+    return "";
+  }
+  if (typeof obj === "object") {
+    if (typeof obj.journeyKey === "string" && obj.journeyKey) return obj.journeyKey;
+    for (const k of Object.keys(obj)) {
+      const r = findFirstJourneyKeyDeep(obj[k], depth + 1);
+      if (r) return r;
+    }
+  }
+  return "";
+}
+
+function getFirstDepartIso({ selectedOffers, rawDetail }) {
+  const jk0 = selectedOffers?.[0]?.journeyKey;
+  const iso0 = extractIsoFromJourneyKey(jk0);
+  if (iso0) return iso0;
+
+  const jkAny = findFirstJourneyKeyDeep(rawDetail);
+  const isoAny = extractIsoFromJourneyKey(jkAny);
+  if (isoAny) return isoAny;
+
+  return "";
+}
+
+/* ========================= Weekday theme ========================= */
+function weekdayTheme(dayIdx) {
+  switch (dayIdx) {
+    case 1:
+      return "bg-yellow-100 border-yellow-400 text-yellow-900";
+    case 2:
+      return "bg-pink-100 border-pink-400 text-pink-900";
+    case 3:
+      return "bg-green-100 border-green-400 text-green-900";
+    case 4:
+      return "bg-orange-100 border-orange-400 text-orange-900";
+    case 5:
+      return "bg-sky-100 border-sky-400 text-sky-900";
+    case 6:
+      return "bg-purple-100 border-purple-400 text-purple-900";
+    case 0:
+      return "bg-red-100 border-red-400 text-red-900";
+    default:
+      return "bg-white border-teal-300 text-teal-700";
+  }
+}
+
+/**
+ * ✅ Build booking payload supports ROUND-TRIP via selectedOffers[]
+ * ✅ NOW includes selectedSeat from Redux savedSeats
+ */
+function buildBookingPayload({
+  agencyCode,
+  travellers,
+  forms,
+  contact,
+  selectedOffers,
+  fareKey,
+  journeyKey,
+  savedSeats, // ✅ ADD
+}) {
+  const offersArr =
+    Array.isArray(selectedOffers) && selectedOffers.length
+      ? selectedOffers
+      : [{ fareKey: fareKey || "", journeyKey: journeyKey || "" }];
+
+  return {
+    agencyCode: agencyCode || "OTATEST",
+    actionType: "summary",
+    passengerInfos: travellers.map((p, idx) => {
+      const v = forms[p.id] || {};
+      const passengerType = toPassengerType(p.type);
+
+      const dateOfBirth = normalizeDob(v.dob);
+      const age = v.age ?? calcAgeFromDob(dateOfBirth);
+
+      return {
+        paxNumber: idx + 1,
+        title: v.title || toTitle(v.gender),
+        firstName: v.firstName || "",
+        lastName: v.lastName || "",
+        middleName: v.middleName || "",
+        age: Number(age) || 0,
+        dateOfBirth,
+        passengerType,
+        mobilePhone: v.mobilePhone || `${contact?.dialCode || "+66"}${contact?.phone || ""}`,
+        email: v.email || contact?.email || "",
+        gender: v.gender === "M" ? "Male" : v.gender === "F" ? "Female" : v.gender,
+        nationality: v.nationality || "TH",
+
+        // ✅ include seat per leg (journeyKey)
+        flightFareKey: offersArr.map((o) => {
+          const jk = o?.journeyKey || "";
+          const seat = savedSeats?.[p.id]?.[jk] || null;
+
+          return {
+            fareKey: o?.fareKey || "",
+            journeyKey: jk,
+            extraService: [],
+            selectedSeat: seat?.seatCode
+              ? [
+                  {
+                    seatCode: seat.seatCode,
+                    amount: Number(seat.amount || 0) || 0,
+                    currency: seat.currency || "THB",
+                    vat: Number(seat.vat || 0) || 0,
+                    serviceCode: seat.serviceCode || "",
+                    description: seat.description || "",
+                  },
+                ]
+              : [],
+          };
+        }),
+      };
+    }),
+  };
+}
+
+/* ============================================================
+   ✅ Fare summary parser for YOUR API response
+   ============================================================ */
+function calcFareSummaryFromApi(rawAny) {
+  const root = rawAny?.detail?.data || rawAny?.data || rawAny?.detail || rawAny || null;
+
+  const currency = root?.currency || "THB";
+  const airlines = Array.isArray(root?.airlines) ? root.airlines : [];
+
+  const totalAmountFromApi = Number(root?.totalAmount || 0) || 0;
+  const EPS = 1; // 1 THB tolerance
+
+  // --- pass 1: collect both interpretations ---
+  let base_group = 0,
+    taxExVat_group = 0,
+    vat_group = 0,
+    incl_group = 0;
+  let base_unit = 0,
+    taxExVat_unit = 0,
+    vat_unit = 0,
+    incl_unit = 0;
+
+  const byType_group = { ADT: 0, CHD: 0, INF: 0 };
+  const byType_unit = { ADT: 0, CHD: 0, INF: 0 };
+
+  for (const leg of airlines) {
+    const pricingDetails = Array.isArray(leg?.pricingDetails) ? leg.pricingDetails : [];
+    for (const pd of pricingDetails) {
+      const paxCount = Number(pd?.paxCount || 1) || 1;
+
+      const base = Number(pd?.fareAmount || 0) || 0;
+      const incl = Number(pd?.fareAmountIncludingTax || 0) || 0;
+
+      const taxes = Array.isArray(pd?.taxesAndFees) ? pd.taxesAndFees : [];
+      let vatInLine = 0;
+      let exVatInLine = 0;
+
+      for (const tx of taxes) {
+        const amt = Number(tx?.amount || 0) || 0;
+        const code = String(tx?.taxCode || "").toUpperCase();
+        if (code === "VAT") vatInLine += amt;
+        else exVatInLine += amt;
+      }
+
+      // A) group totals
+      base_group += base;
+      vat_group += vatInLine;
+      taxExVat_group += exVatInLine;
+      incl_group += incl;
+
+      // B) unit * paxCount
+      base_unit += base * paxCount;
+      vat_unit += vatInLine * paxCount;
+      taxExVat_unit += exVatInLine * paxCount;
+      incl_unit += incl * paxCount;
+
+      const pt = String(pd?.paxTypeCode || "").toLowerCase();
+      const bucket =
+        pt.includes("adult")
+          ? "ADT"
+          : pt.includes("child")
+          ? "CHD"
+          : pt.includes("infant")
+          ? "INF"
+          : null;
+
+      if (bucket) {
+        byType_group[bucket] += incl;
+        byType_unit[bucket] += incl * paxCount;
+      }
+    }
+  }
+
+  let mode = "group";
+  if (totalAmountFromApi > 0) {
+    const dGroup = Math.abs(totalAmountFromApi - incl_group);
+    const dUnit = Math.abs(totalAmountFromApi - incl_unit);
+    mode = dGroup <= dUnit ? "group" : "unit";
+  }
+
+  const baseTotal = mode === "group" ? base_group : base_unit;
+  const vatTotal = mode === "group" ? vat_group : vat_unit;
+  const taxTotalExVat = mode === "group" ? taxExVat_group : taxExVat_unit;
+
+  const computedIncl = mode === "group" ? incl_group : incl_unit;
+  const grandTotal =
+    totalAmountFromApi > 0 && Math.abs(totalAmountFromApi - computedIncl) <= EPS
+      ? totalAmountFromApi
+      : totalAmountFromApi > 0
+      ? totalAmountFromApi
+      : computedIncl;
+
+  const byType = mode === "group" ? byType_group : byType_unit;
+
+  return {
+    currency,
+    baseTotal,
+    taxTotalExVat,
+    vatTotal,
+    grandTotal,
+    byType,
+    rawRoot: root,
+    meta: {
+      mode,
+      totalAmountFromApi,
+      incl_group,
+      incl_unit,
+    },
+  };
+}
+
 export default function PriceDetailSkyBlue() {
   const navigate = useNavigate();
   const { state } = useLocation() || {};
   const [params] = useSearchParams();
 
+  const [pnrLoading, setPnrLoading] = useState(false);
+  const [pnrError, setPnrError] = useState("");
+
   // Language
   const [lang, setLang] = useState(state?.lang === "th" ? "th" : "en");
   const t = STR[lang];
 
-  // Debug from navigation state (from JourneyTable)
+  // ✅ seats saved by passenger & journeyKey
+  const savedSeats = useSelector(selectAllSavedSeats);
+
+  // Debug from navigation state
   const debug = state?.debug || null;
 
-  // ----- Seat-map response (success or error) -----
+  // Seat-map response for debug
   const seatRaw = state?.seatRaw ?? debug?.seatResponse ?? null;
   const seatError = state?.seatError ?? debug?.seatError ?? null;
-  const hasSeatResult = Boolean(seatRaw || seatError);
 
   // Debug modals
   const [openPriceReq, setOpenPriceReq] = useState(false);
@@ -715,25 +438,13 @@ export default function PriceDetailSkyBlue() {
   const headerRef = useRef(null);
   const passengerTopRef = useRef(null);
 
-  // Mobile / Desktop-TV flags (stable)
-  const isMobile = useMemo(
-    () =>
-      typeof window !== "undefined"
-        ? window.matchMedia("(max-width: 640px)").matches
-        : false,
-    []
-  );
-  const isDesktopOrTV = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const mqDesktop = window.matchMedia("(min-width: 1024px)").matches;
-    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-    const looksTV = /Tizen|SmartTV|AppleTV|HbbTV|Web0S|WebOS|NetCast|Roku/i.test(ua);
-    const mqTV = window.matchMedia("(min-width: 1600px)").matches || looksTV;
-    return mqDesktop || mqTV;
-  }, []);
-  const didAutoScrollRef = useRef(false);
+  // ✅ Snapshot for Cancel (restore old values)
+  const snapshotRef = useRef({}); // { [paxId]: deepCopyForm }
 
-  /* ===== Smooth, header-aware scroll helper ===== */
+  // Responsive flags
+  const isMobile = useMediaQuery("(max-width: 640px)", false);
+  const isLGUp = useMediaQuery("(min-width: 1024px)", false);
+
   const [headerHeight, setHeaderHeight] = useState(64);
   useEffect(() => {
     const update = () => {
@@ -742,68 +453,109 @@ export default function PriceDetailSkyBlue() {
       setHeaderHeight(rect?.height || 64);
     };
     update();
-    window.addEventListener("resize", update);
+    if (typeof window !== "undefined") window.addEventListener("resize", update);
+
     let ro;
     if (typeof ResizeObserver !== "undefined") {
       ro = new ResizeObserver(update);
       if (headerRef.current) ro.observe(headerRef.current);
     }
     return () => {
-      window.removeEventListener("resize", update);
+      if (typeof window !== "undefined") window.removeEventListener("resize", update);
       ro?.disconnect();
     };
   }, []);
 
   const scrollToPassengerTop = useCallback(() => {
     const sentinel = passengerTopRef.current;
-    if (!sentinel) return;
+    if (!sentinel || typeof window === "undefined") return;
     const rect = sentinel.getBoundingClientRect();
     const targetTop = Math.max(0, window.scrollY + rect.top - headerHeight - 8);
     window.scrollTo({ top: targetTop, behavior: "smooth" });
   }, [headerHeight]);
 
-  // 🔝 On mount: scroll smoothly to the passenger box for mobile **and** desktop/TV
+  // auto-scroll once on mobile
+  const didAutoScrollRef = useRef(false);
   useEffect(() => {
     if (didAutoScrollRef.current) return;
-    if (!(isMobile || isDesktopOrTV)) return;
-
+    if (!isMobile) return;
     didAutoScrollRef.current = true;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        scrollToPassengerTop();
-      });
-    });
-  }, [isMobile, isDesktopOrTV, scrollToPassengerTop]);
+    requestAnimationFrame(() => requestAnimationFrame(scrollToPassengerTop));
+  }, [isMobile, scrollToPassengerTop]);
+
+  /* ========================= selectedOffers auto-detect ========================= */
+  const selectedOffers = useMemo(() => {
+    const arr = Array.isArray(state?.selectedOffers) ? state.selectedOffers : null;
+    if (arr && arr.length) {
+      return arr
+        .map((x) => ({
+          fareKey: x?.fareKey || "",
+          journeyKey: x?.journeyKey || "",
+          securityToken: x?.securityToken || "",
+        }))
+        .filter((x) => x.fareKey || x.journeyKey || x.securityToken);
+    }
+
+    const oneFareKey = state?.fareKey || state?.selectedFareKey || "";
+    const oneJourneyKey = state?.journeyKey || state?.selectedJourneyKey || "";
+    const oneToken = state?.securityToken || "";
+    if (oneFareKey || oneJourneyKey || oneToken) {
+      return [{ fareKey: oneFareKey, journeyKey: oneJourneyKey, securityToken: oneToken }];
+    }
+
+    const dbg = state?.debug || null;
+    const offers =
+      dbg?.pricingRequest?.body?.offers ||
+      dbg?.pricingRequest?.bodyPreview?.offers ||
+      dbg?.bodyPreview?.offers ||
+      dbg?.offers ||
+      null;
+
+    if (Array.isArray(offers) && offers.length) {
+      return offers
+        .map((o) => ({
+          fareKey: o?.fareKey || "",
+          journeyKey: o?.journeyKey || "",
+          securityToken: o?.securityToken || oneToken || "",
+        }))
+        .filter((x) => x.fareKey || x.journeyKey || x.securityToken);
+    }
+
+    return [];
+  }, [state]);
+
+  const isRoundTripSelected = selectedOffers.length >= 2;
+
+  // View/Hide keys card
+  const [showKeys, setShowKeys] = useState(false);
 
   // Pricing (Redux)
   const requestKey = state?.requestKey || params.get("key") || null;
   const pricedFromStore = useSelector(
-    useCallback(
-      (s) => (requestKey ? selectPriceFor(requestKey)(s) : null),
-      [requestKey]
-    )
+    useCallback((s) => (requestKey ? selectPriceFor(requestKey)(s) : null), [requestKey])
   );
   const rawDetail = pricedFromStore ?? state?.priceDetail ?? null;
 
-  // Normalize pricing for the summary
+  // ✅ first departure weekday
+  const departWeekdayIdx = useMemo(() => {
+    const iso = getFirstDepartIso({ selectedOffers, rawDetail });
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.getDay();
+  }, [selectedOffers, rawDetail]);
+
+  const fareSummary = useMemo(() => {
+    if (!rawDetail) return null;
+    return calcFareSummaryFromApi(rawDetail);
+  }, [rawDetail]);
+
   const detail = useMemo(() => {
     if (!rawDetail) return null;
-    const d = Array.isArray(rawDetail) ? rawDetail[0] : rawDetail;
     const currency =
-      d?.currency || d?.currencyCode || d?.totalCurrency || d?.priceCurrency || "THB";
-    const base = d?.baseFareAmount ?? d?.baseFare ?? d?.base ?? d?.fareAmount ?? 0;
-    const tax = d?.taxAmount ?? d?.tax ?? d?.taxes ?? 0;
-    const totalExplicit = d?.totalAmount ?? d?.total ?? d?.grandTotal ?? d?.priceTotal;
-    const total =
-      typeof totalExplicit === "number" ? totalExplicit : Number(base) + Number(tax);
-    return {
-      baseFareAmount: Number(base) || 0,
-      taxAmount: Number(tax) || 0,
-      totalAmount: Number(total) || 0,
-      currency,
-      raw: d,
-    };
-  }, [rawDetail]);
+      fareSummary?.currency || rawDetail?.currency || rawDetail?.detail?.data?.currency || "THB";
+    return { currency, raw: rawDetail };
+  }, [rawDetail, fareSummary?.currency]);
 
   /* ===== Pax ===== */
   const pax = useMemo(() => {
@@ -824,538 +576,211 @@ export default function PriceDetailSkyBlue() {
   // Travellers list
   const travellers = useMemo(() => {
     const arr = [];
-    for (let i = 1; i <= pax.adult; i++)
-      arr.push({ id: `ADT-${i}`, type: "ADT", label: `${t.adult} ${i}` });
-    for (let i = 1; i <= pax.child; i++)
-      arr.push({ id: `CHD-${i}`, type: "CHD", label: `${t.child} ${i}` });
-    for (let i = 1; i <= pax.infant; i++)
-      arr.push({ id: `INF-${i}`, type: "INF", label: `${t.infant} ${i}` });
+    for (let i = 1; i <= pax.adult; i++) arr.push({ id: `ADT-${i}`, type: "ADT", label: `${t.adult} ${i}` });
+    for (let i = 1; i <= pax.child; i++) arr.push({ id: `CHD-${i}`, type: "CHD", label: `${t.child} ${i}` });
+    for (let i = 1; i <= pax.infant; i++) arr.push({ id: `INF-${i}`, type: "INF", label: `${t.infant} ${i}` });
     return arr;
   }, [pax.adult, pax.child, pax.infant, t.adult, t.child, t.infant]);
 
-  // Forms per traveller + which modal is open
+  // Forms per traveller
   const [forms, setForms] = useState({});
-  const [openId, setOpenId] = useState(null);
-
-  // Ensure Adult 1 has defaults
-  useEffect(() => {
-    if (travellers[0] && !forms[travellers[0].id]) {
-      setForms((f) => ({
-        ...f,
-        [travellers[0].id]: { gender: "M", country: "Thailand" },
-      }));
-    }
-  }, [travellers, forms]);
-
-  const updateForm = useCallback(
-    (id, v) => setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...v } })),
-    []
-  );
-
-  const saveModal = useCallback(
-    (id, v) => {
-      updateForm(id, v);
-      setOpenId(null);
-      requestAnimationFrame(() => scrollToPassengerTop());
-    },
-    [updateForm, scrollToPassengerTop]
-  );
-
-  const isComplete = useCallback(
-    (v) => v && v.firstName && v.lastName && v.dob,
-    []
-  );
-
-  const firstAdultName = useMemo(
-    () =>
-      travellers[0] &&
-      forms[travellers[0].id]?.firstName &&
-      forms[travellers[0].id]?.lastName
-        ? `${forms[travellers[0].id].firstName} ${forms[travellers[0].id].lastName}`
-        : "",
-    [travellers, forms]
-  );
-
-  const fmt = useCallback(
-    (n, ccy) =>
-      `${Number(n).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })} ${ccy}`,
-    []
-  );
-
-  /* ==== Bundles ==== */
-  const [selectedBundles, setSelectedBundles] = useState({});
-  const bundles = useMemo(
-    () => [
-      {
-        id: "lite",
-        title: "Value Pack Lite",
-        subtitle: lang === "th" ? "ประหยัดสูงสุด 30%" : "Save up to 30%",
-        features: [
-          lang === "th" ? "สัมภาระขึ้นเครื่อง 7 กก." : "7 kg carry-on baggage",
-          lang === "th" ? "น้ำหนักสัมภาระ 15 กก." : "15 kg baggage allowance",
-          lang === "th" ? "ที่นั่งมาตรฐาน" : "Standard seat",
-        ],
-        addOnAmount: 0,
-        accent: "#3b82f6",
-      },
-      {
-        id: "value",
-        title: "Value Pack",
-        subtitle: lang === "th" ? "ประหยัดสูงสุด 30%" : "Save up to 30%",
-        features: [
-          "7 kg carry-on baggage",
-          "20 kg baggage allowance",
-          "Standard seat",
-          "1 meal",
-          "Duty Free RM50 Voucher",
-          lang === "th" ? "ประกัน Lite (Tune Protect)" : "Lite Insurance (Tune Protect)",
-        ],
-        addOnAmount: 250.0,
-        accent: "#f59e0b",
-      },
-      {
-        id: "premium",
-        title: "Premium Flex",
-        subtitle: lang === "th" ? "ประหยัดสูงสุด 20%" : "Save up to 20%",
-        features: [
-          "7 kg carry-on baggage",
-          "20 kg baggage allowance",
-          "Standard/Hot seat",
-        ],
-        addOnAmount: 450.0,
-        accent: "#f43f5e",
-      },
-    ],
-    [lang]
-  );
-
-  // 🔎 Legs from detail.raw / whole API
-  const legs = useMemo(() => {
-    const d = detail?.raw || {};
-    const found = extractLegs(d);
-    return found.length
-      ? found
-      : [
-          {
-            key: "OUT-1",
-            origin: "",
-            destination: "",
-            depTime: null,
-            arrTime: null,
-            fn: "",
-            dir: "OUT",
-          },
-        ];
-  }, [detail?.raw]);
+  const [showForm, setShowForm] = useState({});
 
   useEffect(() => {
-    setSelectedBundles((prev) => {
+    setForms((prev) => {
       const next = { ...prev };
-      for (const leg of legs) if (!next[leg.key]) next[leg.key] = "value";
+      for (const p of travellers) {
+        if (!next[p.id]) next[p.id] = { gender: "M", country: "Thailand" };
+      }
       return next;
     });
-  }, [legs]);
 
-  const setBundleForLeg = useCallback(
-    (legKey, bundleId) => setSelectedBundles((s) => ({ ...s, [legKey]: bundleId })),
+    setShowForm((prev) => {
+      const next = { ...prev };
+      if (travellers[0]?.id && typeof next[travellers[0].id] === "undefined") next[travellers[0].id] = true;
+      for (const p of travellers.slice(1)) {
+        if (typeof next[p.id] === "undefined") next[p.id] = false;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [travellers.map((x) => x.id).join("|")]);
+
+  const updateForm = useCallback((id, v) => setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...v } })), []);
+
+  // ✅ Complete = used for chip + Continue validation only
+  const isComplete = useCallback((v) => Boolean(v?.firstName && v?.lastName && v?.dob), []);
+
+  const firstAdultName = useMemo(() => {
+    if (!travellers[0]) return "";
+    const v = forms[travellers[0].id] || {};
+    return v.firstName && v.lastName ? `${v.firstName} ${v.lastName}` : "";
+  }, [travellers, forms]);
+
+  const fmt = useCallback(
+    (num, ccy) =>
+      `${Number(num).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${ccy}`,
     []
   );
 
   /* ==== Contact information ==== */
-  const [contact, setContact] = useState({
-    dialCode: "+66",
-    phone: "",
-    email: "",
-    optIn: false,
-  });
+  const [contact, setContact] = useState({ dialCode: "+66", phone: "", email: "", optIn: false });
   const [showContactErrors, setShowContactErrors] = useState(false);
-  const contactValid = useMemo(
-    () => contact.phone.trim() && contact.email.trim(),
-    [contact.phone, contact.email]
-  );
+  const contactValid = useMemo(() => contact.phone.trim() && contact.email.trim(), [contact.phone, contact.email]);
+
   const canContinue = useMemo(
     () => travellers.every((p) => isComplete(forms[p.id])) && contactValid,
     [travellers, forms, isComplete, contactValid]
   );
 
-  // totals: sum add-on across legs
-  const currency = detail?.currency || "THB";
-  const addOnTotal = useMemo(
-    () =>
-      legs.reduce((sum, leg) => {
-        const bId = selectedBundles[leg.key];
-        const b = bundles.find((x) => x.id === bId);
-        return sum + (b?.addOnAmount || 0);
-      }, 0),
-    [legs, selectedBundles, bundles]
-  );
-  const grandTotal = detail ? detail.totalAmount + addOnTotal : addOnTotal;
+  // Add-ons still zero
+  const currency = fareSummary?.currency || detail?.currency || "THB";
+  const addOnTotal = 0;
+  const grandTotal = (fareSummary?.grandTotal || 0) + addOnTotal;
 
-  /* ====================================================
-     UI
-  ==================================================== */
+  const containerPad = "px-3 sm:px-4";
+
+  /* ========================= ✅ Ancillary buttons (PER PAX) ========================= */
+  const ANCILLARY_TABS = useMemo(
+    () => [
+      { key: "seat", label: t.ancSeat || "Seat" },
+      { key: "bag", label: t.ancBag || "Baggage" },
+      { key: "meal", label: t.ancMeal || "Meal" },
+      { key: "pb", label: t.ancPb || "Priority Board" },
+      { key: "assist", label: t.ancAssist || "Assist" },
+    ],
+    [t.ancSeat, t.ancBag, t.ancMeal, t.ancPb, t.ancAssist]
+  );
+
+  const [activeAncByPax, setActiveAncByPax] = useState({});
+
+  useEffect(() => {
+    setActiveAncByPax((prev) => {
+      const next = { ...prev };
+      for (const p of travellers) {
+        if (p.type === "INF") continue;
+        if (typeof next[p.id] === "undefined") next[p.id] = null;
+      }
+      return next;
+    });
+  }, [travellers]);
+
+  const TONE_CLASS = "brightness-95";
+
+  const ancBtnClass = (active) => {
+    if (!active) {
+      return [
+        "bg-sky-50",
+        "border-2 border-sky-200",
+        "text-sky-800",
+        "hover:bg-sky-100",
+        "hover:border-sky-300",
+        "shadow-sm",
+        TONE_CLASS,
+      ].join(" ");
+    }
+    return `border-2 ${weekdayTheme(departWeekdayIdx)} shadow-sm ${TONE_CLASS}`;
+  };
+
+  // ✅ optional: if you pass holdResponse from FareSidebar navigate, keep it here later
+  const holdResponseForPanel = state?.holdResponse || null;
+
   return (
     <div className="font-sans bg-gray-50 min-h-screen">
-      {/* Nok Holiday themed header */}
-      <div
-        ref={headerRef}
-        className="sticky top-0 z-20 w-full border-b bg-[#e3f8ff]"
-        style={{ minHeight: 64 }}
-      >
-        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          {/* Brand + logo */}
-          <div className="flex items-center gap-3">
-            <Link to="/" className="group flex items-center gap-3" aria-label="Go to homepage">
-              <img
-                src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
-                alt="Nok Holiday logo"
-                className="h-8 w-8 rounded"
-                width={32}
-                height={32}
-                loading="lazy"
-                decoding="async"
-                onError={(e) => { e.currentTarget.style.display = "none"; }}
-              />
-              <span className="font-bold text-[170%] text-blue-600 tracking-tight transition-colors duration-300 group-hover:text-[#ffe657]">
-                Nok Holiday
-              </span>
-            </Link>
-          </div>
+      {/* Header */}
+      <PriceHeader
+        headerRef={headerRef}
+        containerPad={containerPad}
+        lang={lang}
+        setLang={setLang}
+        t={t}
+        scrollToPassengerTop={scrollToPassengerTop}
+      />
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                setLang("th");
-                requestAnimationFrame(() => scrollToPassengerTop());
-              }}
-              className={`px-3 py-1 border rounded ${
-                lang === "th"
-                  ? "bg-blue-600 text-white"
-                  : "border-blue-600 text-blue-600"
-              }`}
-            >
-              ไทย
-            </button>
-            <button
-              onClick={() => {
-                setLang("en");
-                requestAnimationFrame(() => scrollToPassengerTop());
-              }}
-              className={`px-3 py-1 border rounded ${
-                lang === "en"
-                  ? "bg-blue-600 text-white"
-                  : "border-blue-600 text-blue-600"
-              }`}
-            >
-              English
-            </button>
-          </div>
-        </div>
-
-        {/* Page title row */}
-        <div className="mx-auto max-w-6xl px-4 pb-3">
-          <h1 className="text-xl font-bold text-blue-600">{t.title}</h1>
-        </div>
-      </div>
-
-      {/* Main layout */}
-      <div className="max-w-[1180px] mx-auto my-5 px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4">
+      {/* Main */}
+      <div className={`max-w-[1180px] mx-auto my-5 ${containerPad}`}>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,70%)_minmax(0,30%)] gap-4">
           {/* LEFT */}
-          <div>
-            {/* Sentinel for precise "scroll to top of passenger box" */}
-            <div ref={passengerTopRef} className="h-0" />
+          <div className="space-y-4">
+            {/* ✅ NEW: Flight summary panel on top */}
+<FlightSummaryPanel
+  lang={lang}
+  t={t}
+  holdResponse={holdResponseForPanel}
+  rawDetail={rawDetail}          // ✅ add this
+  selectedOffers={selectedOffers}
+/>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-4">
-              <h2 className="text-lg font-semibold mb-3">{t.travellers}</h2>
 
-              {/* Adult 1 block */}
-              {travellers[0] && (
-                <div className="border border-slate-200 rounded-xl overflow-hidden mb-3">
-                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 font-bold">
-                    <div>{travellers[0].label}</div>
-                    <Chip ok={isComplete(forms[travellers[0].id])}>
-                      {isComplete(forms[travellers[0].id])
-                        ? t.completed
-                        : t.incomplete}
-                    </Chip>
-                  </div>
-
-                  <TravellerForm
-                    t={t}
-                    value={forms[travellers[0].id]}
-                    onChange={(v) => updateForm(travellers[0].id, v)}
-                    onSave={(v) => updateForm(travellers[0].id, v)}
-                    showSave={false}
-                    points={95}
-                  />
-                </div>
-              )}
-
-              {/* Other travellers */}
-              <div className="flex flex-col gap-2">
-                {travellers.slice(1).map((p) => (
-                  <RowCard
-                    key={p.id}
-                    left={
-                      <>
-                        <div className="font-bold">{p.label}</div>
-                        <Chip ok={isComplete(forms[p.id])}>
-                          {isComplete(forms[p.id]) ? STR[lang].completed : STR[lang].incomplete}
-                        </Chip>
-                        {p.type === "INF" && firstAdultName && (
-                          <span className="ml-2 text-sky-900 text-sm">
-                            {STR[lang].travellingWith} {firstAdultName}
-                          </span>
-                        )}
-                      </>
-                    }
-                    right={isComplete(forms[p.id]) ? STR[lang].edit : STR[lang].fillDetails}
-                    onClick={() => setOpenId(p.id)}
-                  />
-                ))}
-
-                {/* Contact Information */}
-                <ContactInformation
-                  t={t}
-                  value={contact}
-                  onChange={setContact}
-                  showErrors={showContactErrors}
-                />
-
-                {/* ===== Bundle groups: one per segment ===== */}
-                <div className="mt-5">
-                  {legs.map((leg, idx) => {
-                    const labelGuess =
-                      leg.dir === "IN"
-                        ? t.ret
-                        : leg.dir === "OUT"
-                        ? t.depart
-                        : `${t.segment} ${idx + 1}`;
-
-                    const name = `bundle-${leg.key}`;
-                    const headerText = [
-                      leg.origin && leg.destination
-                        ? `${leg.origin} → ${leg.destination}`
-                        : null,
-                      leg.fn ? leg.fn : null,
-                      leg.depTime ? `${formatDDMMM(leg.depTime)} ${hhmm(leg.depTime)}` : null,
-                      leg.arrTime ? `→ ${hhmm(leg.arrTime)}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" • ");
-
-                    return (
-                      <div
-                        key={leg.key}
-                        className="mb-4 p-3 rounded-xl border border-slate-200 bg-white"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-green-600 text-white grid place-items-center font-extrabold flex-shrink-0">
-                            ★
-                          </div>
-                          <div className="text-base font-extrabold">
-                            {labelGuess} {headerText ? `• ${headerText}` : ""}
-                          </div>
-                        </div>
-
-                        <div className="text-slate-600 text-sm mt-2 mb-3">
-                          {t.selectOneBundle}
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                          {bundles.map((b) => (
-                            <BundleCard
-                              key={`${leg.key}-${b.id}`}
-                              name={name}
-                              checked={selectedBundles[leg.key] === b.id}
-                              onChange={() => setBundleForLeg(leg.key, b.id)}
-                              title={b.title}
-                              subtitle={b.subtitle}
-                              features={b.features}
-                              priceLabel={
-                                b.addOnAmount > 0
-                                  ? `${fmt(b.addOnAmount, detail?.currency || "THB")}`
-                                  : lang === "th"
-                                  ? STR.th.included
-                                  : STR.en.included
-                              }
-                              accent={b.accent}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <PassengersPanel
+              passengerTopRef={passengerTopRef}
+              t={t}
+              travellers={travellers}
+              forms={forms}
+              showForm={showForm}
+              setShowForm={setShowForm}
+              updateForm={updateForm}
+              isComplete={isComplete}
+              firstAdultName={firstAdultName}
+              normalizeDob={normalizeDob}
+              formatDobDisplay={formatDobDisplay}
+              formatAgeDisplay={formatAgeDisplay}
+              titleFromForm={titleFromForm}
+              genderLabel={genderLabel}
+              snapshotRef={snapshotRef}
+              scrollToPassengerTop={scrollToPassengerTop}
+              ANCILLARY_TABS={ANCILLARY_TABS}
+              activeAncByPax={activeAncByPax}
+              setActiveAncByPax={setActiveAncByPax}
+              ancBtnClass={ancBtnClass}
+              contact={contact}
+              setContact={setContact}
+              showContactErrors={showContactErrors}
+              selectedOffers={selectedOffers}
+            />
           </div>
 
-          {/* RIGHT: Fare summary */}
-          <aside className="bg-white border border-slate-200 rounded-2xl p-4 h-fit sticky top-20">
-            <h3 className="text-lg font-semibold mb-3">{t.priceSummary}</h3>
-
-            {!requestKey && !state?.priceDetail && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 mb-3">
-                {t.noKey}
-              </div>
-            )}
-
-            {detail ? (
-              <>
-                <div className="grid grid-cols-[1fr_auto] gap-y-2 text-sm">
-                  <div className="text-slate-600">{t.baseFare}</div>
-                  <div className="font-semibold">{fmt(detail.baseFareAmount, currency)}</div>
-
-                  <div className="text-slate-600">{t.tax}</div>
-                  <div className="font-semibold">{fmt(detail.taxAmount, currency)}</div>
-
-                  <div className="text-slate-600">{t.addons}</div>
-                  <div className="font-semibold">{fmt(addOnTotal, currency)}</div>
-
-                  <div className="h-px bg-slate-200 col-span-full my-1" />
-
-                  <div className="text-emerald-900 font-bold">{t.total}</div>
-                  <div className="text-xl text-sky-700 font-extrabold">
-                    {fmt(grandTotal, currency)}
-                  </div>
-                </div>
-
-                {/* Debug request/response buttons */}
-                {(debug || hasSeatResult) && (
-                  <div className="mt-4 grid gap-2">
-                    <PrettyBlock title="Debug">
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        {debug?.pricingRequest && (
-                          <button
-                            onClick={() => setOpenPriceReq(true)}
-                            className="px-3 py-2 rounded-md border border-slate-300 hover:border-blue-400 hover:text-blue-700 bg-white text-sm"
-                          >
-                            {t.viewPriceReq}
-                          </button>
-                        )}
-                        {debug?.seatMapRequest && (
-                          <button
-                            onClick={() => setOpenSeatReq(true)}
-                            className="px-3 py-2 rounded-md border border-slate-300 hover:border-blue-400 hover:text-blue-700 bg-white text-sm"
-                          >
-                            {t.viewSeatReq}
-                          </button>
-                        )}
-                        {hasSeatResult && (
-                          <button
-                            onClick={() => setOpenSeatResp(true)}
-                            className="px-3 py-2 rounded-md border border-slate-300 hover:border-blue-400 hover:text-blue-700 bg-white text-sm"
-                          >
-                            {t.viewSeatResp}
-                          </button>
-                        )}
-                      </div>
-                    </PrettyBlock>
-                  </div>
-                )}
-
-                <button
-                  disabled={!canContinue}
-                  className={`mt-4 w-full px-4 py-3 rounded-full font-bold text-white ${
-                    canContinue
-                      ? "bg-sky-500 hover:bg-sky-600"
-                      : "bg-gray-400 cursor-not-allowed"
-                  }`}
-                  onClick={() => {
-                    if (!contactValid) setShowContactErrors(true);
-                    if (!canContinue) return;
-                    alert(
-                      "✅ Continue to seats / add-ons.\n\n" +
-                        JSON.stringify(
-                          { pax, forms, contact, selectedBundles, legs },
-                          null,
-                          2
-                        )
-                    );
-                    requestAnimationFrame(() => scrollToPassengerTop());
-                  }}
-                >
-                  {t.continue}
-                </button>
-
-                <div className="mt-2 flex gap-2">
-                  <button
-                    onClick={() => {
-                      navigate(-1);
-                      requestAnimationFrame(() => scrollToPassengerTop());
-                    }}
-                    className="px-3 py-2 rounded-lg border border-slate-300 bg-white"
-                  >
-                    {t.back}
-                  </button>
-                </div>
-
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-slate-600">{t.raw}</summary>
-                  <pre className="bg-slate-100 border border-slate-200 rounded p-2 overflow-x-auto text-xs mt-2">
-                    {JSON.stringify(detail.raw, null, 2)}
-                  </pre>
-                </details>
-              </>
-            ) : (
-              (requestKey || state?.priceDetail) && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded text-rose-800">
-                  {t.noDetail}
-                </div>
-              )
-            )}
-          </aside>
+          {/* RIGHT */}
+          <FareSidebar
+            t={t}
+            lang={lang} // ✅ IMPORTANT: FareSidebar uses lang for confirmation state
+            isLGUp={isLGUp}
+            showKeys={showKeys}
+            setShowKeys={setShowKeys}
+            selectedOffers={selectedOffers}
+            params={params}
+            state={state}
+            fareSummary={fareSummary}
+            currency={currency}
+            fmt={fmt}
+            grandTotal={grandTotal}
+            contactValid={contactValid}
+            canContinue={canContinue}
+            setShowContactErrors={setShowContactErrors}
+            setPnrError={setPnrError}
+            setPnrLoading={setPnrLoading}
+            pnrLoading={pnrLoading}
+            pnrError={pnrError}
+            buildBookingPayload={buildBookingPayload}
+            travellers={travellers}
+            forms={forms}
+            contact={contact}
+            submitHoldBooking={submitHoldBooking}
+            navigate={navigate}
+            scrollToPassengerTop={scrollToPassengerTop}
+            detail={detail}
+            rawDetail={rawDetail}
+            isRoundTripSelected={isRoundTripSelected}
+            savedSeats={savedSeats} // ✅ ADD (FareSidebar will pass into buildBookingPayload)
+          />
         </div>
       </div>
 
-      {/* Modal for secondary travellers */}
-      <Modal
-        open={!!openId}
-        onClose={() => {
-          setOpenId(null);
-          requestAnimationFrame(() => scrollToPassengerTop());
-        }}
-      >
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <div className="font-extrabold">{t.passengerDetails}</div>
-          <button
-            onClick={() => {
-              setOpenId(null);
-              requestAnimationFrame(() => scrollToPassengerTop());
-            }}
-            className="text-xl leading-none"
-            aria-label={t.cancel}
-            title={t.cancel}
-          >
-            ×
-          </button>
-        </div>
-        {openId && (
-          <TravellerForm
-            t={t}
-            value={forms[openId] || { gender: "M", country: "Thailand" }}
-            onChange={(v) => updateForm(openId, v)}
-            onSave={(v) => saveModal(openId, v)}
-            showSave={true}
-          />
-        )}
-      </Modal>
-
-      {/* ===== Debug: Price request modal ===== */}
+      {/* Debug modals (keep same behavior) */}
       <Modal open={openPriceReq} onClose={() => setOpenPriceReq(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{t.requestPreview} — Price</div>
-          <button
-            onClick={() => setOpenPriceReq(false)}
-            className="text-xl leading-none"
-            aria-label={t.close}
-            title={t.close}
-          >
+          <button onClick={() => setOpenPriceReq(false)} className="text-xl leading-none" aria-label={t.close} title={t.close}>
             ×
           </button>
         </div>
@@ -1366,9 +791,7 @@ export default function PriceDetailSkyBlue() {
                 title="cURL"
                 actions={
                   <button
-                    onClick={() =>
-                      onCopy(buildCurl(debug.pricingRequest), "priceCurl")
-                    }
+                    onClick={() => onCopy(buildCurl(debug.pricingRequest), "priceCurl")}
                     className="px-2 py-1 rounded border border-slate-300 bg-white text-xs"
                     title={t.copyCurl}
                   >
@@ -1380,9 +803,7 @@ export default function PriceDetailSkyBlue() {
               </PrettyBlock>
               <div className="h-3" />
               <PrettyBlock title="JSON">
-                <pre className="text-xs overflow-auto">
-                  {JSON.stringify(debug.pricingRequest, null, 2)}
-                </pre>
+                <pre className="text-xs overflow-auto">{JSON.stringify(debug.pricingRequest, null, 2)}</pre>
               </PrettyBlock>
             </>
           ) : (
@@ -1391,29 +812,21 @@ export default function PriceDetailSkyBlue() {
         </div>
       </Modal>
 
-      {/* ===== Debug: Seat-map request modal ===== */}
       <Modal open={openSeatReq} onClose={() => setOpenSeatReq(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{t.requestPreview} — Seat map</div>
-          <button
-            onClick={() => setOpenSeatReq(false)}
-            className="text-xl leading-none"
-            aria-label={t.close}
-            title={t.close}
-          >
+          <button onClick={() => setOpenSeatReq(false)} className="text-xl leading-none" aria-label={t.close} title={t.close}>
             ×
           </button>
         </div>
         <div className="p-4">
-          {debug?.seatMapRequest ? (
+          {debug?.seatRequest ? (
             <>
               <PrettyBlock
                 title="cURL"
                 actions={
                   <button
-                    onClick={() =>
-                      onCopy(buildCurl(debug.seatMapRequest), "seatCurl")
-                    }
+                    onClick={() => onCopy(buildCurl(debug.seatRequest), "seatCurl")}
                     className="px-2 py-1 rounded border border-slate-300 bg-white text-xs"
                     title={t.copyCurl}
                   >
@@ -1421,13 +834,11 @@ export default function PriceDetailSkyBlue() {
                   </button>
                 }
               >
-                <pre className="text-xs overflow-auto">{buildCurl(debug.seatMapRequest)}</pre>
+                <pre className="text-xs overflow-auto">{buildCurl(debug.seatRequest)}</pre>
               </PrettyBlock>
               <div className="h-3" />
               <PrettyBlock title="JSON">
-                <pre className="text-xs overflow-auto">
-                  {JSON.stringify(debug.seatMapRequest, null, 2)}
-                </pre>
+                <pre className="text-xs overflow-auto">{JSON.stringify(debug.seatRequest, null, 2)}</pre>
               </PrettyBlock>
             </>
           ) : (
@@ -1436,29 +847,17 @@ export default function PriceDetailSkyBlue() {
         </div>
       </Modal>
 
-      {/* ===== Debug: Seat-map RESPONSE modal ===== */}
       <Modal open={openSeatResp} onClose={() => setOpenSeatResp(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <div className="font-extrabold">
-            {seatRaw ? t.seatRespTitle : t.seatErrorTitle}
-          </div>
-          <button
-            onClick={() => setOpenSeatResp(false)}
-            className="text-xl leading-none"
-            aria-label={t.close}
-            title={t.close}
-          >
+          <div className="font-extrabold">{seatRaw ? t.seatRespTitle : t.seatErrorTitle}</div>
+          <button onClick={() => setOpenSeatResp(false)} className="text-xl leading-none" aria-label={t.close} title={t.close}>
             ×
           </button>
         </div>
         <div className="p-4">
           {seatRaw ? (
             <PrettyBlock title="JSON">
-              <pre className="text-xs overflow-auto">
-                {typeof seatRaw === "string"
-                  ? seatRaw
-                  : JSON.stringify(seatRaw, null, 2)}
-              </pre>
+              <pre className="text-xs overflow-auto">{typeof seatRaw === "string" ? seatRaw : JSON.stringify(seatRaw, null, 2)}</pre>
             </PrettyBlock>
           ) : seatError ? (
             <PrettyBlock title="Error">

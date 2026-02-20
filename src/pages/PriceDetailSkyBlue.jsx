@@ -1,146 +1,51 @@
 // src/pages/PriceDetailSkyBlue.jsx
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { selectPriceFor } from "../redux/pricingSlice";
 
-// Components
-import TravellerForm from "../components/TravellerForm";
-import BundleCard from "../components/BundleCard";
-import ContactInformation from "../components/ContactInformation";
-import RowCard from "../components/RowCard";
-import Chip from "../components/Chip";
-import Modal from "../components/Modal";
+// read saved seat selections from Redux
+import { selectAllSavedSeats } from "../redux/seatSelectionSlice";
+
+// Flight panel
+import FlightSummaryPanel from "./FlightSummaryPanel";
+
+// Split files (same folder level)
+import { STR } from "./strings";
+import PriceHeader from "./PriceHeader";
+import PassengersPanel from "./PassengersPanel";
+import FareSidebar from "./FareSidebar";
+
+// Components still used in this file (debug)
 import PrettyBlock from "../components/PrettyBlock";
+import Modal from "../components/Modal";
+import submitHoldBooking from "../api/submitHoldBooking";
 
 // Utils
-import { paxFromFirstPricingDetails, extractLegs, hhmm, formatDDMMM } from "../utils/pricingHelpers";
+import { paxFromFirstPricingDetails } from "../utils/pricingHelpers";
 
-/* ========================= Strings ========================= */
-const STR = {
-  en: {
-    title: "Passenger details",
-    travellers: "Travellers",
-    adult: "Adult",
-    child: "Child",
-    infant: "Infant",
-    completed: "Completed",
-    incomplete: "Incomplete",
-    passengerDetails: "Passenger details",
-    male: "Male",
-    female: "Female",
-    firstName: "First/Given name",
-    lastName: "Family name/Surname",
-    country: "Country/Region",
-    dob: "Date of birth (DD/MM/YYYY)",
-    memberId: "Nok Holiday member ID",
-    email: "Email address (optional)",
-    earnPoints: "Earn Nok Holiday points for this guest",
-    search: "Search",
-    save: "Save",
-    cancel: "Cancel",
-    fillDetails: "Fill details",
-    edit: "Edit",
-    contact: "Contact Information",
-    travellingWith: "Travelling with",
-    // right
-    priceSummary: "Fare summary",
-    baseFare: "Base fare",
-    tax: "Taxes, fees & surcharges",
-    addons: "Add-ons",
-    total: "Total amount",
-    continue: "Continue",
-    back: "Back",
-    noKey: "No request key. Please go back and select a fare.",
-    noDetail: "No price detail found. Please select an offer again.",
-    raw: "Show raw response",
-    required: "This field is required",
-    pointsAfter: "Points rewarded after flight:",
-    points: "points",
-    mobilePhone: "Mobile Phone",
-    emailAddress: "E-mail",
-    marketingOptIn:
-      "I would like to receive news and special offers from Nok Holiday and accept the privacy policy.",
-    depart: "Depart",
-    ret: "Return",
-    addOnBundles: "Add-on bundles",
-    selectOneBundle: "Select one of the bundles",
-    included: "Included",
-    segment: "Segment",
-    // debug
-    viewPriceReq: "View price request",
-    viewSeatReq: "View seat-map request",
-    viewSeatResp: "View seat-map response",
-    seatRespTitle: "Seat-map response",
-    seatErrorTitle: "Seat-map error",
-    close: "Close",
-    requestPreview: "Request preview",
-    copyCurl: "Copy cURL",
-    curlCopied: "Copied!",
-    noSeatResponse: "No seat-map response available.",
-  },
-  th: {
-    title: "รายละเอียดผู้โดยสาร",
-    travellers: "ผู้โดยสาร",
-    adult: "ผู้ใหญ่",
-    child: "เด็ก",
-    infant: "ทารก",
-    completed: "เสร็จสิ้น",
-    incomplete: "ไม่สมบูรณ์",
-    passengerDetails: "รายละเอียดผู้โดยสาร",
-    male: "ชาย",
-    female: "หญิง",
-    firstName: "ชื่อ",
-    lastName: "นามสกุล",
-    country: "ประเทศ/ภูมิภาค",
-    dob: "วันเกิด (วัน/เดือน/ปี)",
-    memberId: "รหัสสมาชิก Nok Holiday",
-    email: "อีเมล (ไม่บังคับ)",
-    earnPoints: "สะสมคะแนน Nok Holiday สำหรับผู้โดยสารนี้",
-    search: "ค้นหา",
-    save: "บันทึก",
-    cancel: "ยกเลิก",
-    fillDetails: "กรอกข้อมูล",
-    edit: "แก้ไข",
-    contact: "ข้อมูลการติดต่อ",
-    travellingWith: "เดินทางกับ",
-    // right
-    priceSummary: "สรุปค่าโดยสาร",
-    baseFare: "ค่าโดยสารพื้นฐาน",
-    tax: "ภาษีและค่าธรรมเนียม",
-    addons: "ส่วนเสริม",
-    total: "ยอดรวม",
-    continue: "ดำเนินการต่อ",
-    back: "ย้อนกลับ",
-    noKey: "ไม่พบรหัสคำขอ กรุณาย้อนกลับและเลือกค่าโดยสารอีกครั้ง",
-    noDetail: "ไม่พบรายละเอียดราคา กรุณาเลือกเที่ยวบินอีกครั้ง",
-    raw: "แสดงข้อมูลดิบ",
-    required: "ต้องระบุ",
-    pointsAfter: "คะแนนที่จะได้รับหลังเดินทาง:",
-    points: "คะแนน",
-    mobilePhone: "เบอร์มือถือ",
-    emailAddress: "อีเมล",
-    marketingOptIn:
-      "ฉันต้องการรับข่าวสารและข้อเสนอพิเศษจาก Nok Holiday และยอมรับนโยบายความเป็นส่วนตัว",
-    depart: "ขาไป",
-    ret: "ขากลับ",
-    addOnBundles: "แพ็กเกจเสริม",
-    selectOneBundle: "เลือก 1 แพ็กเกจ",
-    included: "รวมในราคา",
-    segment: "ช่วงบิน",
-    // debug
-    viewPriceReq: "ดูคำขอราคาค่าโดยสาร",
-    viewSeatReq: "ดูคำขอแผนผังที่นั่ง",
-    viewSeatResp: "ดูผลลัพธ์แผนผังที่นั่ง",
-    seatRespTitle: "ผลลัพธ์แผนผังที่นั่ง",
-    seatErrorTitle: "ข้อผิดพลาดแผนผังที่นั่ง",
-    close: "ปิด",
-    requestPreview: "พรีวิวคำขอ",
-    copyCurl: "คัดลอก cURL",
-    curlCopied: "คัดลอกแล้ว!",
-    noSeatResponse: "ไม่มีผลลัพธ์แผนผังที่นั่ง",
-  },
-};
+/* ========================= Responsive helpers ========================= */
+function useMediaQuery(query, initial = false) {
+  const [matches, setMatches] = useState(initial);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia(query);
+
+    const onChange = () => setMatches(Boolean(mql.matches));
+    onChange();
+
+    if (mql.addEventListener) mql.addEventListener("change", onChange);
+    else mql.addListener(onChange);
+
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", onChange);
+      else mql.removeListener(onChange);
+    };
+  }, [query]);
+
+  return matches;
+}
 
 /* ===== Debug helpers (for viewing requests) ===== */
 function buildCurl({ url, method = "POST", headers = {}, body = null }) {
@@ -151,23 +56,358 @@ function buildCurl({ url, method = "POST", headers = {}, body = null }) {
   return `curl -X ${method} ${h} ${d} ${JSON.stringify(url)}`;
 }
 
-/* ========================= Page ========================= */
+function toPassengerType(code) {
+  if (code === "ADT") return "Adult";
+  if (code === "CHD") return "Child";
+  if (code === "INF") return "Infant";
+  return "Adult";
+}
+
+function toTitle(gender) {
+  if (gender === "F") return "MS";
+  return "MR";
+}
+
+// "DD/MM/YYYY" or "YYYY-MM-DD" -> "YYYY-MM-DD"
+function normalizeDob(dob) {
+  if (!dob) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dob)) return dob;
+
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dob);
+  if (m) {
+    const [, dd, mm, yyyy] = m;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return dob;
+}
+
+function calcAgeFromDob(isoDob) {
+  try {
+    const d = new Date(isoDob);
+    if (Number.isNaN(d.getTime())) return 0;
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    return Math.max(0, age);
+  } catch {
+    return 0;
+  }
+}
+
+/* ========================= Summary helpers (DOB + Age Years/Months) ========================= */
+function calcAgeYearsMonths(isoDob) {
+  try {
+    if (!isoDob) return { years: 0, months: 0 };
+    const dob = new Date(isoDob);
+    if (Number.isNaN(dob.getTime())) return { years: 0, months: 0 };
+
+    const now = new Date();
+    let years = now.getFullYear() - dob.getFullYear();
+    let months = now.getMonth() - dob.getMonth();
+
+    if (now.getDate() < dob.getDate()) months -= 1;
+    if (months < 0) {
+      years -= 1;
+      months += 12;
+    }
+    if (years < 0) return { years: 0, months: 0 };
+
+    return { years, months: Math.max(0, months) };
+  } catch {
+    return { years: 0, months: 0 };
+  }
+}
+
+function formatDobDisplay(isoDob) {
+  try {
+    if (!isoDob) return "";
+    const d = new Date(isoDob);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function formatAgeDisplay(isoDob) {
+  const { years, months } = calcAgeYearsMonths(isoDob);
+  if (!years && !months) return "";
+  return `${years} Years ${months} Months`;
+}
+
+function titleFromForm(v) {
+  if (v?.title) return v.title;
+  return toTitle(v?.gender);
+}
+
+function genderLabel(v, t) {
+  if (v?.gender === "M") return t.male;
+  if (v?.gender === "F") return t.female;
+  return v?.gender || "";
+}
+
+/* ========================= detect weekday from first leg ========================= */
+function extractIsoFromJourneyKey(journeyKey) {
+  const s = String(journeyKey || "");
+  const m = /(20\d{2})(\d{2})(\d{2})/.exec(s);
+  if (!m) return "";
+  const [, yyyy, mm, dd] = m;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function findFirstJourneyKeyDeep(obj, depth = 0) {
+  if (!obj || depth > 6) return "";
+  if (typeof obj === "string") return /(20\d{2}\d{2}\d{2})/.test(obj) ? obj : "";
+  if (Array.isArray(obj)) {
+    for (const it of obj) {
+      const r = findFirstJourneyKeyDeep(it, depth + 1);
+      if (r) return r;
+    }
+    return "";
+  }
+  if (typeof obj === "object") {
+    if (typeof obj.journeyKey === "string" && obj.journeyKey) return obj.journeyKey;
+    for (const k of Object.keys(obj)) {
+      const r = findFirstJourneyKeyDeep(obj[k], depth + 1);
+      if (r) return r;
+    }
+  }
+  return "";
+}
+
+function getFirstDepartIso({ selectedOffers, rawDetail }) {
+  const jk0 = selectedOffers?.[0]?.journeyKey;
+  const iso0 = extractIsoFromJourneyKey(jk0);
+  if (iso0) return iso0;
+
+  const jkAny = findFirstJourneyKeyDeep(rawDetail);
+  const isoAny = extractIsoFromJourneyKey(jkAny);
+  if (isoAny) return isoAny;
+
+  return "";
+}
+
+/* ========================= Weekday theme ========================= */
+function weekdayTheme(dayIdx) {
+  switch (dayIdx) {
+    case 1:
+      return "bg-yellow-100 border-yellow-400 text-yellow-900";
+    case 2:
+      return "bg-pink-100 border-pink-400 text-pink-900";
+    case 3:
+      return "bg-green-100 border-green-400 text-green-900";
+    case 4:
+      return "bg-orange-100 border-orange-400 text-orange-900";
+    case 5:
+      return "bg-sky-100 border-sky-400 text-sky-900";
+    case 6:
+      return "bg-purple-100 border-purple-400 text-purple-900";
+    case 0:
+      return "bg-red-100 border-red-400 text-red-900";
+    default:
+      return "bg-white border-teal-300 text-teal-700";
+  }
+}
+
+/**
+ * Build booking payload supports ROUND-TRIP via selectedOffers[]
+ * includes selectedSeat from Redux savedSeats
+ */
+function buildBookingPayload({
+  agencyCode,
+  travellers,
+  forms,
+  contact,
+  selectedOffers,
+  fareKey,
+  journeyKey,
+  savedSeats,
+}) {
+  const offersArr =
+    Array.isArray(selectedOffers) && selectedOffers.length
+      ? selectedOffers
+      : [{ fareKey: fareKey || "", journeyKey: journeyKey || "" }];
+
+  return {
+    agencyCode: agencyCode || "OTATEST",
+    actionType: "summary",
+    passengerInfos: travellers.map((p, idx) => {
+      const v = forms[p.id] || {};
+      const passengerType = toPassengerType(p.type);
+
+      const dateOfBirth = normalizeDob(v.dob);
+      const age = v.age ?? calcAgeFromDob(dateOfBirth);
+
+      return {
+        paxNumber: idx + 1,
+        title: v.title || toTitle(v.gender),
+        firstName: v.firstName || "",
+        lastName: v.lastName || "",
+        middleName: v.middleName || "",
+        age: Number(age) || 0,
+        dateOfBirth,
+        passengerType,
+        mobilePhone: v.mobilePhone || `${contact?.dialCode || "+66"}${contact?.phone || ""}`,
+        email: v.email || contact?.email || "",
+        gender: v.gender === "M" ? "Male" : v.gender === "F" ? "Female" : v.gender,
+        nationality: v.nationality || "TH",
+
+        flightFareKey: offersArr.map((o) => {
+          const jk = o?.journeyKey || "";
+          const seat = savedSeats?.[p.id]?.[jk] || null;
+
+          return {
+            fareKey: o?.fareKey || "",
+            journeyKey: jk,
+            extraService: [],
+            selectedSeat: seat?.seatCode
+              ? [
+                  {
+                    seatCode: seat.seatCode,
+                    amount: Number(seat.amount || 0) || 0,
+                    currency: seat.currency || "THB",
+                    vat: Number(seat.vat || 0) || 0,
+                    serviceCode: seat.serviceCode || "",
+                    description: seat.description || "",
+                  },
+                ]
+              : [],
+          };
+        }),
+      };
+    }),
+  };
+}
+
+/* ============================================================
+   Fare summary parser for YOUR API response
+   ============================================================ */
+function calcFareSummaryFromApi(rawAny) {
+  const root = rawAny?.detail?.data || rawAny?.data || rawAny?.detail || rawAny || null;
+
+  const currency = root?.currency || "THB";
+  const airlines = Array.isArray(root?.airlines) ? root.airlines : [];
+
+  const totalAmountFromApi = Number(root?.totalAmount || 0) || 0;
+  const EPS = 1;
+
+  let base_group = 0,
+    taxExVat_group = 0,
+    vat_group = 0,
+    incl_group = 0;
+  let base_unit = 0,
+    taxExVat_unit = 0,
+    vat_unit = 0,
+    incl_unit = 0;
+
+  const byType_group = { ADT: 0, CHD: 0, INF: 0 };
+  const byType_unit = { ADT: 0, CHD: 0, INF: 0 };
+
+  for (const leg of airlines) {
+    const pricingDetails = Array.isArray(leg?.pricingDetails) ? leg.pricingDetails : [];
+    for (const pd of pricingDetails) {
+      const paxCount = Number(pd?.paxCount || 1) || 1;
+
+      const base = Number(pd?.fareAmount || 0) || 0;
+      const incl = Number(pd?.fareAmountIncludingTax || 0) || 0;
+
+      const taxes = Array.isArray(pd?.taxesAndFees) ? pd.taxesAndFees : [];
+      let vatInLine = 0;
+      let exVatInLine = 0;
+
+      for (const tx of taxes) {
+        const amt = Number(tx?.amount || 0) || 0;
+        const code = String(tx?.taxCode || "").toUpperCase();
+        if (code === "VAT") vatInLine += amt;
+        else exVatInLine += amt;
+      }
+
+      base_group += base;
+      vat_group += vatInLine;
+      taxExVat_group += exVatInLine;
+      incl_group += incl;
+
+      base_unit += base * paxCount;
+      vat_unit += vatInLine * paxCount;
+      taxExVat_unit += exVatInLine * paxCount;
+      incl_unit += incl * paxCount;
+
+      const pt = String(pd?.paxTypeCode || "").toLowerCase();
+      const bucket =
+        pt.includes("adult")
+          ? "ADT"
+          : pt.includes("child")
+          ? "CHD"
+          : pt.includes("infant")
+          ? "INF"
+          : null;
+
+      if (bucket) {
+        byType_group[bucket] += incl;
+        byType_unit[bucket] += incl * paxCount;
+      }
+    }
+  }
+
+  let mode = "group";
+  if (totalAmountFromApi > 0) {
+    const dGroup = Math.abs(totalAmountFromApi - incl_group);
+    const dUnit = Math.abs(totalAmountFromApi - incl_unit);
+    mode = dGroup <= dUnit ? "group" : "unit";
+  }
+
+  const baseTotal = mode === "group" ? base_group : base_unit;
+  const vatTotal = mode === "group" ? vat_group : vat_unit;
+  const taxTotalExVat = mode === "group" ? taxExVat_group : taxExVat_unit;
+
+  const computedIncl = mode === "group" ? incl_group : incl_unit;
+  const grandTotal =
+    totalAmountFromApi > 0 && Math.abs(totalAmountFromApi - computedIncl) <= EPS
+      ? totalAmountFromApi
+      : totalAmountFromApi > 0
+      ? totalAmountFromApi
+      : computedIncl;
+
+  const byType = mode === "group" ? byType_group : byType_unit;
+
+  return {
+    currency,
+    baseTotal,
+    taxTotalExVat,
+    vatTotal,
+    grandTotal,
+    byType,
+    rawRoot: root,
+    meta: { mode, totalAmountFromApi, incl_group, incl_unit },
+  };
+}
+
 export default function PriceDetailSkyBlue() {
   const navigate = useNavigate();
   const { state } = useLocation() || {};
   const [params] = useSearchParams();
 
+  const [pnrLoading, setPnrLoading] = useState(false);
+  const [pnrError, setPnrError] = useState("");
+
   // Language
   const [lang, setLang] = useState(state?.lang === "th" ? "th" : "en");
   const t = STR[lang];
 
+  // seats saved by passenger & journeyKey
+  const savedSeats = useSelector(selectAllSavedSeats);
+
   // Debug from navigation state
   const debug = state?.debug || null;
 
-  // ----- Seat-map response (success or error) -----
+  // Seat-map response for debug
   const seatRaw = state?.seatRaw ?? debug?.seatResponse ?? null;
   const seatError = state?.seatError ?? debug?.seatError ?? null;
-  const hasSeatResult = Boolean(seatRaw || seatError);
 
   // Debug modals
   const [openPriceReq, setOpenPriceReq] = useState(false);
@@ -189,25 +429,13 @@ export default function PriceDetailSkyBlue() {
   const headerRef = useRef(null);
   const passengerTopRef = useRef(null);
 
-  // Mobile / Desktop-TV flags (stable)
-  const isMobile = useMemo(
-    () =>
-      typeof window !== "undefined"
-        ? window.matchMedia("(max-width: 640px)").matches
-        : false,
-    []
-  );
-  const isDesktopOrTV = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const mqDesktop = window.matchMedia("(min-width: 1024px)").matches;
-    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-    const looksTV = /Tizen|SmartTV|AppleTV|HbbTV|Web0S|WebOS|NetCast|Roku/i.test(ua);
-    const mqTV = window.matchMedia("(min-width: 1600px)").matches || looksTV;
-    return mqDesktop || mqTV;
-  }, []);
-  const didAutoScrollRef = useRef(false);
+  // Snapshot for Cancel (restore old values)
+  const snapshotRef = useRef({});
 
-  /* ===== Smooth, header-aware scroll helper ===== */
+  // Responsive flags
+  const isMobile = useMediaQuery("(max-width: 640px)", false);
+  const isLGUp = useMediaQuery("(min-width: 1024px)", false);
+
   const [headerHeight, setHeaderHeight] = useState(64);
   useEffect(() => {
     const update = () => {
@@ -216,68 +444,109 @@ export default function PriceDetailSkyBlue() {
       setHeaderHeight(rect?.height || 64);
     };
     update();
-    window.addEventListener("resize", update);
+    if (typeof window !== "undefined") window.addEventListener("resize", update);
+
     let ro;
     if (typeof ResizeObserver !== "undefined") {
       ro = new ResizeObserver(update);
       if (headerRef.current) ro.observe(headerRef.current);
     }
     return () => {
-      window.removeEventListener("resize", update);
+      if (typeof window !== "undefined") window.removeEventListener("resize", update);
       ro?.disconnect();
     };
   }, []);
 
   const scrollToPassengerTop = useCallback(() => {
     const sentinel = passengerTopRef.current;
-    if (!sentinel) return;
+    if (!sentinel || typeof window === "undefined") return;
     const rect = sentinel.getBoundingClientRect();
     const targetTop = Math.max(0, window.scrollY + rect.top - headerHeight - 8);
     window.scrollTo({ top: targetTop, behavior: "smooth" });
   }, [headerHeight]);
 
-  // 🔝 On mount: scroll smoothly to the passenger box for mobile **and** desktop/TV
+  // auto-scroll once on mobile
+  const didAutoScrollRef = useRef(false);
   useEffect(() => {
     if (didAutoScrollRef.current) return;
-    if (!(isMobile || isDesktopOrTV)) return;
-
+    if (!isMobile) return;
     didAutoScrollRef.current = true;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        scrollToPassengerTop();
-      });
-    });
-  }, [isMobile, isDesktopOrTV, scrollToPassengerTop]);
+    requestAnimationFrame(() => requestAnimationFrame(scrollToPassengerTop));
+  }, [isMobile, scrollToPassengerTop]);
+
+  /* ========================= selectedOffers auto-detect ========================= */
+  const selectedOffers = useMemo(() => {
+    const arr = Array.isArray(state?.selectedOffers) ? state.selectedOffers : null;
+    if (arr && arr.length) {
+      return arr
+        .map((x) => ({
+          fareKey: x?.fareKey || "",
+          journeyKey: x?.journeyKey || "",
+          securityToken: x?.securityToken || "",
+        }))
+        .filter((x) => x.fareKey || x.journeyKey || x.securityToken);
+    }
+
+    const oneFareKey = state?.fareKey || state?.selectedFareKey || "";
+    const oneJourneyKey = state?.journeyKey || state?.selectedJourneyKey || "";
+    const oneToken = state?.securityToken || "";
+    if (oneFareKey || oneJourneyKey || oneToken) {
+      return [{ fareKey: oneFareKey, journeyKey: oneJourneyKey, securityToken: oneToken }];
+    }
+
+    const dbg = state?.debug || null;
+    const offers =
+      dbg?.pricingRequest?.body?.offers ||
+      dbg?.pricingRequest?.bodyPreview?.offers ||
+      dbg?.bodyPreview?.offers ||
+      dbg?.offers ||
+      null;
+
+    if (Array.isArray(offers) && offers.length) {
+      return offers
+        .map((o) => ({
+          fareKey: o?.fareKey || "",
+          journeyKey: o?.journeyKey || "",
+          securityToken: o?.securityToken || oneToken || "",
+        }))
+        .filter((x) => x.fareKey || x.journeyKey || x.securityToken);
+    }
+
+    return [];
+  }, [state]);
+
+  const isRoundTripSelected = selectedOffers.length >= 2;
+
+  // View/Hide keys card
+  const [showKeys, setShowKeys] = useState(false);
 
   // Pricing (Redux)
   const requestKey = state?.requestKey || params.get("key") || null;
   const pricedFromStore = useSelector(
-    useCallback(
-      (s) => (requestKey ? selectPriceFor(requestKey)(s) : null),
-      [requestKey]
-    )
+    useCallback((s) => (requestKey ? selectPriceFor(requestKey)(s) : null), [requestKey])
   );
   const rawDetail = pricedFromStore ?? state?.priceDetail ?? null;
 
-  // Normalize pricing for the summary
+  // first departure weekday
+  const departWeekdayIdx = useMemo(() => {
+    const iso = getFirstDepartIso({ selectedOffers, rawDetail });
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.getDay();
+  }, [selectedOffers, rawDetail]);
+
+  const fareSummary = useMemo(() => {
+    if (!rawDetail) return null;
+    return calcFareSummaryFromApi(rawDetail);
+  }, [rawDetail]);
+
   const detail = useMemo(() => {
     if (!rawDetail) return null;
-    const d = Array.isArray(rawDetail) ? rawDetail[0] : rawDetail;
     const currency =
-      d?.currency || d?.currencyCode || d?.totalCurrency || d?.priceCurrency || "THB";
-    const base = d?.baseFareAmount ?? d?.baseFare ?? d?.base ?? d?.fareAmount ?? 0;
-    const tax = d?.taxAmount ?? d?.tax ?? d?.taxes ?? 0;
-    const totalExplicit = d?.totalAmount ?? d?.total ?? d?.grandTotal ?? d?.priceTotal;
-    const total =
-      typeof totalExplicit === "number" ? totalExplicit : Number(base) + Number(tax);
-    return {
-      baseFareAmount: Number(base) || 0,
-      taxAmount: Number(tax) || 0,
-      totalAmount: Number(total) || 0,
-      currency,
-      raw: d,
-    };
-  }, [rawDetail]);
+      fareSummary?.currency || rawDetail?.currency || rawDetail?.detail?.data?.currency || "THB";
+    return { currency, raw: rawDetail };
+  }, [rawDetail, fareSummary?.currency]);
 
   /* ===== Pax ===== */
   const pax = useMemo(() => {
@@ -307,119 +576,44 @@ export default function PriceDetailSkyBlue() {
     return arr;
   }, [pax.adult, pax.child, pax.infant, t.adult, t.child, t.infant]);
 
-  // Forms per traveller + which modal is open
+  // Forms per traveller
   const [forms, setForms] = useState({});
-  const [openId, setOpenId] = useState(null);
-
-  // Ensure Adult 1 has defaults
-  useEffect(() => {
-    if (travellers[0] && !forms[travellers[0].id]) {
-      setForms((f) => ({
-        ...f,
-        [travellers[0].id]: { gender: "M", country: "Thailand" },
-      }));
-    }
-  }, [travellers, forms]);
-
-  const updateForm = useCallback(
-    (id, v) => setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...v } })),
-    []
-  );
-
-  const saveModal = useCallback(
-    (id, v) => {
-      updateForm(id, v);
-      setOpenId(null);
-      requestAnimationFrame(() => scrollToPassengerTop());
-    },
-    [updateForm, scrollToPassengerTop]
-  );
-
-  const isComplete = useCallback((v) => v && v.firstName && v.lastName && v.dob, []);
-
-  const firstAdultName = useMemo(
-    () =>
-      travellers[0] &&
-      forms[travellers[0].id]?.firstName &&
-      forms[travellers[0].id]?.lastName
-        ? `${forms[travellers[0].id].firstName} ${forms[travellers[0].id].lastName}`
-        : "",
-    [travellers, forms]
-  );
-
-  const fmt = useCallback(
-    (n, ccy) =>
-      `${Number(n).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })} ${ccy}`,
-    []
-  );
-
-  /* ==== Bundles ==== */
-  const [selectedBundles, setSelectedBundles] = useState({});
-  const bundles = useMemo(
-    () => [
-      {
-        id: "lite",
-        title: "Value Pack Lite",
-        subtitle: lang === "th" ? "ประหยัดสูงสุด 30%" : "Save up to 30%",
-        features: [
-          lang === "th" ? "สัมภาระขึ้นเครื่อง 7 กก." : "7 kg carry-on baggage",
-          lang === "th" ? "น้ำหนักสัมภาระ 15 กก." : "15 kg baggage allowance",
-          lang === "th" ? "ที่นั่งมาตรฐาน" : "Standard seat",
-        ],
-        addOnAmount: 0,
-        accent: "#3b82f6",
-      },
-      {
-        id: "value",
-        title: "Value Pack",
-        subtitle: lang === "th" ? "ประหยัดสูงสุด 30%" : "Save up to 30%",
-        features: [
-          "7 kg carry-on baggage",
-          "20 kg baggage allowance",
-          "Standard seat",
-          "1 meal",
-          "Duty Free RM50 Voucher",
-          lang === "th" ? "ประกัน Lite (Tune Protect)" : "Lite Insurance (Tune Protect)",
-        ],
-        addOnAmount: 250.0,
-        accent: "#f59e0b",
-      },
-      {
-        id: "premium",
-        title: "Premium Flex",
-        subtitle: lang === "th" ? "ประหยัดสูงสุด 20%" : "Save up to 20%",
-        features: ["7 kg carry-on baggage", "20 kg baggage allowance", "Standard/Hot seat"],
-        addOnAmount: 450.0,
-        accent: "#f43f5e",
-      },
-    ],
-    [lang]
-  );
-
-  // 🔎 Legs from detail.raw / whole API
-  const legs = useMemo(() => {
-    const d = detail?.raw || {};
-    const found = extractLegs(d);
-    return found.length
-      ? found
-      : [
-          { key: "OUT-1", origin: "", destination: "", depTime: null, arrTime: null, fn: "", dir: "OUT" },
-        ];
-  }, [detail?.raw]);
+  const [showForm, setShowForm] = useState({});
 
   useEffect(() => {
-    setSelectedBundles((prev) => {
+    setForms((prev) => {
       const next = { ...prev };
-      for (const leg of legs) if (!next[leg.key]) next[leg.key] = "value";
+      for (const p of travellers) {
+        if (!next[p.id]) next[p.id] = { gender: "M", country: "Thailand" };
+      }
       return next;
     });
-  }, [legs]);
 
-  const setBundleForLeg = useCallback(
-    (legKey, bundleId) => setSelectedBundles((s) => ({ ...s, [legKey]: bundleId })),
+    setShowForm((prev) => {
+      const next = { ...prev };
+      if (travellers[0]?.id && typeof next[travellers[0].id] === "undefined") next[travellers[0].id] = true;
+      for (const p of travellers.slice(1)) {
+        if (typeof next[p.id] === "undefined") next[p.id] = false;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [travellers.map((x) => x.id).join("|")]);
+
+  const updateForm = useCallback((id, v) => setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...v } })), []);
+
+  // Complete = used for chip + Continue validation only
+  const isComplete = useCallback((v) => Boolean(v?.firstName && v?.lastName && v?.dob), []);
+
+  const firstAdultName = useMemo(() => {
+    if (!travellers[0]) return "";
+    const v = forms[travellers[0].id] || {};
+    return v.firstName && v.lastName ? `${v.firstName} ${v.lastName}` : "";
+  }, [travellers, forms]);
+
+  const fmt = useCallback(
+    (num, ccy) =>
+      `${Number(num).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${ccy}`,
     []
   );
 
@@ -427,335 +621,158 @@ export default function PriceDetailSkyBlue() {
   const [contact, setContact] = useState({ dialCode: "+66", phone: "", email: "", optIn: false });
   const [showContactErrors, setShowContactErrors] = useState(false);
   const contactValid = useMemo(() => contact.phone.trim() && contact.email.trim(), [contact.phone, contact.email]);
-  const canContinue = useMemo(
-    () => travellers.every((p) => isComplete(forms[p.id])) && contactValid,
-    [travellers, forms, isComplete, contactValid]
+
+  const canContinue = useMemo(() => travellers.every((p) => isComplete(forms[p.id])) && contactValid, [
+    travellers,
+    forms,
+    isComplete,
+    contactValid,
+  ]);
+
+  // Add-ons still zero
+  const currency = fareSummary?.currency || detail?.currency || "THB";
+  const addOnTotal = 0;
+  const grandTotal = (fareSummary?.grandTotal || 0) + addOnTotal;
+
+  const containerPad = "px-3 sm:px-4";
+
+  /* ========================= Ancillary buttons (PER PAX) ========================= */
+  const ANCILLARY_TABS = useMemo(
+    () => [
+      { key: "seat", label: t.ancSeat || "Seat" },
+      { key: "bag", label: t.ancBag || "Baggage" },
+      { key: "meal", label: t.ancMeal || "Meal" },
+      { key: "pb", label: t.ancPb || "Priority Board" },
+      { key: "assist", label: t.ancAssist || "Assist" },
+    ],
+    [t.ancSeat, t.ancBag, t.ancMeal, t.ancPb, t.ancAssist]
   );
 
-  // totals: sum add-on across legs
-  const currency = detail?.currency || "THB";
-  const addOnTotal = useMemo(
-    () =>
-      legs.reduce((sum, leg) => {
-        const bId = selectedBundles[leg.key];
-        const b = bundles.find((x) => x.id === bId);
-        return sum + (b?.addOnAmount || 0);
-      }, 0),
-    [legs, selectedBundles, bundles]
-  );
-  const grandTotal = detail ? detail.totalAmount + addOnTotal : addOnTotal;
+  const [activeAncByPax, setActiveAncByPax] = useState({});
 
-  /* ====================================================
-     UI
-  ==================================================== */
+  useEffect(() => {
+    setActiveAncByPax((prev) => {
+      const next = { ...prev };
+      for (const p of travellers) {
+        if (p.type === "INF") continue;
+        if (typeof next[p.id] === "undefined") next[p.id] = null;
+      }
+      return next;
+    });
+  }, [travellers]);
+
+  const TONE_CLASS = "brightness-95";
+
+  const ancBtnClass = (active) => {
+    if (!active) {
+      return [
+        "bg-sky-50",
+        "border-2 border-sky-200",
+        "text-sky-800",
+        "hover:bg-sky-100",
+        "hover:border-sky-300",
+        "shadow-sm",
+        TONE_CLASS,
+      ].join(" ");
+    }
+    return `border-2 ${weekdayTheme(departWeekdayIdx)} shadow-sm ${TONE_CLASS}`;
+  };
+
+  // optional: if you pass holdResponse from FareSidebar navigate, keep it here later
+  const holdResponseForPanel = state?.holdResponse || null;
+
   return (
     <div className="font-sans bg-gray-50 min-h-screen">
-      {/* Nok Holiday themed header */}
-      <div ref={headerRef} className="sticky top-0 z-20 w-full border-b bg-[#e3f8ff]" style={{ minHeight: 64 }}>
-        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          {/* Brand + logo */}
-          <div className="flex items-center gap-3">
-            <Link to="/" className="group flex items-center gap-3" aria-label="Go to homepage">
-              <img
-                src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
-                alt="Nok Holiday logo"
-                className="h-8 w-8 rounded"
-                width={32}
-                height={32}
-                loading="lazy"
-                decoding="async"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-              <span className="font-bold text-[170%] text-blue-600 tracking-tight transition-colors duration-300 group-hover:text-[#ffe657]">
-                Nok Holiday
-              </span>
-            </Link>
-          </div>
+      {/* Header */}
+      <PriceHeader
+        headerRef={headerRef}
+        containerPad={containerPad}
+        lang={lang}
+        setLang={setLang}
+        t={t}
+        scrollToPassengerTop={scrollToPassengerTop}
+      />
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                setLang("th");
-                requestAnimationFrame(() => scrollToPassengerTop());
-              }}
-              className={`px-3 py-1 border rounded ${lang === "th" ? "bg-blue-600 text-white" : "border-blue-600 text-blue-600"}`}
-            >
-              ไทย
-            </button>
-            <button
-              onClick={() => {
-                setLang("en");
-                requestAnimationFrame(() => scrollToPassengerTop());
-              }}
-              className={`px-3 py-1 border rounded ${lang === "en" ? "bg-blue-600 text-white" : "border-blue-600 text-blue-600"}`}
-            >
-              English
-            </button>
-          </div>
-        </div>
-
-        {/* Page title row */}
-        <div className="mx-auto max-w-6xl px-4 pb-3">
-          <h1 className="text-xl font-bold text-blue-600">{t.title}</h1>
-        </div>
-      </div>
-
-      {/* Main layout */}
-      <div className="max-w-[1180px] mx-auto my-5 px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4">
+      {/* Main */}
+      <div className={`max-w-[1180px] mx-auto my-5 ${containerPad}`}>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,70%)_minmax(0,30%)] gap-4">
           {/* LEFT */}
-          <div>
-            {/* Sentinel for precise "scroll to top of passenger box" */}
-            <div ref={passengerTopRef} className="h-0" />
+          <div className="space-y-4">
+            {/* Flight summary panel on top */}
+            <FlightSummaryPanel
+              lang={lang}
+              t={t}
+              holdResponse={holdResponseForPanel}
+              rawDetail={rawDetail}
+              selectedOffers={selectedOffers}
+            />
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-4">
-              <h2 className="text-lg font-semibold mb-3">{t.travellers}</h2>
-
-              {/* Adult 1 block */}
-              {travellers[0] && (
-                <div className="border border-slate-200 rounded-xl overflow-hidden mb-3">
-                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 font-bold">
-                    <div>{travellers[0].label}</div>
-                    <Chip ok={isComplete(forms[travellers[0].id])}>
-                      {isComplete(forms[travellers[0].id]) ? t.completed : t.incomplete}
-                    </Chip>
-                  </div>
-
-                  <TravellerForm
-                    t={t}
-                    value={forms[travellers[0].id]}
-                    onChange={(v) => updateForm(travellers[0].id, v)}
-                    onSave={(v) => updateForm(travellers[0].id, v)}
-                    showSave={false}
-                    points={95}
-                  />
-                </div>
-              )}
-
-              {/* Other travellers */}
-              <div className="flex flex-col gap-2">
-                {travellers.slice(1).map((p) => (
-                  <RowCard
-                    key={p.id}
-                    left={
-                      <>
-                        <div className="font-bold">{p.label}</div>
-                        <Chip ok={isComplete(forms[p.id])}>
-                          {isComplete(forms[p.id]) ? STR[lang].completed : STR[lang].incomplete}
-                        </Chip>
-                        {p.type === "INF" && firstAdultName && (
-                          <span className="ml-2 text-sky-900 text-sm">
-                            {STR[lang].travellingWith} {firstAdultName}
-                          </span>
-                        )}
-                      </>
-                    }
-                    right={isComplete(forms[p.id]) ? STR[lang].edit : STR[lang].fillDetails}
-                    onClick={() => setOpenId(p.id)}
-                  />
-                ))}
-
-                {/* Contact Information */}
-                <ContactInformation t={t} value={contact} onChange={setContact} showErrors={showContactErrors} />
-
-                {/* ===== Bundle groups: one per segment ===== */}
-                <div className="mt-5">
-                  {legs.map((leg, idx) => {
-                    const labelGuess = leg.dir === "IN" ? t.ret : leg.dir === "OUT" ? t.depart : `${t.segment} ${idx + 1}`;
-
-                    const name = `bundle-${leg.key}`;
-                    const headerText = [
-                      leg.origin && leg.destination ? `${leg.origin} → ${leg.destination}` : null,
-                      leg.fn ? leg.fn : null,
-                      leg.depTime ? `${formatDDMMM(leg.depTime)} ${hhmm(leg.depTime)}` : null,
-                      leg.arrTime ? `→ ${hhmm(leg.arrTime)}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" • ");
-
-                    return (
-                      <div key={leg.key} className="mb-4 p-3 rounded-xl border border-slate-200 bg-white">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-green-600 text-white grid place-items-center font-extrabold flex-shrink-0">
-                            ★
-                          </div>
-                          <div className="text-base font-extrabold">
-                            {labelGuess} {headerText ? `• ${headerText}` : ""}
-                          </div>
-                        </div>
-
-                        <div className="text-slate-600 text-sm mt-2 mb-3">{t.selectOneBundle}</div>
-
-                        <div className="flex flex-col gap-2">
-                          {bundles.map((b) => (
-                            <BundleCard
-                              key={`${leg.key}-${b.id}`}
-                              name={name}
-                              checked={selectedBundles[leg.key] === b.id}
-                              onChange={() => setBundleForLeg(leg.key, b.id)}
-                              title={b.title}
-                              subtitle={b.subtitle}
-                              features={b.features}
-                              priceLabel={
-                                b.addOnAmount > 0
-                                  ? `${fmt(b.addOnAmount, detail?.currency || "THB")}`
-                                  : lang === "th"
-                                  ? STR.th.included
-                                  : STR.en.included
-                              }
-                              accent={b.accent}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <PassengersPanel
+              passengerTopRef={passengerTopRef}
+              t={t}
+              travellers={travellers}
+              forms={forms}
+              showForm={showForm}
+              setShowForm={setShowForm}
+              updateForm={updateForm}
+              isComplete={isComplete}
+              firstAdultName={firstAdultName}
+              normalizeDob={normalizeDob}
+              formatDobDisplay={formatDobDisplay}
+              formatAgeDisplay={formatAgeDisplay}
+              titleFromForm={titleFromForm}
+              genderLabel={genderLabel}
+              snapshotRef={snapshotRef}
+              scrollToPassengerTop={scrollToPassengerTop}
+              ANCILLARY_TABS={ANCILLARY_TABS}
+              activeAncByPax={activeAncByPax}
+              setActiveAncByPax={setActiveAncByPax}
+              ancBtnClass={ancBtnClass}
+              contact={contact}
+              setContact={setContact}
+              showContactErrors={showContactErrors}
+              selectedOffers={selectedOffers}
+              rawDetail={rawDetail} // ✅ IMPORTANT for BaggagePanel
+            />
           </div>
 
-          {/* RIGHT: Fare summary */}
-          <aside className="bg-white border border-slate-200 rounded-2xl p-4 h-fit sticky top-20">
-            <h3 className="text-lg font-semibold mb-3">{t.priceSummary}</h3>
-
-            {!requestKey && !state?.priceDetail && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 mb-3">{t.noKey}</div>
-            )}
-
-            {detail ? (
-              <>
-                <div className="grid grid-cols-[1fr_auto] gap-y-2 text-sm">
-                  <div className="text-slate-600">{t.baseFare}</div>
-                  <div className="font-semibold">{fmt(detail.baseFareAmount, currency)}</div>
-
-                  <div className="text-slate-600">{t.tax}</div>
-                  <div className="font-semibold">{fmt(detail.taxAmount, currency)}</div>
-
-                  <div className="text-slate-600">{t.addons}</div>
-                  <div className="font-semibold">{fmt(addOnTotal, currency)}</div>
-
-                  <div className="h-px bg-slate-200 col-span-full my-1" />
-
-                  <div className="text-emerald-900 font-bold">{t.total}</div>
-                  <div className="text-xl text-sky-700 font-extrabold">{fmt(grandTotal, currency)}</div>
-                </div>
-
-                {(debug || hasSeatResult) && (
-                  <div className="mt-4 grid gap-2">
-                    <PrettyBlock title="Debug">
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        {debug?.pricingRequest && (
-                          <button
-                            onClick={() => setOpenPriceReq(true)}
-                            className="px-3 py-2 rounded-md border border-slate-300 hover:border-blue-400 hover:text-blue-700 bg-white text-sm"
-                          >
-                            {t.viewPriceReq}
-                          </button>
-                        )}
-                        {debug?.seatRequest && (
-                          <button
-                            onClick={() => setOpenSeatReq(true)}
-                            className="px-3 py-2 rounded-md border border-slate-300 hover:border-blue-400 hover:text-blue-700 bg-white text-sm"
-                          >
-                            {t.viewSeatReq}
-                          </button>
-                        )}
-                        {hasSeatResult && (
-                          <button
-                            onClick={() => setOpenSeatResp(true)}
-                            className="px-3 py-2 rounded-md border border-slate-300 hover:border-blue-400 hover:text-blue-700 bg-white text-sm"
-                          >
-                            {t.viewSeatResp}
-                          </button>
-                        )}
-                      </div>
-                    </PrettyBlock>
-                  </div>
-                )}
-
-                <button
-                  disabled={!canContinue}
-                  className={`mt-4 w-full px-4 py-3 rounded-full font-bold text-white ${
-                    canContinue ? "bg-sky-500 hover:bg-sky-600" : "bg-gray-400 cursor-not-allowed"
-                  }`}
-                  onClick={() => {
-                    if (!contactValid) setShowContactErrors(true);
-                    if (!canContinue) return;
-                    alert(
-                      "✅ Continue to seats / add-ons.\n\n" +
-                        JSON.stringify({ pax, forms, contact, selectedBundles, legs }, null, 2)
-                    );
-                    requestAnimationFrame(() => scrollToPassengerTop());
-                  }}
-                >
-                  {t.continue}
-                </button>
-
-                <div className="mt-2 flex gap-2">
-                  <button
-                    onClick={() => {
-                      navigate(-1);
-                      requestAnimationFrame(() => scrollToPassengerTop());
-                    }}
-                    className="px-3 py-2 rounded-lg border border-slate-300 bg-white"
-                  >
-                    {t.back}
-                  </button>
-                </div>
-
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-slate-600">{t.raw}</summary>
-                  <pre className="bg-slate-100 border border-slate-200 rounded p-2 overflow-x-auto text-xs mt-2">
-                    {JSON.stringify(detail.raw, null, 2)}
-                  </pre>
-                </details>
-              </>
-            ) : (
-              (requestKey || state?.priceDetail) && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded text-rose-800">{t.noDetail}</div>
-              )
-            )}
-          </aside>
+          {/* RIGHT */}
+          <FareSidebar
+            t={t}
+            lang={lang}
+            isLGUp={isLGUp}
+            showKeys={showKeys}
+            setShowKeys={setShowKeys}
+            selectedOffers={selectedOffers}
+            params={params}
+            state={state}
+            fareSummary={fareSummary}
+            currency={currency}
+            fmt={fmt}
+            grandTotal={grandTotal}
+            contactValid={contactValid}
+            canContinue={canContinue}
+            setShowContactErrors={setShowContactErrors}
+            setPnrError={setPnrError}
+            setPnrLoading={setPnrLoading}
+            pnrLoading={pnrLoading}
+            pnrError={pnrError}
+            buildBookingPayload={buildBookingPayload}
+            travellers={travellers}
+            forms={forms}
+            contact={contact}
+            submitHoldBooking={submitHoldBooking}
+            navigate={navigate}
+            scrollToPassengerTop={scrollToPassengerTop}
+            detail={detail}
+            rawDetail={rawDetail}
+            isRoundTripSelected={isRoundTripSelected}
+            savedSeats={savedSeats}
+          />
         </div>
       </div>
 
-      {/* Modal for secondary travellers */}
-      <Modal
-        open={!!openId}
-        onClose={() => {
-          setOpenId(null);
-          requestAnimationFrame(() => scrollToPassengerTop());
-        }}
-      >
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <div className="font-extrabold">{t.passengerDetails}</div>
-          <button
-            onClick={() => {
-              setOpenId(null);
-              requestAnimationFrame(() => scrollToPassengerTop());
-            }}
-            className="text-xl leading-none"
-            aria-label={t.cancel}
-            title={t.cancel}
-          >
-            ×
-          </button>
-        </div>
-        {openId && (
-          <TravellerForm
-            t={t}
-            value={forms[openId] || { gender: "M", country: "Thailand" }}
-            onChange={(v) => updateForm(openId, v)}
-            onSave={(v) => saveModal(openId, v)}
-            showSave={true}
-          />
-        )}
-      </Modal>
-
-      {/* ===== Debug: Price request modal ===== */}
+      {/* Debug modals (keep same behavior) */}
       <Modal open={openPriceReq} onClose={() => setOpenPriceReq(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{t.requestPreview} — Price</div>
@@ -791,7 +808,6 @@ export default function PriceDetailSkyBlue() {
         </div>
       </Modal>
 
-      {/* ===== Debug: Seat-map request modal ===== */}
       <Modal open={openSeatReq} onClose={() => setOpenSeatReq(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{t.requestPreview} — Seat map</div>
@@ -827,7 +843,6 @@ export default function PriceDetailSkyBlue() {
         </div>
       </Modal>
 
-      {/* ===== Debug: Seat-map RESPONSE modal ===== */}
       <Modal open={openSeatResp} onClose={() => setOpenSeatResp(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{seatRaw ? t.seatRespTitle : t.seatErrorTitle}</div>
