@@ -25,9 +25,6 @@ export default function SiteHeader() {
             <div className="font-extrabold text-[22px] sm:text-[24px] text-blue-600 tracking-tight truncate">
               Demo
             </div>
-              <div className="text-[11px] sm:text-xs text-sky-600/70 font-medium truncate">
-                 chutintorn.sri@nokair.com
-             </div>
          
           </div>
         </div>

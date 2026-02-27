@@ -9,7 +9,7 @@ import * as seatMapSlice from "../redux/seatMapSlice";
 import * as seatSelectionSlice from "../redux/seatSelectionSlice";
 import * as offerSelectionSlice from "../redux/offerSelectionSlice";
 
-// ✅ NEW: Logo image (make sure file exists)
+// ✅ Logo (make sure file exists)
 import NokAirLogo from "../assets/NokAirLogo.png";
 
 function safeDispatch(dispatch, actionCreator) {
@@ -32,7 +32,10 @@ export default function PriceHeader({
     safeDispatch(dispatch, pricingSlice?.resetPricing || pricingSlice?.clearPricing || null);
     safeDispatch(dispatch, seatMapSlice?.resetSeatMap || seatMapSlice?.clearSeatMap || null);
     safeDispatch(dispatch, seatSelectionSlice?.resetAllSeats || seatSelectionSlice?.clearAllSeats || null);
-    safeDispatch(dispatch, offerSelectionSlice?.clearSelectedOfferLegs || offerSelectionSlice?.clearSelectedOffers || null);
+    safeDispatch(
+      dispatch,
+      offerSelectionSlice?.clearSelectedOfferLegs || offerSelectionSlice?.clearSelectedOffers || null
+    );
 
     navigate("/", { replace: true });
   }, [dispatch, navigate]);
@@ -44,97 +47,97 @@ export default function PriceHeader({
       style={{ minHeight: 64 }}
     >
       <div className={`mx-auto max-w-6xl ${containerPad} py-3`}>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        {/* ✅ Row 1 (MOBILE): Brand + Language buttons in ONE line */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Brand */}
+          <Link
+            to="/"
+            className="group flex items-center gap-2 min-w-0"
+            aria-label="Go to homepage"
+          >
+            <img
+              src={NokAirLogo}
+              alt="Nok Air"
+              className="h-9 w-9 sm:h-10 sm:w-10 rounded-full border border-slate-200 bg-white object-contain flex-none"
+              draggable="false"
+            />
 
-          {/* ✅ Brand (UPDATED): logo + Demo text */}
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="group flex items-center gap-3"
-              aria-label="Go to homepage"
-            >
-              <img
-                src={NokAirLogo}
-                alt="Nok Air"
-                className="h-10 w-10 rounded-full border border-slate-200 bg-white object-contain"
-                draggable="false"
-              />
-
-              <div className="leading-tight">
-                <div className="font-extrabold text-[18px] sm:text-[20px] text-blue-600 tracking-tight">
-                  Demo
-                </div>
-              
+            <div className="min-w-0 leading-tight">
+              <div className="font-extrabold text-[16px] sm:text-[20px] text-blue-600 tracking-tight truncate">
+                Demo
               </div>
-            </Link>
-          </div>
-
-          {/* Controls (UNCHANGED) */}
-          <div className="flex flex-col items-end gap-2">
-
-            {/* Language Buttons (UNCHANGED) */}
-            <div className="flex gap-2 w-full sm:w-auto justify-end">
-              <button
-                onClick={() => {
-                  setLang("th");
-                  requestAnimationFrame(scrollToPassengerTop);
-                }}
-                className={[
-                  "h-10 sm:h-11",
-                  "min-w-[120px] sm:min-w-[160px]",
-                  "rounded-2xl border px-4 sm:px-5",
-                  "text-[14px] sm:text-[15px] font-semibold transition",
-                  lang === "th"
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-blue-600 border-blue-600",
-                ].join(" ")}
-              >
-                ไทย
-              </button>
-
-              <button
-                onClick={() => {
-                  setLang("en");
-                  requestAnimationFrame(scrollToPassengerTop);
-                }}
-                className={[
-                  "h-10 sm:h-11",
-                  "min-w-[120px] sm:min-w-[160px]",
-                  "rounded-2xl border px-4 sm:px-5",
-                  "text-[14px] sm:text-[15px] font-semibold transition",
-                  lang === "en"
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-blue-600 border-blue-600",
-                ].join(" ")}
-              >
-                English
-              </button>
             </div>
+          </Link>
 
-            {/* Back Button (UNCHANGED) */}
+          {/* Language Buttons (small on mobile, still one line) */}
+          <div className="flex items-center gap-2 flex-none">
             <button
-              onClick={backToStart}
+              type="button"
+              onClick={() => {
+                setLang("th");
+                requestAnimationFrame(scrollToPassengerTop);
+              }}
               className={[
-                "h-10 sm:h-11",
-                "w-full sm:w-[360px]",
-                "rounded-2xl border px-6",
-                "text-[14px] sm:text-[15px] font-medium",
-                "border-white/70 text-[#0b4f73]",
-                "bg-gradient-to-b from-white/60 via-[#d9f6ff] to-[#ecfbff]",
-                "shadow-[0_6px_14px_rgba(26,167,214,0.10)]",
-                "hover:brightness-[1.04] active:translate-y-[1px] active:text-white",
-                "active:bg-gradient-to-b active:from-[#8fe8ff] active:to-[#bfefff]",
+                "h-9 sm:h-11",
+                "px-3 sm:px-5",
+                "rounded-2xl border",
+                "text-[13px] sm:text-[15px] font-semibold transition",
+                "whitespace-nowrap",
+                lang === "th"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-blue-600 border-blue-600",
               ].join(" ")}
             >
-              ← {t.backToStart || "Back to start"}
+              ไทย
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLang("en");
+                requestAnimationFrame(scrollToPassengerTop);
+              }}
+              className={[
+                "h-9 sm:h-11",
+                "px-3 sm:px-5",
+                "rounded-2xl border",
+                "text-[13px] sm:text-[15px] font-semibold transition",
+                "whitespace-nowrap",
+                lang === "en"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-blue-600 border-blue-600",
+              ].join(" ")}
+            >
+              English
             </button>
           </div>
         </div>
+
+        {/* ✅ Row 2: Back button (full width like your screenshot) */}
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={backToStart}
+            className={[
+              "h-10 sm:h-11",
+              "w-full sm:w-[360px]",
+              "rounded-2xl border px-6",
+              "text-[14px] sm:text-[15px] font-medium",
+              "border-white/70 text-[#0b4f73]",
+              "bg-gradient-to-b from-white/60 via-[#d9f6ff] to-[#ecfbff]",
+              "shadow-[0_6px_14px_rgba(26,167,214,0.10)]",
+              "hover:brightness-[1.04] active:translate-y-[1px] active:text-white",
+              "active:bg-gradient-to-b active:from-[#8fe8ff] active:to-[#bfefff]",
+            ].join(" ")}
+          >
+            ← {t?.backToStart || "Back to start"}
+          </button>
+        </div>
       </div>
 
-      {/* Title (UNCHANGED) */}
+      {/* Title */}
       <div className={`mx-auto max-w-6xl ${containerPad} pb-3`}>
-        <h1 className="text-xl font-bold text-blue-600">{t.title}</h1>
+        <h1 className="text-xl font-bold text-blue-600">{t?.title}</h1>
       </div>
     </div>
   );

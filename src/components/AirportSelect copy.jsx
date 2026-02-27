@@ -12,22 +12,9 @@ export default function AirportSelect({
   name,
   id,
 }) {
-  const airportsAll = useSelector(selectAirports);
-
-  // ✅ Use ALL airports from redux (no restriction)
-  const airports = useMemo(() => {
-    const list = Array.isArray(airportsAll) ? airportsAll : [];
-    return list
-      .map((a) => ({
-        ...a,
-        value: String(a?.value || "").toUpperCase(),
-        label: a?.label || String(a?.value || "").toUpperCase(),
-      }))
-      .filter((a) => a.value);
-  }, [airportsAll]);
-
+  const airports = useSelector(selectAirports);
   const selected = useMemo(
-    () => airports.find((a) => a.value === String(value || "").toUpperCase()) || null,
+    () => airports.find((a) => a.value === value) || null,
     [airports, value]
   );
 
@@ -38,16 +25,18 @@ export default function AirportSelect({
   const listRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Filter options by query (search on label or value)
   const filtered = useMemo(() => {
     if (!query.trim()) return airports;
     const q = query.trim().toLowerCase();
     return airports.filter(
       (a) =>
-        String(a.label || "").toLowerCase().includes(q) ||
-        String(a.value || "").toLowerCase().includes(q)
+        a.label.toLowerCase().includes(q) ||
+        a.value.toLowerCase().includes(q)
     );
   }, [airports, query]);
 
+  // Close on outside click
   useEffect(() => {
     const onDocClick = (e) => {
       if (!rootRef.current) return;
@@ -57,6 +46,7 @@ export default function AirportSelect({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
+  // Reset active index when the list changes
   useEffect(() => {
     setActiveIndex(0);
   }, [open, query]);
@@ -66,7 +56,7 @@ export default function AirportSelect({
     if (!item) return;
     onChange?.(item.value);
     setOpen(false);
-    setQuery("");
+    setQuery(""); // clear search after select
   };
 
   const handleTriggerKeyDown = (e) => {
@@ -74,6 +64,7 @@ export default function AirportSelect({
     if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
       e.preventDefault();
       setOpen(true);
+      // focus the search box next tick
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
@@ -119,6 +110,7 @@ export default function AirportSelect({
 
   return (
     <div className="relative" ref={rootRef}>
+      {/* Trigger (styled like an input) */}
       <button
         type="button"
         id={id}
@@ -140,57 +132,58 @@ export default function AirportSelect({
         <span aria-hidden className="ml-2 text-slate-500">▾</span>
       </button>
 
+      {/* Dropdown panel — always below the trigger */}
       {open && !disabled && (
         <div
           className="absolute left-0 top-full mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-2xl z-50"
           role="dialog"
         >
+          {/* Search box */}
           <div className="p-2 border-b border-slate-100">
             <input
               ref={inputRef}
+              type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              placeholder="Type to filter…"
+              className="w-full h-10 rounded-lg border border-slate-300 px-3 text-[14px] focus:outline-none focus:border-sky-500 focus:ring focus:ring-sky-200/60"
               onKeyDown={handleListKeyDown}
-              placeholder="Search airport…"
-              className="w-full h-10 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:ring focus:ring-sky-200/60"
             />
           </div>
 
-          <div
+          {/* Options */}
+          <ul
             ref={listRef}
             role="listbox"
             tabIndex={-1}
+            className="max-h-60 overflow-auto py-1"
             onKeyDown={handleListKeyDown}
-            className="max-h-72 overflow-auto p-1"
           >
-            {filtered.length === 0 ? (
-              <div className="p-3 text-sm text-slate-500">No results</div>
-            ) : (
-              filtered.map((a, idx) => {
-                const isActive = idx === activeIndex;
-                const isSelected = String(a.value) === String(value || "").toUpperCase();
-                return (
-                  <button
-                    key={`${a.value}-${idx}`}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    data-index={idx}
-                    onMouseEnter={() => setActiveIndex(idx)}
-                    onClick={() => selectByIndex(idx)}
-                    className={[
-                      "w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between",
-                      isActive ? "bg-sky-50" : "bg-white",
-                      isSelected ? "font-bold text-sky-700" : "text-slate-700",
-                    ].join(" ")}
-                  >
-                    <span>{a.label}</span>
-                    <span className="text-xs text-slate-400">{a.value}</span>
-                  </button>
-                );
-              })
+            {filtered.length === 0 && (
+              <li className="px-3 py-2 text-slate-500">No matches</li>
             )}
-          </div>
+            {filtered.map((ap, idx) => {
+              const isActive = idx === activeIndex;
+              const isSelected = ap.value === value;
+              return (
+                <li
+                  key={ap.value}
+                  data-index={idx}
+                  role="option"
+                  aria-selected={isSelected}
+                  className={
+                    "px-3 py-2 cursor-pointer flex items-center justify-between " +
+                    (isActive ? "bg-slate-100" : "hover:bg-slate-50")
+                  }
+                  onMouseEnter={() => setActiveIndex(idx)}
+                  onClick={() => selectByIndex(idx)}
+                >
+                  <span>{ap.label}</span>
+                  {isSelected && <span className="text-sky-600 font-medium">✓</span>}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>

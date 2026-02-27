@@ -10,8 +10,11 @@ import SeatMapPanel from "../components/SeatMapPanel";
 // ✅ Baggage panel (BGxx / SBxx per leg)
 import BaggagePanel from "../components/BaggagePanel";
 
-// ✅ NEW: Meal panel (MH/MS + BEV per leg)
+// ✅ Meal panel (MH/MS + BEV per leg)
 import MealPanel from "../components/MealPanel";
+
+// ✅ NEW: Priority boarding panel (PBOD per leg)
+import PriorityBoardingPanel from "../components/PriorityBoardingPanel";
 
 /* ========================= small hook: isMobile ========================= */
 function useIsMobile(query = "(max-width: 640px)") {
@@ -89,6 +92,44 @@ function resolveBagStatus(savedLeg, draftLeg) {
     status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
   };
 }
+function resolveMealStatus(savedLeg, draftLeg) {
+  const sMeal = normUpper(savedLeg?.meal?.ssrCode);
+  const sBev = normUpper(savedLeg?.bev?.ssrCode);
+  const dMeal = normUpper(draftLeg?.meal?.ssrCode);
+  const dBev = normUpper(draftLeg?.bev?.ssrCode);
+
+  const savedAny = !!(sMeal || sBev);
+  const draftAny = !!(dMeal || dBev);
+
+  return {
+    meal: savedAny ? (sMeal || "-") : draftAny ? (dMeal || "-") : "-",
+    bev: savedAny ? (sBev || "-") : draftAny ? (dBev || "-") : "-",
+    status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
+  };
+}
+
+/* ✅ NEW: resolve Priority Boarding (PBOD) */
+function resolvePbStatus(savedLeg, draftLeg) {
+  const s = normUpper(savedLeg?.pbod?.ssrCode);
+  const d = normUpper(draftLeg?.pbod?.ssrCode);
+
+  const savedAny = !!s;
+  const draftAny = !!d;
+
+  return {
+    pbod: savedAny ? (s || "-") : draftAny ? (d || "-") : "-",
+    status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
+  };
+}
+
+// ✅ Effective status for leg: confirmed if ANY confirmed, else selecting if ANY selecting, else none
+function overallStatusFor(...statuses) {
+  const hasConfirmed = statuses.some((s) => s === "confirmed");
+  const hasSelecting = statuses.some((s) => s === "selecting");
+  if (hasConfirmed) return "confirmed";
+  if (hasSelecting) return "selecting";
+  return "none";
+}
 
 export default function PassengersPanel({
   passengerTopRef,
@@ -114,24 +155,26 @@ export default function PassengersPanel({
   rawDetail, // ✅ price detail response (airlines[].availableExtraServices)
 }) {
   const deepCopy = (x) => JSON.parse(JSON.stringify(x || {}));
-  useIsMobile(); // keep hook behavior (but don't keep unused variable)
+  useIsMobile();
 
-  /* ========================= Redux: read draft/saved seat & baggage ========================= */
+  /* ========================= Redux: read draft/saved seat & baggage & meal & priority ========================= */
   const seatDraft = useSelector((s) => s?.seatSelection?.draft || {});
   const seatSaved = useSelector((s) => s?.seatSelection?.saved || {});
+
   const bagDraft = useSelector((s) => s?.baggageSelection?.draft || {});
   const bagSaved = useSelector((s) => s?.baggageSelection?.saved || {});
 
-  /* ========================= refs for each pax card ========================= */
-  const cardRefs = useRef({}); // { [paxId]: HTMLElement }
+  const mealDraft = useSelector((s) => s?.mealSelection?.draft || {});
+  const mealSaved = useSelector((s) => s?.mealSelection?.saved || {});
 
-  // ✅ GLOBAL last active ancillary tab (stick across passengers)
+  // ✅ NEW: priority boarding draft/saved
+  const pbDraft = useSelector((s) => s?.priorityBoardingSelection?.draft || {});
+  const pbSaved = useSelector((s) => s?.priorityBoardingSelection?.saved || {});
+
+  const cardRefs = useRef({});
   const lastAncRef = useRef(null);
-
-  /* ========================= Preview Summary UI toggle ========================= */
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  /* ========================= smooth highlight ========================= */
   const [flashPaxId, setFlashPaxId] = useState("");
   const flashCard = (paxId) => {
     setFlashPaxId(paxId);
@@ -152,7 +195,6 @@ export default function PassengersPanel({
     []
   );
 
-  /* ========================= stable smooth scroll (LESS JERK) ========================= */
   const smoothScrollToPax = useCallback((paxId) => {
     if (typeof window === "undefined") return;
     const el = cardRefs.current[paxId];
@@ -166,7 +208,6 @@ export default function PassengersPanel({
     window.scrollTo({ top: targetY, behavior: "smooth" });
   }, []);
 
-  /* ========================= open/close passenger ========================= */
   const handleToggleView = (paxId) => {
     setShowForm((s) => {
       const nextOpen = !s[paxId];
@@ -190,7 +231,6 @@ export default function PassengersPanel({
     setActiveAncByPax?.((prev) => ({ ...prev, [paxId]: null }));
   };
 
-  /* ========================= Next passenger (loop + STICK LAST TAB + SMOOTH) ========================= */
   const findNextPaxIdLoop = (currentId) => {
     const idx = travellers.findIndex((x) => x.id === currentId);
     if (idx < 0) return "";
@@ -239,22 +279,18 @@ export default function PassengersPanel({
     });
   };
 
-  // ✅ click ancillary tab: update global last tab
   const onClickAncTab = useCallback(
     (paxId, tabKey) => {
       setActiveAncByPax?.((prev) => {
         const cur = prev?.[paxId] ?? null;
         const next = cur === tabKey ? null : tabKey;
-
         if (next) lastAncRef.current = next;
-
         return { ...prev, [paxId]: next };
       });
     },
     [setActiveAncByPax]
   );
 
-  /* ========================= legs derived from selectedOffers ========================= */
   const legs = useMemo(() => {
     const so = Array.isArray(selectedOffers) ? selectedOffers : [];
     return so
@@ -266,6 +302,36 @@ export default function PassengersPanel({
       }))
       .filter((x) => x.journeyKey);
   }, [selectedOffers, t]);
+
+  // ✅ NEW: legs mapping for PriorityBoardingPanel (it expects flightNumber)
+  const legsForPB = useMemo(() => {
+    return (legs || []).map((l) => ({
+      ...l,
+      flightNumber: l.flightNo,
+    }));
+  }, [legs]);
+
+  // ========================= Small UI blocks for preview rows =========================
+  const Row = ({ title, value, status, right }) => (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+      <div className="min-w-0">
+        <div className="text-[11px] text-slate-500">{title}</div>
+        <div className={`text-sm font-extrabold truncate ${value === "-" ? "text-slate-400" : "text-slate-900"}`}>
+          {value}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {right ? <div className="text-[11px] text-slate-500">{right}</div> : null}
+        <span className={`px-2 py-0.5 rounded-full border text-[10px] ${pillClass(status)}`}>
+          {status === "confirmed"
+            ? (t?.confirmed || "Confirmed")
+            : status === "selecting"
+            ? (t?.selecting || "Selecting")
+            : (t?.notSelected || "Not selected")}
+        </span>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-w-0">
@@ -281,11 +347,8 @@ export default function PassengersPanel({
             const ok = isComplete(v);
             const open = !!showForm[p.id];
 
-            const hasName =
-              (v.firstName && v.firstName.trim()) || (v.lastName && v.lastName.trim());
-
-            const fullName =
-              v.firstName && v.lastName ? `${titleFromForm(v)} ${v.firstName} ${v.lastName}` : "";
+            const hasName = (v.firstName && v.firstName.trim()) || (v.lastName && v.lastName.trim());
+            const fullName = v.firstName && v.lastName ? `${titleFromForm(v)} ${v.firstName} ${v.lastName}` : "";
 
             const showAncillaryForThisPax = p.type !== "INF";
             const activeForThisPax = activeAncByPax?.[p.id] ?? null;
@@ -432,28 +495,22 @@ export default function PassengersPanel({
                             ) : activeForThisPax === "bag" ? (
                               <div>
                                 <div className="font-bold text-slate-900 mb-1">{t.ancBag}</div>
-                                <BaggagePanel
-                                  paxId={p.id}
-                                  selectedOffers={selectedOffers}
-                                  rawDetail={rawDetail}
-                                  t={t}
-                                />
+                                <BaggagePanel paxId={p.id} selectedOffers={selectedOffers} rawDetail={rawDetail} t={t} />
                               </div>
                             ) : activeForThisPax === "meal" ? (
                               <div>
-                                <div className="font-bold text-slate-900 mb-1">{t.ancMeal}</div>
-                                {/* ✅ IMPORTANT: render MealPanel (no placeholder) */}
-                                <MealPanel
-                                  paxId={p.id}
-                                  selectedOffers={selectedOffers}
-                                  rawDetail={rawDetail}
-                                  t={t}
-                                />
+                                <MealPanel paxId={p.id} selectedOffers={selectedOffers} rawDetail={rawDetail} t={t} />
                               </div>
                             ) : activeForThisPax === "pb" ? (
                               <div>
                                 <div className="font-bold text-slate-900 mb-1">{t.ancPb}</div>
-                                <div>Priority boarding UI for this passenger.</div>
+
+                                {/* ✅ NEW: real PBOD panel */}
+                                <PriorityBoardingPanel
+                                  paxId={p.id}
+                                  legs={legsForPB}
+                                  rawDetail={rawDetail}
+                                />
                               </div>
                             ) : (
                               <div>
@@ -478,14 +535,8 @@ export default function PassengersPanel({
 
         {/* ========================= Contact Information ========================= */}
         <div className="mt-4">
-          <ContactInformation
-            t={t}
-            value={contact}
-            onChange={setContact}
-            showErrors={showContactErrors}
-          />
+          <ContactInformation t={t} value={contact} onChange={setContact} showErrors={showContactErrors} />
 
-          {/* ✅ Preview Summary button BELOW contact information */}
           <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <button
               type="button"
@@ -495,30 +546,23 @@ export default function PassengersPanel({
               {previewOpen ? t?.hideSummary || "Hide summary" : t?.previewSummaryBtn || "Preview summary"}
             </button>
             <div className="text-xs text-slate-500">
-              {t?.previewSummaryBelowHint || "Seat / BG / SB for all passengers (confirmed vs selecting)."}
+              {t?.previewSummaryBelowHint || "Seat / BG+SB / Meal+BEV / PBOD for all passengers (confirmed vs selecting)."}
             </div>
           </div>
 
-          {/* ✅ Preview Summary Panel */}
           {previewOpen ? (
             <div className="mt-3 border border-slate-200 rounded-2xl bg-slate-50 p-3 sm:p-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="text-base font-extrabold text-slate-900">
-                    {t?.previewSummary || "Preview summary"}
-                  </div>
+                  <div className="text-base font-extrabold text-slate-900">{t?.previewSummary || "Preview summary"}</div>
                   <div className="text-xs sm:text-sm text-slate-600">
                     {t?.previewSummaryHint || "Green = Saved (confirmed), Amber = Draft (selecting)."}
                   </div>
                 </div>
 
                 <div className="hidden sm:flex items-center gap-2 text-xs">
-                  <span className={`px-2 py-1 rounded-full border ${pillClass("confirmed")}`}>
-                    {t?.confirmed || "Confirmed"}
-                  </span>
-                  <span className={`px-2 py-1 rounded-full border ${pillClass("selecting")}`}>
-                    {t?.selecting || "Selecting"}
-                  </span>
+                  <span className={`px-2 py-1 rounded-full border ${pillClass("confirmed")}`}>{t?.confirmed || "Confirmed"}</span>
+                  <span className={`px-2 py-1 rounded-full border ${pillClass("selecting")}`}>{t?.selecting || "Selecting"}</span>
                 </div>
               </div>
 
@@ -534,9 +578,7 @@ export default function PassengersPanel({
                   return (
                     <div key={paxId} className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4">
                       <div className="min-w-0">
-                        <div className="font-extrabold text-slate-900 truncate">
-                          {fullName || `Pax ${paxId}`}
-                        </div>
+                        <div className="font-extrabold text-slate-900 truncate">{fullName || `Pax ${paxId}`}</div>
                         <div className="text-xs text-slate-500">{(p?.type || "").toUpperCase()}</div>
                       </div>
 
@@ -553,122 +595,65 @@ export default function PassengersPanel({
                             const draftBagLeg = bagDraft?.[paxId]?.[j] ?? null;
                             const bagRes = resolveBagStatus(savedBagLeg, draftBagLeg);
 
-                            const hasAnySelecting =
-                              seatRes.status === "selecting" || bagRes.status === "selecting";
-                            const hasAnyConfirmed =
-                              seatRes.status === "confirmed" || bagRes.status === "confirmed";
-                            const overallStatus = hasAnyConfirmed
-                              ? "confirmed"
-                              : hasAnySelecting
-                              ? "selecting"
-                              : "none";
+                            const savedMealLeg = mealSaved?.[paxId]?.[j] ?? null;
+                            const draftMealLeg = mealDraft?.[paxId]?.[j] ?? null;
+                            const mealRes = resolveMealStatus(savedMealLeg, draftMealLeg);
+
+                            // ✅ NEW pb status
+                            const savedPbLeg = pbSaved?.[paxId]?.[j] ?? null;
+                            const draftPbLeg = pbDraft?.[paxId]?.[j] ?? null;
+                            const pbRes = resolvePbStatus(savedPbLeg, draftPbLeg);
+
+                            const legStatus = overallStatusFor(seatRes.status, bagRes.status, mealRes.status, pbRes.status);
 
                             return (
-                              <div key={j} className="border border-slate-200 rounded-xl bg-slate-50 p-3">
+                              <div key={j} className="border border-slate-200 rounded-2xl bg-slate-50 p-3">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="text-sm font-extrabold text-slate-900">
                                     {leg.label}
-                                    {leg.flightNo ? (
-                                      <span className="ml-2 text-xs font-normal text-slate-500">
-                                        {leg.flightNo}
-                                      </span>
-                                    ) : null}
+                                    {leg.flightNo ? <span className="ml-2 text-xs font-normal text-slate-500">{leg.flightNo}</span> : null}
                                   </div>
-                                  <span
-                                    className={`px-2 py-1 rounded-full border text-[11px] ${pillClass(overallStatus)}`}
-                                  >
-                                    {overallStatus === "confirmed"
+                                  <span className={`px-2 py-1 rounded-full border text-[11px] ${pillClass(legStatus)}`}>
+                                    {legStatus === "confirmed"
                                       ? t?.confirmed || "Confirmed"
-                                      : overallStatus === "selecting"
+                                      : legStatus === "selecting"
                                       ? t?.selecting || "Selecting"
                                       : t?.notSelected || "Not selected"}
                                   </span>
                                 </div>
 
-                                <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-                                  {/* Seat */}
-                                  <div className="rounded-lg bg-white border border-slate-200 p-2">
-                                    <div className="text-[11px] text-slate-500">{t?.seatLabel || "Seat"}</div>
-                                    <div
-                                      className={`font-extrabold ${
-                                        seatRes.value === "-" ? "text-slate-400" : "text-slate-900"
-                                      }`}
-                                    >
-                                      {seatRes.value}
-                                    </div>
-                                    <div className="mt-1">
-                                      <span
-                                        className={`inline-block px-2 py-0.5 rounded-full border text-[10px] ${pillClass(
-                                          seatRes.status
-                                        )}`}
-                                      >
-                                        {seatRes.status === "confirmed"
-                                          ? t?.confirmed || "Confirmed"
-                                          : seatRes.status === "selecting"
-                                          ? t?.selecting || "Selecting"
-                                          : t?.notSelected || "Not selected"}
-                                      </span>
-                                    </div>
-                                  </div>
+                                <div className="mt-3 space-y-2">
+                                  <Row
+                                    title={t?.seatLabel || "Seat"}
+                                    value={seatRes.value}
+                                    status={seatRes.status}
+                                  />
 
-                                  {/* BG */}
-                                  <div className="rounded-lg bg-white border border-slate-200 p-2">
-                                    <div className="text-[11px] text-slate-500">{t?.bgLabel || "BG"}</div>
-                                    <div
-                                      className={`font-extrabold ${
-                                        bagRes.bg === "-" ? "text-slate-400" : "text-slate-900"
-                                      }`}
-                                    >
-                                      {bagRes.bg}
-                                    </div>
-                                    <div className="mt-1">
-                                      <span
-                                        className={`inline-block px-2 py-0.5 rounded-full border text-[10px] ${pillClass(
-                                          bagRes.status
-                                        )}`}
-                                      >
-                                        {bagRes.status === "confirmed"
-                                          ? t?.confirmed || "Confirmed"
-                                          : bagRes.status === "selecting"
-                                          ? t?.selecting || "Selecting"
-                                          : t?.notSelected || "Not selected"}
-                                      </span>
-                                    </div>
-                                  </div>
+                                  <Row
+                                    title={t?.bagLabel || "Baggage"}
+                                    value={`${t?.bgLabel || "BG"}: ${bagRes.bg}   •   ${t?.sbLabel || "SB"}: ${bagRes.sb}`}
+                                    status={bagRes.status}
+                                  />
 
-                                  {/* SB */}
-                                  <div className="rounded-lg bg-white border border-slate-200 p-2">
-                                    <div className="text-[11px] text-slate-500">{t?.sbLabel || "SB"}</div>
-                                    <div
-                                      className={`font-extrabold ${
-                                        bagRes.sb === "-" ? "text-slate-400" : "text-slate-900"
-                                      }`}
-                                    >
-                                      {bagRes.sb}
-                                    </div>
-                                    <div className="mt-1">
-                                      <span
-                                        className={`inline-block px-2 py-0.5 rounded-full border text-[10px] ${pillClass(
-                                          bagRes.status
-                                        )}`}
-                                      >
-                                        {bagRes.status === "confirmed"
-                                          ? t?.confirmed || "Confirmed"
-                                          : bagRes.status === "selecting"
-                                          ? t?.selecting || "Selecting"
-                                          : t?.notSelected || "Not selected"}
-                                      </span>
-                                    </div>
-                                  </div>
+                                  <Row
+                                    title={t?.mealDrinkLabel || "Meal / Drink"}
+                                    value={`${t?.mealLabel || "Meal"}: ${mealRes.meal}   •   ${t?.bevLabel || "BEV"}: ${mealRes.bev}`}
+                                    status={mealRes.status}
+                                  />
+
+                                  {/* ✅ NEW: Priority Boarding */}
+                                  <Row
+                                    title={t?.pbLabel || t?.ancPb || "Priority Boarding"}
+                                    value={pbRes.pbod}
+                                    status={pbRes.status}
+                                  />
                                 </div>
                               </div>
                             );
                           })}
                         </div>
                       ) : (
-                        <div className="mt-3 text-sm text-slate-600">
-                          {t?.noLegs || "No flight legs found (missing journeyKey)."}
-                        </div>
+                        <div className="mt-3 text-sm text-slate-600">{t?.noLegs || "No flight legs found (missing journeyKey)."}</div>
                       )}
                     </div>
                   );

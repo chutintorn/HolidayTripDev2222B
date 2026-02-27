@@ -29,19 +29,21 @@ import {
 
 /* ---------- Helpers ---------- */
 const ymd = (s) => (typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "");
+
 const toLocalDate = (s) => {
   const d = ymd(s);
   if (!d) return null;
   const date = new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
   return isNaN(date) ? null : date;
 };
+
 const byAscDate = (a, b) =>
   (a.minDate?.getTime?.() ?? 0) - (b.minDate?.getTime?.() ?? 0);
 
 const fmtMoney = (n, currency = "THB") => {
   if (n === "" || n === null || n === undefined) return "";
-  const num = Number(n);
-  if (!isFinite(num)) return "";
+  const num = typeof n === "string" ? Number(n.replace(/,/g, "")) : Number(n);
+  if (!Number.isFinite(num)) return "";
   return `${currency} ${num.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -61,13 +63,23 @@ const dowColors = {
 function getHeaderParts(rows) {
   const first = Array.isArray(rows) ? rows[0] : null;
   if (!first) {
-    return { origin: "", destination: "", ddMMM: "", dow: "", chipColor: "#00BFFF" };
+    return {
+      origin: "",
+      destination: "",
+      ddMMM: "",
+      dow: "",
+      chipColor: "#00BFFF",
+    };
   }
   const depDate = toLocalDate(first?.departureDate);
   const ddMMM = depDate
-    ? depDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase()
+    ? depDate
+        .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
+        .toUpperCase()
     : "";
-  const dow = depDate ? depDate.toLocaleDateString("en-GB", { weekday: "short" }) : "";
+  const dow = depDate
+    ? depDate.toLocaleDateString("en-GB", { weekday: "short" })
+    : "";
   return {
     origin: first?.origin || "",
     destination: first?.destination || "",
@@ -110,6 +122,20 @@ function buildDebugPackets(offers, secToken) {
     seatHeaders: headersWithToken,
     bodyPreview,
   };
+}
+
+/* ============================================================
+ * Closed color strip (NO text) — height reduced to 50%
+ * ============================================================ */
+function ClosedDowStrip({ accent }) {
+  return (
+    <div className="col-span-full mt-1.5">
+      <div
+        className="h-5 rounded-lg border border-slate-100"
+        style={{ backgroundColor: hexToRgba(accent, 0.12) }}
+      />
+    </div>
+  );
 }
 
 /* ============================================================
@@ -165,7 +191,9 @@ function LiteCard({
 
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
             <span>
-              {row.aircraftDescription ? `${row.aircraftDescription} • ${row.duration}` : row.duration}
+              {row.aircraftDescription
+                ? `${row.aircraftDescription} • ${row.duration}`
+                : row.duration}
             </span>
             <span>•</span>
             <span>Nonstop</span>
@@ -189,8 +217,12 @@ function LiteCard({
           </span>
           <div className="text-[10px] text-slate-500">
             <span className="mr-2">ADT {paxCounts?.adult || 0}</span>
-            {(paxCounts?.child || 0) > 0 && <span className="mr-2">CHD {paxCounts?.child}</span>}
-            {(paxCounts?.infant || 0) > 0 && <span className="mr-2">INF {paxCounts?.infant}</span>}
+            {(paxCounts?.child || 0) > 0 && (
+              <span className="mr-2">CHD {paxCounts?.child}</span>
+            )}
+            {(paxCounts?.infant || 0) > 0 && (
+              <span className="mr-2">INF {paxCounts?.infant}</span>
+            )}
             / {totalPax} pax*
           </div>
         </div>
@@ -201,7 +233,9 @@ function LiteCard({
             disabled={readonly}
             className={
               "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
-              (selected ? "bg-[#0a65a0] hover:bg-[var(--dow)]" : "bg-[#0B73B1] hover:bg-[var(--dow)]") +
+              (selected
+                ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
+                : "bg-[#0B73B1] hover:bg-[var(--dow)]") +
               (readonly ? " opacity-70 cursor-not-allowed" : "")
             }
           >
@@ -222,20 +256,26 @@ function LiteCard({
         </button>
       </div>
 
+      {/* ✅ CLOSED: show strip only (NO TEXT) */}
+      {!open && <ClosedDowStrip accent={accent} />}
+
+      {/* ✅ OPEN: show details panel */}
       <div
         className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
           open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
         }`}
         aria-hidden={!open}
       >
-        <div
-          className="min-h-0 pt-3 pb-3 px-3 rounded-lg"
-          style={{ backgroundColor: hexToRgba(accent, 0.12) }}
-        >
-          <div className="text-[12px] font-medium text-blue-700">
-            ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
+        {open && (
+          <div
+            className="min-h-0 pt-3 pb-3 px-3 rounded-lg"
+            style={{ backgroundColor: hexToRgba(accent, 0.12) }}
+          >
+            <div className="text-[12px] font-medium text-blue-700">
+              ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </article>
   );
@@ -510,7 +550,7 @@ export default function RoundTripResultsLite() {
     setTab("depart");
   };
 
-  /* ===================== ONE-WAY (unchanged behavior) ===================== */
+  /* ===================== ONE-WAY ===================== */
   if (!isRoundTrip) {
     const requestKey = selectedOutbound?.fareKey || "";
     const inlineStatus = useSelector(selectPricingStatus(requestKey));
@@ -560,7 +600,7 @@ export default function RoundTripResultsLite() {
     };
 
     return (
-      <div className="w-full flex flex-col gap-6 mt-4 pb-24">
+      <div className="w-full flex flex-col gap-6 mt-4">
         <LegBox
           title="Depart"
           rows={groups[0].rows}
@@ -571,7 +611,7 @@ export default function RoundTripResultsLite() {
           paxCounts={pax}
         />
 
-        <div className="sticky bottom-0 z-40 rounded-2xl border bg-white/95 backdrop-blur shadow p-3">
+        <div className="rounded-2xl border bg-white shadow p-3">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="text-xs text-gray-700">
               {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}
@@ -639,7 +679,11 @@ export default function RoundTripResultsLite() {
       const seatOutP = dispatch(fetchSeatMap({ offers: [offers[0]] })).unwrap();
       const seatInP = dispatch(fetchSeatMap({ offers: [offers[1]] })).unwrap();
 
-      const [priceRes, seatOutRes, seatInRes] = await Promise.allSettled([priceP, seatOutP, seatInP]);
+      const [priceRes, seatOutRes, seatInRes] = await Promise.allSettled([
+        priceP,
+        seatOutP,
+        seatInP,
+      ]);
       if (priceRes.status !== "fulfilled") return;
 
       const pricedPayload = priceRes.value;
@@ -664,10 +708,25 @@ export default function RoundTripResultsLite() {
           fareKey: offers[0]?.fareKey || "",
           journeyKey: offers[0]?.journeyKey || "",
           debug: {
-            pricingRequest: { url: dbgBoth.priceUrl, method: "POST", headers: dbgBoth.priceHeaders, body: dbgBoth.bodyPreview },
+            pricingRequest: {
+              url: dbgBoth.priceUrl,
+              method: "POST",
+              headers: dbgBoth.priceHeaders,
+              body: dbgBoth.bodyPreview,
+            },
             seatRequest: [
-              { url: seatReqOutbound.seatUrl, method: "POST", headers: seatReqOutbound.seatHeaders, body: seatReqOutbound.bodyPreview },
-              { url: seatReqInbound.seatUrl, method: "POST", headers: seatReqInbound.seatHeaders, body: seatReqInbound.bodyPreview },
+              {
+                url: seatReqOutbound.seatUrl,
+                method: "POST",
+                headers: seatReqOutbound.seatHeaders,
+                body: seatReqOutbound.bodyPreview,
+              },
+              {
+                url: seatReqInbound.seatUrl,
+                method: "POST",
+                headers: seatReqInbound.seatHeaders,
+                body: seatReqInbound.bodyPreview,
+              },
             ],
             seatResponse: seatResponses,
             seatOk: seatOkOutbound && seatOkInbound,
@@ -686,8 +745,7 @@ export default function RoundTripResultsLite() {
   const nextHoverColor = outboundHdr.chipColor || "#00BFFF";
 
   return (
-    <div className="w-full flex flex-col gap-4 mt-4 pb-28" style={{ "--dow": nextHoverColor }}>
-      {/* TOP MENU (single menu only) */}
+    <div className="w-full flex flex-col gap-4 mt-4" style={{ "--dow": nextHoverColor }}>
       <RoundTripTabs
         tab={tab}
         setTab={setTab}
@@ -729,8 +787,7 @@ export default function RoundTripResultsLite() {
         />
       )}
 
-      {/* STICKY BOTTOM BAR (NO second menu) */}
-      <div className="sticky bottom-0 z-40 rounded-2xl border bg-white/95 backdrop-blur shadow p-3">
+      <div className="rounded-2xl border bg-white shadow p-3">
         <div className="flex flex-col gap-2">
           <div className="text-xs text-gray-700">
             <span className={selectedOutbound ? "text-emerald-700 font-semibold" : "text-gray-500"}>
@@ -745,7 +802,6 @@ export default function RoundTripResultsLite() {
             )}
           </div>
 
-          {/* Buttons move to next line on mobile automatically */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-end">
             <button
               type="button"
@@ -781,9 +837,7 @@ export default function RoundTripResultsLite() {
             <div className="rounded-xl border bg-slate-50 p-3 text-xs">
               <div className="font-semibold mb-1">Offer loaded</div>
               {typeof priceDetail.total !== "undefined" ? (
-                <div>
-                  Total: {fmtMoney(priceDetail.total, priceDetail.currency || currency)}
-                </div>
+                <div>Total: {fmtMoney(priceDetail.total, priceDetail.currency || currency)}</div>
               ) : (
                 <div>Pricing available.</div>
               )}

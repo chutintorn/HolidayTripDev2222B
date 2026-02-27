@@ -4,13 +4,13 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { selectPriceFor } from "../redux/pricingSlice";
 
-// ✅ ADD: read saved seat selections from Redux
+// read saved seat selections from Redux
 import { selectAllSavedSeats } from "../redux/seatSelectionSlice";
 
-// ✅ ADD: Flight panel (create file src/pages/FlightSummaryPanel.jsx)
+// Flight panel
 import FlightSummaryPanel from "./FlightSummaryPanel";
 
-// ✅ Split files (same folder level)
+// Split files (same folder level)
 import { STR } from "./strings";
 import PriceHeader from "./PriceHeader";
 import PassengersPanel from "./PassengersPanel";
@@ -95,7 +95,7 @@ function calcAgeFromDob(isoDob) {
   }
 }
 
-/* ========================= ✅ Summary helpers (DOB + Age Years/Months) ========================= */
+/* ========================= Summary helpers (DOB + Age Years/Months) ========================= */
 function calcAgeYearsMonths(isoDob) {
   try {
     if (!isoDob) return { years: 0, months: 0 };
@@ -215,8 +215,8 @@ function weekdayTheme(dayIdx) {
 }
 
 /**
- * ✅ Build booking payload supports ROUND-TRIP via selectedOffers[]
- * ✅ NOW includes selectedSeat from Redux savedSeats
+ * Build booking payload supports ROUND-TRIP via selectedOffers[]
+ * includes selectedSeat from Redux savedSeats
  */
 function buildBookingPayload({
   agencyCode,
@@ -226,7 +226,7 @@ function buildBookingPayload({
   selectedOffers,
   fareKey,
   journeyKey,
-  savedSeats, // ✅ ADD
+  savedSeats,
 }) {
   const offersArr =
     Array.isArray(selectedOffers) && selectedOffers.length
@@ -257,7 +257,6 @@ function buildBookingPayload({
         gender: v.gender === "M" ? "Male" : v.gender === "F" ? "Female" : v.gender,
         nationality: v.nationality || "TH",
 
-        // ✅ include seat per leg (journeyKey)
         flightFareKey: offersArr.map((o) => {
           const jk = o?.journeyKey || "";
           const seat = savedSeats?.[p.id]?.[jk] || null;
@@ -286,7 +285,7 @@ function buildBookingPayload({
 }
 
 /* ============================================================
-   ✅ Fare summary parser for YOUR API response
+   Fare summary parser for YOUR API response
    ============================================================ */
 function calcFareSummaryFromApi(rawAny) {
   const root = rawAny?.detail?.data || rawAny?.data || rawAny?.detail || rawAny || null;
@@ -295,9 +294,8 @@ function calcFareSummaryFromApi(rawAny) {
   const airlines = Array.isArray(root?.airlines) ? root.airlines : [];
 
   const totalAmountFromApi = Number(root?.totalAmount || 0) || 0;
-  const EPS = 1; // 1 THB tolerance
+  const EPS = 1;
 
-  // --- pass 1: collect both interpretations ---
   let base_group = 0,
     taxExVat_group = 0,
     vat_group = 0,
@@ -329,13 +327,11 @@ function calcFareSummaryFromApi(rawAny) {
         else exVatInLine += amt;
       }
 
-      // A) group totals
       base_group += base;
       vat_group += vatInLine;
       taxExVat_group += exVatInLine;
       incl_group += incl;
 
-      // B) unit * paxCount
       base_unit += base * paxCount;
       vat_unit += vatInLine * paxCount;
       taxExVat_unit += exVatInLine * paxCount;
@@ -387,12 +383,7 @@ function calcFareSummaryFromApi(rawAny) {
     grandTotal,
     byType,
     rawRoot: root,
-    meta: {
-      mode,
-      totalAmountFromApi,
-      incl_group,
-      incl_unit,
-    },
+    meta: { mode, totalAmountFromApi, incl_group, incl_unit },
   };
 }
 
@@ -408,7 +399,7 @@ export default function PriceDetailSkyBlue() {
   const [lang, setLang] = useState(state?.lang === "th" ? "th" : "en");
   const t = STR[lang];
 
-  // ✅ seats saved by passenger & journeyKey
+  // seats saved by passenger & journeyKey
   const savedSeats = useSelector(selectAllSavedSeats);
 
   // Debug from navigation state
@@ -438,8 +429,8 @@ export default function PriceDetailSkyBlue() {
   const headerRef = useRef(null);
   const passengerTopRef = useRef(null);
 
-  // ✅ Snapshot for Cancel (restore old values)
-  const snapshotRef = useRef({}); // { [paxId]: deepCopyForm }
+  // Snapshot for Cancel (restore old values)
+  const snapshotRef = useRef({});
 
   // Responsive flags
   const isMobile = useMediaQuery("(max-width: 640px)", false);
@@ -536,7 +527,7 @@ export default function PriceDetailSkyBlue() {
   );
   const rawDetail = pricedFromStore ?? state?.priceDetail ?? null;
 
-  // ✅ first departure weekday
+  // first departure weekday
   const departWeekdayIdx = useMemo(() => {
     const iso = getFirstDepartIso({ selectedOffers, rawDetail });
     if (!iso) return null;
@@ -576,9 +567,12 @@ export default function PriceDetailSkyBlue() {
   // Travellers list
   const travellers = useMemo(() => {
     const arr = [];
-    for (let i = 1; i <= pax.adult; i++) arr.push({ id: `ADT-${i}`, type: "ADT", label: `${t.adult} ${i}` });
-    for (let i = 1; i <= pax.child; i++) arr.push({ id: `CHD-${i}`, type: "CHD", label: `${t.child} ${i}` });
-    for (let i = 1; i <= pax.infant; i++) arr.push({ id: `INF-${i}`, type: "INF", label: `${t.infant} ${i}` });
+    for (let i = 1; i <= pax.adult; i++)
+      arr.push({ id: `ADT-${i}`, type: "ADT", label: `${t.adult} ${i}` });
+    for (let i = 1; i <= pax.child; i++)
+      arr.push({ id: `CHD-${i}`, type: "CHD", label: `${t.child} ${i}` });
+    for (let i = 1; i <= pax.infant; i++)
+      arr.push({ id: `INF-${i}`, type: "INF", label: `${t.infant} ${i}` });
     return arr;
   }, [pax.adult, pax.child, pax.infant, t.adult, t.child, t.infant]);
 
@@ -608,7 +602,7 @@ export default function PriceDetailSkyBlue() {
 
   const updateForm = useCallback((id, v) => setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...v } })), []);
 
-  // ✅ Complete = used for chip + Continue validation only
+  // Complete = used for chip + Continue validation only
   const isComplete = useCallback((v) => Boolean(v?.firstName && v?.lastName && v?.dob), []);
 
   const firstAdultName = useMemo(() => {
@@ -628,10 +622,12 @@ export default function PriceDetailSkyBlue() {
   const [showContactErrors, setShowContactErrors] = useState(false);
   const contactValid = useMemo(() => contact.phone.trim() && contact.email.trim(), [contact.phone, contact.email]);
 
-  const canContinue = useMemo(
-    () => travellers.every((p) => isComplete(forms[p.id])) && contactValid,
-    [travellers, forms, isComplete, contactValid]
-  );
+  const canContinue = useMemo(() => travellers.every((p) => isComplete(forms[p.id])) && contactValid, [
+    travellers,
+    forms,
+    isComplete,
+    contactValid,
+  ]);
 
   // Add-ons still zero
   const currency = fareSummary?.currency || detail?.currency || "THB";
@@ -640,7 +636,7 @@ export default function PriceDetailSkyBlue() {
 
   const containerPad = "px-3 sm:px-4";
 
-  /* ========================= ✅ Ancillary buttons (PER PAX) ========================= */
+  /* ========================= Ancillary buttons (PER PAX) ========================= */
   const ANCILLARY_TABS = useMemo(
     () => [
       { key: "seat", label: t.ancSeat || "Seat" },
@@ -682,7 +678,7 @@ export default function PriceDetailSkyBlue() {
     return `border-2 ${weekdayTheme(departWeekdayIdx)} shadow-sm ${TONE_CLASS}`;
   };
 
-  // ✅ optional: if you pass holdResponse from FareSidebar navigate, keep it here later
+  // optional: if you pass holdResponse from FareSidebar navigate, keep it here later
   const holdResponseForPanel = state?.holdResponse || null;
 
   return (
@@ -702,15 +698,14 @@ export default function PriceDetailSkyBlue() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,70%)_minmax(0,30%)] gap-4">
           {/* LEFT */}
           <div className="space-y-4">
-            {/* ✅ NEW: Flight summary panel on top */}
-<FlightSummaryPanel
-  lang={lang}
-  t={t}
-  holdResponse={holdResponseForPanel}
-  rawDetail={rawDetail}          // ✅ add this
-  selectedOffers={selectedOffers}
-/>
-
+            {/* Flight summary panel on top */}
+            <FlightSummaryPanel
+              lang={lang}
+              t={t}
+              holdResponse={holdResponseForPanel}
+              rawDetail={rawDetail}
+              selectedOffers={selectedOffers}
+            />
 
             <PassengersPanel
               passengerTopRef={passengerTopRef}
@@ -737,13 +732,14 @@ export default function PriceDetailSkyBlue() {
               setContact={setContact}
               showContactErrors={showContactErrors}
               selectedOffers={selectedOffers}
+              rawDetail={rawDetail} // ✅ IMPORTANT for BaggagePanel
             />
           </div>
 
           {/* RIGHT */}
           <FareSidebar
             t={t}
-            lang={lang} // ✅ IMPORTANT: FareSidebar uses lang for confirmation state
+            lang={lang}
             isLGUp={isLGUp}
             showKeys={showKeys}
             setShowKeys={setShowKeys}
@@ -771,7 +767,7 @@ export default function PriceDetailSkyBlue() {
             detail={detail}
             rawDetail={rawDetail}
             isRoundTripSelected={isRoundTripSelected}
-            savedSeats={savedSeats} // ✅ ADD (FareSidebar will pass into buildBookingPayload)
+            savedSeats={savedSeats}
           />
         </div>
       </div>

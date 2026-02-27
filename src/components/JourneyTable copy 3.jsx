@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { selectResults, selectSearch } from "../redux/searchSlice";
@@ -8,9 +8,6 @@ import { setSelectedOfferLegs } from "../redux/offerSelectionSlice";
 import { flattenFlights } from "../utils/flattenFlights";
 import PaxChips from "./PaxChips";
 import { derivePax } from "../utils/pax";
-
-// ✅ flight selection summary
-import FlightSelectionSummary from "./FlightSelectionSummary";
 
 /** ------ Local-safe date helpers ---- */
 const ymd = (s) =>
@@ -28,8 +25,8 @@ const toLocalDate = (s) => {
 /** ---- Currency helper ---- */
 const fmtMoney = (n, currency = "THB") => {
   if (n === "" || n === null || n === undefined) return "";
-  const num = Number(n);
-  if (!isFinite(num)) return "";
+  const num = typeof n === "string" ? Number(n.replace(/,/g, "")) : Number(n);
+  if (!Number.isFinite(num)) return "";
   return `${currency} ${num.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -120,6 +117,16 @@ export default function JourneyTable({
   const globalResults = useSelector(selectResults);
   const search = useSelector(selectSearch);
 
+  // ✅ Robust read selectedOfferLegs (in case reducer key differs)
+  useSelector((s) => {
+    return (
+      s?.offerSelection?.selectedOfferLegs ||
+      s?.offerSelectionSlice?.selectedOfferLegs ||
+      s?.offerSelectionReducer?.selectedOfferLegs ||
+      []
+    );
+  });
+
   const raw = resultsOverride ?? globalResults;
 
   const currency =
@@ -159,6 +166,9 @@ export default function JourneyTable({
   // Local loading only for NEXT footer
   const [nextLoading, setNextLoading] = useState(false);
 
+  // ✅ extra: view details toggle (independent from list details)
+  const [viewOpen, setViewOpen] = useState(false);
+
   // ✅ hooks before early return
   const requestKey = selectedFare?.fareKey || "";
   const pricingStatus = useSelector(selectPricingStatus(requestKey));
@@ -166,6 +176,44 @@ export default function JourneyTable({
 
   const canNext =
     !!(selectedFare?.journeyKey && selectedFare?.fareKey) && !nextLoading;
+
+  // ✅ KEY FIX #1: Reset local selection when user clicks Search Flights (pending => status 'loading')
+  useEffect(() => {
+    if (search?.status === "loading") {
+      setSelectedRow(null);
+      setSelectedFare(null);
+      setOpenId(null);
+      setTab("depart");
+      setViewHover(false);
+      setViewOpen(false);
+    }
+  }, [search?.status]);
+
+  // ✅ KEY FIX #2: Also reset when params changed (route/date/pax/cabin/promo)
+  const searchKey = useMemo(() => {
+    const p = search?.params || {};
+    return JSON.stringify({
+      origin: p.origin,
+      destination: p.destination,
+      depart: p.depart,
+      ret: p.ret,
+      adult: p.adult,
+      child: p.child,
+      infant: p.infant,
+      promoCode: p.promoCode,
+      currency: p.currency,
+      agencyCode: p.agencyCode,
+    });
+  }, [search?.params]);
+
+  useEffect(() => {
+    setSelectedRow(null);
+    setSelectedFare(null);
+    setOpenId(null);
+    setTab("depart");
+    setViewHover(false);
+    setViewOpen(false);
+  }, [searchKey]);
 
   if (!rows.length) {
     return (
@@ -187,8 +235,7 @@ export default function JourneyTable({
       journeyKey: row.journeyKey,
       securityToken: row.securityToken || securityToken,
       currency,
-      row,
-      // help summary show route + price
+      row, // ✅ keep full object
       origin: row.origin,
       destination: row.destination,
       fareAmountIncludingTax: row.fareAmountIncludingTax,
@@ -197,6 +244,7 @@ export default function JourneyTable({
     setSelectedRow(row);
     setSelectedFare(selection);
 
+    // ✅ keep redux full row too
     dispatch(
       setSelectedOfferLegs([
         {
@@ -205,7 +253,7 @@ export default function JourneyTable({
           fareKey: selection.fareKey ?? null,
           securityToken: selection.securityToken ?? null,
           currency: selection.currency ?? currency ?? null,
-          row: selection.row ?? row ?? null,
+          row: selection.row ?? row ?? null, // ✅ important
           origin: selection.origin ?? row?.origin ?? null,
           destination: selection.destination ?? row?.destination ?? null,
           fareAmountIncludingTax:
@@ -215,6 +263,9 @@ export default function JourneyTable({
         },
       ])
     );
+
+    // when user selects a new one, reset view details toggle
+    setViewOpen(false);
 
     if (typeof onSelectRow === "function") onSelectRow(selection);
   };
@@ -231,7 +282,7 @@ export default function JourneyTable({
           fareKey: selectedFare.fareKey ?? null,
           securityToken: selectedFare.securityToken ?? null,
           currency: selectedFare.currency ?? currency ?? null,
-          row: selectedFare.row ?? selectedRow ?? null,
+          row: selectedFare.row ?? selectedRow ?? null, // ✅ keep full row
           origin: selectedFare.origin ?? selectedRow?.origin ?? null,
           destination: selectedFare.destination ?? selectedRow?.destination ?? null,
           fareAmountIncludingTax:
@@ -343,29 +394,31 @@ export default function JourneyTable({
   const accent = dowColors[dow] || "#00BFFF";
   const containerStyle = { "--dow": accent };
 
-  // selection array for summary (one-way = 1 leg)
-  const selectedOffersForSummary = useMemo(() => {
-    if (!selectedFare) return [];
-    return [
-      {
-        origin: selectedFare.origin || selectedFare.row?.origin,
-        destination: selectedFare.destination || selectedFare.row?.destination,
-        journeyKey: selectedFare.journeyKey,
-        fareKey: selectedFare.fareKey,
-        securityToken: selectedFare.securityToken,
-        currency: selectedFare.currency || currency,
-        fareAmountIncludingTax:
-          selectedFare.fareAmountIncludingTax ??
-          selectedFare.row?.fareAmountIncludingTax ??
-          null,
-      },
-    ];
-  }, [selectedFare, currency]);
+  // ✅ View Selection button enable/disable
+  const isViewDisabled = !selectedFare?.fareKey;
 
-  // View Selection idle (lighter ~60%) -> hover (stronger)
-  const viewIdleBg = hexToRgba(accent, 0.22);
-  const viewHoverBg = hexToRgba(accent, 0.35);
-  const viewIdleBorder = hexToRgba(accent, 0.55);
+  // ✅ Clear selection enable/disable
+  const isClearDisabled = !(selectedFare?.fareKey || selectedRow?.fareKey);
+
+  const handleClearSelection = () => {
+    // reset local UI
+    setSelectedRow(null);
+    setSelectedFare(null);
+    setOpenId(null);
+    setTab("depart");
+    setViewHover(false);
+    setViewOpen(false);
+
+    // reset redux selection
+    dispatch(setSelectedOfferLegs([]));
+
+    if (typeof onSelectRow === "function") onSelectRow(null);
+  };
+
+  // ✅ View Selection style
+  const viewIdleBg = hexToRgba(accent, 0.12);
+  const viewHoverBg = hexToRgba(accent, 0.18);
+  const viewIdleBorder = accent;
 
   const TabButton = ({ id, label, disabled }) => {
     const active = tab === id;
@@ -375,7 +428,7 @@ export default function JourneyTable({
       isView && !active && !disabled
         ? {
             backgroundColor: viewHover ? viewHoverBg : viewIdleBg,
-            borderColor: viewHover ? accent : viewIdleBorder,
+            borderColor: viewIdleBorder,
             color: "#111827",
           }
         : undefined;
@@ -405,6 +458,9 @@ export default function JourneyTable({
     );
   };
 
+  // ✅ Selected row for view card (the real object)
+  const viewRow = selectedFare?.row || selectedRow || null;
+
   return (
     <div className="w-full" style={containerStyle}>
       {!hideHeader && (
@@ -433,60 +489,185 @@ export default function JourneyTable({
         </h2>
       )}
 
-      {/* ✅ Responsive tabs:
-          - Mobile: Depart/Return row, then View Selection full-width row
-          - Desktop: everything in one line
-      */}
+      {/* ✅ Responsive tabs */}
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 w-full">
-        {/* left group */}
         <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
           <TabButton id="depart" label="Depart" />
           <TabButton id="return" label="Return" disabled />
         </div>
 
-        {/* right button */}
+        {/* ✅ Actions: Clear + View (mobile: 2 buttons in one row, 2-line labels; desktop: 1-line labels) */}
         <div className="w-full sm:ml-auto sm:w-auto">
-          <button
-            type="button"
-            disabled={selectedOffersForSummary.length < 1}
-            onClick={() => setTab("view")}
-            onMouseEnter={() => setViewHover(true)}
-            onMouseLeave={() => setViewHover(false)}
-            className={[
-              "w-full sm:w-auto",
-              "rounded-md text-[12px] font-bold border transition-colors px-4 py-2",
-              tab === "view"
-                ? "bg-blue-600 text-white border-blue-600"
-                : selectedOffersForSummary.length < 1
-                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                : "",
-            ].join(" ")}
-            style={
-              tab !== "view" && selectedOffersForSummary.length >= 1
-                ? {
-                    backgroundColor: viewHover ? viewHoverBg : viewIdleBg,
-                    borderColor: viewHover ? accent : viewIdleBorder,
-                    color: "#111827",
-                  }
-                : undefined
-            }
-          >
-            View Selection
-          </button>
+          <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
+            <button
+              type="button"
+              disabled={isClearDisabled}
+              onClick={handleClearSelection}
+              className={[
+                "w-full sm:w-auto",
+                "h-10 sm:h-9",
+                "px-3 sm:px-4",
+                "rounded-md",
+                "border",
+                "text-[12px] sm:text-sm font-bold",
+                "leading-[1.05] sm:leading-normal",
+                "transition-colors",
+                "whitespace-normal sm:whitespace-nowrap",
+                isClearDisabled
+                  ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                  : "bg-white text-slate-700 border-slate-200 hover:border-[var(--dow)] hover:bg-slate-50",
+              ].join(" ")}
+              aria-label="Clear selection"
+            >
+              <span className="block sm:inline">Clear</span>
+              <span className="block sm:inline sm:ml-1">selection</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isViewDisabled}
+              onClick={() => setTab("view")}
+              onMouseEnter={() => setViewHover(true)}
+              onMouseLeave={() => setViewHover(false)}
+              className={[
+                "w-full sm:w-auto",
+                "h-10 sm:h-9",
+                "px-3 sm:px-4",
+                "rounded-md",
+                "border",
+                "text-[12px] sm:text-sm font-bold",
+                "leading-[1.05] sm:leading-normal",
+                "transition-colors",
+                "whitespace-normal sm:whitespace-nowrap",
+                tab === "view"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : isViewDisabled
+                  ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                  : "",
+              ].join(" ")}
+              style={
+                tab !== "view" && !isViewDisabled
+                  ? {
+                      backgroundColor: viewHover ? viewHoverBg : viewIdleBg,
+                      borderColor: viewIdleBorder,
+                      color: "#111827",
+                    }
+                  : undefined
+              }
+              aria-label="View selection"
+            >
+              <span className="block sm:inline">View</span>
+              <span className="block sm:inline sm:ml-1">Selection</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* View Selection panel */}
+      {/* ✅ View Selection panel (NOW renders the real flight card, with Details toggle) */}
       {tab === "view" && (
         <div className="mb-3">
-          <FlightSelectionSummary
-            lang="en"
-            selectedOffers={selectedOffersForSummary}
-            requireTwoLegs={false}
-            showDetails={false}
-            paxCount={totalPax}
-            currency={currency}
-          />
+          {!viewRow ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-[13px] text-slate-600">
+              No flight selected yet.
+            </div>
+          ) : (
+            <article
+              style={{ "--dow": accent }}
+              className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
+            >
+              {/* LEFT META */}
+              <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
+                <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
+                  <img
+                    className="w-full h-full object-cover"
+                    alt="Nok Air"
+                    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
+                  />
+                </div>
+                <div>
+                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
+                    Economy
+                  </span>
+
+                  <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
+                    {viewRow.flightNumber || viewRow.id}&nbsp;&nbsp;{viewRow.origin} →{" "}
+                    {viewRow.destination}
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <div className="text-[18px] font-extrabold">{viewRow.departureTime}</div>
+                    <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
+                      <span className="absolute left-0 right-0 mx-auto -top-[7px] block h-[1px] w-[80px] bg-slate-300 rounded" />
+                    </div>
+                    <div className="text-[18px] font-extrabold">{viewRow.arrivalTime}</div>
+                  </div>
+
+                  {/* Foot meta */}
+                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
+                    <span>
+                      {viewRow.aircraftDescription
+                        ? `${viewRow.aircraftDescription} • ${viewRow.duration}`
+                        : viewRow.duration}
+                    </span>
+                    <span>•</span>
+                    <span>Nonstop</span>
+                    <span>•</span>
+                    <span>7 kg per person</span>
+                    {viewRow.co2 && (
+                      <>
+                        <span>•</span>
+                        <span>{viewRow.co2}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT — price / actions (NO Select here) */}
+              <div className="flex flex-col items-end gap-1.5">
+                <div className="text-right">
+                  <span
+                    className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
+                    style={{
+                      color: "#0b4f8a",
+                      backgroundColor: hexToRgba(accent, 0.12),
+                    }}
+                  >
+                    {fmtMoney(viewRow.fareAmountIncludingTax, currency)}
+                  </span>
+
+                  <div className="text-[10px] text-slate-500">
+                    <span className="mr-2">ADT {pax.adult || 0}</span>
+                    {(pax.child || 0) > 0 && <span className="mr-2">CHD {pax.child}</span>}
+                    / {totalPax} pax*
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setViewOpen((v) => !v)}
+                  className={
+                    "text-[11px] border-b border-dashed transition-colors " +
+                    (viewOpen
+                      ? "text-blue-700 border-blue-300"
+                      : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
+                  }
+                >
+                  {viewOpen ? "Hide details ▴" : "Details ▾"}
+                </button>
+              </div>
+
+              {/* INLINE DETAILS */}
+              <div
+                className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
+                  viewOpen ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
+                }`}
+                aria-hidden={!viewOpen}
+              >
+                <InlineDetails row={viewRow} accent={accent} />
+              </div>
+            </article>
+          )}
         </div>
       )}
 
@@ -525,23 +706,17 @@ export default function JourneyTable({
 
                     {/* Timeline */}
                     <div className="flex items-center gap-3 mt-0.5">
-                      <div className="text-[18px] font-extrabold">
-                        {row.departureTime}
-                      </div>
+                      <div className="text-[18px] font-extrabold">{row.departureTime}</div>
                       <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
                         <span className="absolute left-0 right-0 mx-auto -top-[7px] block h-[1px] w-[80px] bg-slate-300 rounded" />
                       </div>
-                      <div className="text-[18px] font-extrabold">
-                        {row.arrivalTime}
-                      </div>
+                      <div className="text-[18px] font-extrabold">{row.arrivalTime}</div>
                     </div>
 
                     {/* Foot meta */}
                     <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
                       <span>
-                        {row.aircraftDescription
-                          ? `${row.aircraftDescription} • ${row.duration}`
-                          : row.duration}
+                        {row.aircraftDescription ? `${row.aircraftDescription} • ${row.duration}` : row.duration}
                       </span>
                       <span>•</span>
                       <span>Nonstop</span>
@@ -564,9 +739,7 @@ export default function JourneyTable({
                       className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
                       style={{
                         color: selected ? "#4927F5" : "#0b4f8a",
-                        backgroundColor: selected
-                          ? hexToRgba(accent, 0.18)
-                          : "transparent",
+                        backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent",
                       }}
                     >
                       {fmtMoney(row.fareAmountIncludingTax, currency)}
@@ -574,9 +747,7 @@ export default function JourneyTable({
 
                     <div className="text-[10px] text-slate-500">
                       <span className="mr-2">ADT {pax.adult || 0}</span>
-                      {(pax.child || 0) > 0 && (
-                        <span className="mr-2">CHD {pax.child}</span>
-                      )}
+                      {(pax.child || 0) > 0 && <span className="mr-2">CHD {pax.child}</span>}
                       / {totalPax} pax*
                     </div>
                   </div>
@@ -585,9 +756,7 @@ export default function JourneyTable({
                     onClick={() => selectLite(row)}
                     className={
                       "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
-                      (selected
-                        ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
-                        : "bg-[#0B73B1] hover:bg-[var(--dow)]")
+                      (selected ? "bg-[#0a65a0] hover:bg-[var(--dow)]" : "bg-[#0B73B1] hover:bg-[var(--dow)]")
                     }
                   >
                     {selected ? "Selected" : "Select"}
@@ -609,9 +778,7 @@ export default function JourneyTable({
                 {/* INLINE DETAILS */}
                 <div
                   className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
-                    open
-                      ? "grid-rows-[1fr] border-slate-200"
-                      : "grid-rows-[0fr] border-transparent"
+                    open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
                   }`}
                   aria-hidden={!open}
                 >
@@ -625,9 +792,7 @@ export default function JourneyTable({
 
       {/* Footer (Original NEXT stays) */}
       <div className="mt-2 flex items-center justify-end gap-2">
-        {nextLoading && (
-          <div className="text-xs text-slate-600">Loading price & seat map…</div>
-        )}
+        {nextLoading && <div className="text-xs text-slate-600">Loading price & seat map…</div>}
         {!nextLoading && pricingStatus === "failed" && (
           <div className="text-xs text-red-600">Failed to load price.</div>
         )}
@@ -641,9 +806,7 @@ export default function JourneyTable({
             disabled={!canNext}
             className={
               "px-3 py-1.5 rounded-md text-white text-xs transition-colors " +
-              (canNext
-                ? "bg-blue-600 hover:bg-[var(--dow)]"
-                : "bg-gray-300 cursor-not-allowed")
+              (canNext ? "bg-blue-600 hover:bg-[var(--dow)]" : "bg-gray-300 cursor-not-allowed")
             }
           >
             {nextLoading ? "Loading..." : "NEXT"}

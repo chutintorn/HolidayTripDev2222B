@@ -83,60 +83,42 @@
   }
 }
 
-/* =========================================================
-   ✅ Mobile "near full width" DateRangePicker popup
-   - Uses !important to beat RSuite default/inline constraints
-   ========================================================= */
-@media (max-width: 767px) {
-  /* allow popup to use the full viewport width */
-  .rs-picker-popup,
-  .rs-picker-popup.rs-picker-popup-daterange {
-    max-width: 100vw !important;
+/* ----------------------------------------------------
+   (Optional) react-datepicker polish (kept from yours)
+   Safe to remove if you no longer use react-datepicker
+   ---------------------------------------------------- */
+@layer components {
+  .rdp-input {
+    @apply block w-full rounded-xl border border-gray-300 shadow-sm
+           px-4 py-3 text-base
+           focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50;
   }
 
-  /* main daterange menu container */
-  .rs-picker-daterange-menu {
-    width: calc(100vw - 16px) !important;
-    max-width: calc(100vw - 16px) !important;
-    min-width: unset !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
+  .rdp-calendar {
+    @apply rounded-xl border shadow-lg bg-white p-2 text-sm;
   }
 
-  /* make date cells easier to tap */
-  .rs-calendar-table-cell-content {
-    width: 40px !important;
-    height: 40px !important;
-    line-height: 40px !important;
+  .react-datepicker__header {
+    @apply bg-white border-b px-3 py-2;
   }
-}
-/* ===== Calendar Header Restyle (Match DateNavigator tone) ===== */
 
-.rs-calendar-header {
-  background: linear-gradient(to right, #e0f2fe, #f0f9ff);
-  border-radius: 14px 14px 0 0;
-  padding: 8px 12px;
-}
+  .react-datepicker__current-month,
+  .react-datepicker__year-read-view--selected-year,
+  .react-datepicker__month-read-view--selected-month {
+    @apply font-semibold;
+  }
 
-.rs-calendar-header-title {
-  font-weight: 700;
-  font-size: 14px;
-  color: #0369a1; /* sky-700 */
-}
+  .react-datepicker__day {
+    @apply w-9 h-9 leading-9;
+  }
 
-.rs-calendar-header-forward,
-.rs-calendar-header-backward {
-  background: #e0f2fe;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
+  .react-datepicker__day--selected,
+  .react-datepicker__day--in-selecting-range,
+  .react-datepicker__day--in-range {
+    @apply bg-blue-600 text-white;
+  }
 
-.rs-calendar-header-forward:hover,
-.rs-calendar-header-backward:hover {
-  background: #bae6fd;
-}
-
-.rs-calendar-header-forward svg,
-.rs-calendar-header-backward svg {
-  fill: #0284c7; /* sky-600 */
+  .react-datepicker__day--keyboard-selected {
+    @apply bg-blue-100 text-blue-700;
+  }
 }
