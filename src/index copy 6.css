@@ -110,33 +110,3 @@
     line-height: 40px !important;
   }
 }
-/* ===== Calendar Header Restyle (Match DateNavigator tone) ===== */
-
-.rs-calendar-header {
-  background: linear-gradient(to right, #e0f2fe, #f0f9ff);
-  border-radius: 14px 14px 0 0;
-  padding: 8px 12px;
-}
-
-.rs-calendar-header-title {
-  font-weight: 700;
-  font-size: 14px;
-  color: #0369a1; /* sky-700 */
-}
-
-.rs-calendar-header-forward,
-.rs-calendar-header-backward {
-  background: #e0f2fe;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.rs-calendar-header-forward:hover,
-.rs-calendar-header-backward:hover {
-  background: #bae6fd;
-}
-
-.rs-calendar-header-forward svg,
-.rs-calendar-header-backward svg {
-  fill: #0284c7; /* sky-600 */
-}

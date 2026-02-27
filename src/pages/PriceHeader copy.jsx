@@ -57,6 +57,8 @@ export default function PriceHeader({ headerRef, containerPad, lang, setLang, t,
       <div className={`mx-auto max-w-6xl ${containerPad} pb-3`}>
         <h1 className="text-xl font-bold text-blue-600">{t.title}</h1>
       </div>
+      
+      
     </div>
   );
 }

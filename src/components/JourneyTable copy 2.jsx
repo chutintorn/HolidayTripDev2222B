@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { selectResults, selectSearch } from "../redux/searchSlice";
@@ -8,9 +8,6 @@ import { setSelectedOfferLegs } from "../redux/offerSelectionSlice";
 import { flattenFlights } from "../utils/flattenFlights";
 import PaxChips from "./PaxChips";
 import { derivePax } from "../utils/pax";
-
-// ✅ NEW: flight selection summary
-import FlightSelectionSummary from "./FlightSelectionSummary";
 
 /** ------ Local-safe date helpers ---- */
 const ymd = (s) =>
@@ -28,8 +25,8 @@ const toLocalDate = (s) => {
 /** ---- Currency helper ---- */
 const fmtMoney = (n, currency = "THB") => {
   if (n === "" || n === null || n === undefined) return "";
-  const num = Number(n);
-  if (!isFinite(num)) return "";
+  const num = typeof n === "string" ? Number(n.replace(/,/g, "")) : Number(n);
+  if (!Number.isFinite(num)) return "";
   return `${currency} ${num.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -75,8 +72,7 @@ function InlineDetails({ row, accent }) {
           <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
           <div className="bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 shadow-sm">
             <div className="font-bold text-blue-700 text-[14px]">
-              {row?.marketingCarrier || "Nok Air"},{" "}
-              {row?.flightNumber || ""}
+              {row?.marketingCarrier || "Nok Air"}, {row?.flightNumber || ""}
             </div>
             <div className="text-slate-500">Short-haul</div>
             <div className="text-[11px] mt-1">
@@ -110,7 +106,7 @@ export default function JourneyTable({
   securityTokenOverride,
   titleOverride,
   hideHeader = false,
-  showNextButton = false,
+  showNextButton = false, // keep original footer NEXT behavior
   onSelectRow,
   onNext,
 }) {
@@ -120,6 +116,16 @@ export default function JourneyTable({
   // Pull data from redux
   const globalResults = useSelector(selectResults);
   const search = useSelector(selectSearch);
+
+  // ✅ Robust read selectedOfferLegs (in case reducer key differs)
+  useSelector((s) => {
+    return (
+      s?.offerSelection?.selectedOfferLegs ||
+      s?.offerSelectionSlice?.selectedOfferLegs ||
+      s?.offerSelectionReducer?.selectedOfferLegs ||
+      []
+    );
+  });
 
   const raw = resultsOverride ?? globalResults;
 
@@ -153,20 +159,61 @@ export default function JourneyTable({
   const [selectedFare, setSelectedFare] = useState(null);
   const [openId, setOpenId] = useState(null);
 
-  // ✅ NEW: Tabs for UX (Depart / Return / View Selection)
+  // ✅ Tabs: depart | return(disabled here) | view
   const [tab, setTab] = useState("depart"); // "depart" | "return" | "view"
+  const [viewHover, setViewHover] = useState(false);
 
-  // Local loading only for NEXT, so we can always navigate on seat failure
+  // Local loading only for NEXT footer
   const [nextLoading, setNextLoading] = useState(false);
 
-  // ✅ IMPORTANT FIX: hooks must be called BEFORE any early-return
+  // ✅ extra: view details toggle (independent from list details)
+  const [viewOpen, setViewOpen] = useState(false);
+
+  // ✅ hooks before early return
   const requestKey = selectedFare?.fareKey || "";
   const pricingStatus = useSelector(selectPricingStatus(requestKey));
   const seatStatus = useSelector(selectSeatMapStatus(requestKey));
 
-  // ✅ allow NEXT only when selectedFare is valid and not loading
   const canNext =
     !!(selectedFare?.journeyKey && selectedFare?.fareKey) && !nextLoading;
+
+  // ✅ KEY FIX #1: Reset local selection when user clicks Search Flights (pending => status 'loading')
+  useEffect(() => {
+    if (search?.status === "loading") {
+      setSelectedRow(null);
+      setSelectedFare(null);
+      setOpenId(null);
+      setTab("depart");
+      setViewHover(false);
+      setViewOpen(false);
+    }
+  }, [search?.status]);
+
+  // ✅ KEY FIX #2: Also reset when params changed (route/date/pax/cabin/promo)
+  const searchKey = useMemo(() => {
+    const p = search?.params || {};
+    return JSON.stringify({
+      origin: p.origin,
+      destination: p.destination,
+      depart: p.depart,
+      ret: p.ret,
+      adult: p.adult,
+      child: p.child,
+      infant: p.infant,
+      promoCode: p.promoCode,
+      currency: p.currency,
+      agencyCode: p.agencyCode,
+    });
+  }, [search?.params]);
+
+  useEffect(() => {
+    setSelectedRow(null);
+    setSelectedFare(null);
+    setOpenId(null);
+    setTab("depart");
+    setViewHover(false);
+    setViewOpen(false);
+  }, [searchKey]);
 
   if (!rows.length) {
     return (
@@ -188,8 +235,7 @@ export default function JourneyTable({
       journeyKey: row.journeyKey,
       securityToken: row.securityToken || securityToken,
       currency,
-      row,
-      // ✅ include common fields so summary can show route and price
+      row, // ✅ keep full object
       origin: row.origin,
       destination: row.destination,
       fareAmountIncludingTax: row.fareAmountIncludingTax,
@@ -198,7 +244,7 @@ export default function JourneyTable({
     setSelectedRow(row);
     setSelectedFare(selection);
 
-    // ✅ update Redux store with fareKey/journeyKey (as legs[])
+    // ✅ keep redux full row too
     dispatch(
       setSelectedOfferLegs([
         {
@@ -207,24 +253,26 @@ export default function JourneyTable({
           fareKey: selection.fareKey ?? null,
           securityToken: selection.securityToken ?? null,
           currency: selection.currency ?? currency ?? null,
-          row: selection.row ?? row ?? null,
+          row: selection.row ?? row ?? null, // ✅ important
           origin: selection.origin ?? row?.origin ?? null,
           destination: selection.destination ?? row?.destination ?? null,
           fareAmountIncludingTax:
-            selection.fareAmountIncludingTax ?? row?.fareAmountIncludingTax ?? null,
+            selection.fareAmountIncludingTax ??
+            row?.fareAmountIncludingTax ??
+            null,
         },
       ])
     );
 
-    if (typeof onSelectRow === "function") {
-      onSelectRow(selection);
-    }
+    // when user selects a new one, reset view details toggle
+    setViewOpen(false);
+
+    if (typeof onSelectRow === "function") onSelectRow(selection);
   };
 
-  // --- NEXT: fire /pricedetails and /seat-map in parallel (seat is best-effort)
+  // --- NEXT footer: /pricedetails + /seat-map (seat best-effort)
   const handleInternalNext = async () => {
     if (!selectedFare?.journeyKey || !selectedFare?.fareKey) return;
-    console.log("NEXT with", selectedFare);
 
     dispatch(
       setSelectedOfferLegs([
@@ -234,20 +282,19 @@ export default function JourneyTable({
           fareKey: selectedFare.fareKey ?? null,
           securityToken: selectedFare.securityToken ?? null,
           currency: selectedFare.currency ?? currency ?? null,
-          row: selectedFare.row ?? selectedRow ?? null,
+          row: selectedFare.row ?? selectedRow ?? null, // ✅ keep full row
           origin: selectedFare.origin ?? selectedRow?.origin ?? null,
           destination: selectedFare.destination ?? selectedRow?.destination ?? null,
           fareAmountIncludingTax:
-            selectedFare.fareAmountIncludingTax ?? selectedRow?.fareAmountIncludingTax ?? null,
+            selectedFare.fareAmountIncludingTax ??
+            selectedRow?.fareAmountIncludingTax ??
+            null,
         },
       ])
     );
 
     if (typeof onNext === "function") {
-      onNext({
-        journeyKey: selectedFare.journeyKey,
-        fareKey: selectedFare.fareKey,
-      });
+      onNext({ journeyKey: selectedFare.journeyKey, fareKey: selectedFare.fareKey });
       return;
     }
 
@@ -267,25 +314,17 @@ export default function JourneyTable({
     const commonHeaders = { "Content-Type": "application/json" };
     const priceHeaders = {
       ...commonHeaders,
-      ...(selectedFare.securityToken
-        ? { securitytoken: selectedFare.securityToken }
-        : {}),
+      ...(selectedFare.securityToken ? { securitytoken: selectedFare.securityToken } : {}),
     };
     const seatHeaders = {
       ...commonHeaders,
-      ...(selectedFare.securityToken
-        ? { securitytoken: selectedFare.securityToken }
-        : {}),
+      ...(selectedFare.securityToken ? { securitytoken: selectedFare.securityToken } : {}),
     };
 
     setNextLoading(true);
     try {
       const priceP = dispatch(
-        fetchPriceDetail({
-          offers,
-          currency,
-          includeSeats: false,
-        })
+        fetchPriceDetail({ offers, currency, includeSeats: false })
       ).unwrap();
 
       const seatP = dispatch(fetchSeatMap({ offers, agencyCode: "" })).unwrap();
@@ -298,16 +337,12 @@ export default function JourneyTable({
       }
 
       const seatOk = seatRes.status === "fulfilled";
-      const seatError = seatOk
-        ? null
-        : seatRes.reason?.message || "Seat map failed.";
+      const seatError = seatOk ? null : seatRes.reason?.message || "Seat map failed.";
       const seatRaw = seatOk ? seatRes.value : null;
-
-      const requestKey = selectedFare.fareKey;
 
       navigate("/skyblue-price-detail", {
         state: {
-          requestKey,
+          requestKey: selectedFare.fareKey,
           seatOk,
           seatError,
           seatRaw,
@@ -337,7 +372,7 @@ export default function JourneyTable({
     }
   };
 
-  // ===== Day color (same theme as header) =====
+  // ===== Day color =====
   const depDate = toLocalDate(rows[0]?.departureDate);
   const ddMMM = depDate
     ? depDate
@@ -359,57 +394,54 @@ export default function JourneyTable({
   const accent = dowColors[dow] || "#00BFFF";
   const containerStyle = { "--dow": accent };
 
-  // ✅ selectedOffers for summary (one-way = 1 leg)
-  const selectedOffersForSummary = useMemo(() => {
-    if (!selectedFare) return [];
-    return [
-      {
-        origin: selectedFare.origin || selectedFare.row?.origin,
-        destination: selectedFare.destination || selectedFare.row?.destination,
-        journeyKey: selectedFare.journeyKey,
-        fareKey: selectedFare.fareKey,
-        securityToken: selectedFare.securityToken,
-        currency: selectedFare.currency || currency,
-        // important price field
-        fareAmountIncludingTax:
-          selectedFare.fareAmountIncludingTax ??
-          selectedFare.row?.fareAmountIncludingTax ??
-          null,
-      },
-    ];
-  }, [selectedFare, currency]);
+  // ✅ View Selection button enable/disable
+  const isViewDisabled = !selectedFare?.fareKey;
 
-  // ✅ tabs: same size, View Selection on rightmost.
-  const TabButton = ({ id, label, right = false, disabled: dis = false }) => {
+  // ✅ View Selection style
+  const viewIdleBg = hexToRgba(accent, 0.12);
+  const viewHoverBg = hexToRgba(accent, 0.18);
+  const viewIdleBorder = accent;
+
+  const TabButton = ({ id, label, disabled }) => {
     const active = tab === id;
+    const isView = id === "view";
 
-    // View Selection idle => accent day-color
-    const viewIdleStyle =
-      id === "view" && !active && !dis
-        ? { backgroundColor: accent, color: "#111827", borderColor: accent }
-        : null;
+    const style =
+      isView && !active && !disabled
+        ? {
+            backgroundColor: viewHover ? viewHoverBg : viewIdleBg,
+            borderColor: viewIdleBorder,
+            color: "#111827",
+          }
+        : undefined;
 
     return (
       <button
         type="button"
-        onClick={() => !dis && setTab(id)}
-        disabled={!!dis}
+        disabled={!!disabled}
+        onClick={() => !disabled && setTab(id)}
+        onMouseEnter={() => isView && setViewHover(true)}
+        onMouseLeave={() => isView && setViewHover(false)}
         className={[
-          "px-4 py-2 rounded-md text-[12px] font-bold border transition-colors",
-          "min-w-[140px] text-center", // ✅ same size
-          right ? "ml-auto" : "",
-          dis
+          "rounded-md text-[12px] font-bold border transition-colors",
+          "px-4 py-2",
+          disabled
             ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
             : active
             ? "bg-blue-600 text-white border-blue-600"
-            : "bg-white text-slate-700 border-slate-200 hover:border-[var(--dow)]",
+            : !isView
+            ? "bg-white text-slate-700 border-slate-200 hover:border-[var(--dow)]"
+            : "",
         ].join(" ")}
-        style={viewIdleStyle}
+        style={style}
       >
         {label}
       </button>
     );
   };
+
+  // ✅ Selected row for view card (the real object)
+  const viewRow = selectedFare?.row || selectedRow || null;
 
   return (
     <div className="w-full" style={containerStyle}>
@@ -439,33 +471,149 @@ export default function JourneyTable({
         </h2>
       )}
 
-      {/* ✅ Tabs row */}
-      <div className="mb-3 flex items-center gap-2 w-full">
-        <div className="flex items-center gap-2">
+      {/* ✅ Responsive tabs */}
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 w-full">
+        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
           <TabButton id="depart" label="Depart" />
-          {/* one-way: keep Return disabled for now (roundtrip later) */}
           <TabButton id="return" label="Return" disabled />
         </div>
 
-        <TabButton
-          id="view"
-          label="View Selection"
-          right
-          disabled={selectedOffersForSummary.length < 1}
-        />
+        <div className="w-full sm:ml-auto sm:w-auto">
+          <button
+            type="button"
+            disabled={isViewDisabled}
+            onClick={() => setTab("view")}
+            onMouseEnter={() => setViewHover(true)}
+            onMouseLeave={() => setViewHover(false)}
+            className={[
+              "w-full sm:w-auto",
+              "rounded-md text-[12px] font-bold border transition-colors px-4 py-2",
+              tab === "view"
+                ? "bg-blue-600 text-white border-blue-600"
+                : isViewDisabled
+                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                : "",
+            ].join(" ")}
+            style={
+              tab !== "view" && !isViewDisabled
+                ? {
+                    backgroundColor: viewHover ? viewHoverBg : viewIdleBg,
+                    borderColor: viewIdleBorder,
+                    color: "#111827",
+                  }
+                : undefined
+            }
+          >
+            View Selection
+          </button>
+        </div>
       </div>
 
-      {/* ✅ View Selection panel (only show when tab=view) */}
+      {/* ✅ View Selection panel (NOW renders the real flight card, with Details toggle) */}
       {tab === "view" && (
         <div className="mb-3">
-          <FlightSelectionSummary
-            lang="en"
-            selectedOffers={selectedOffersForSummary}
-            requireTwoLegs={false}
-            showDetails={false}
-            paxCount={totalPax}
-            currency={currency}
-          />
+          {!viewRow ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-[13px] text-slate-600">
+              No flight selected yet.
+            </div>
+          ) : (
+            <article
+              style={{ "--dow": accent }}
+              className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
+            >
+              {/* LEFT META */}
+              <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
+                <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
+                  <img
+                    className="w-full h-full object-cover"
+                    alt="Nok Air"
+                    src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHBKoufNO6L_f1AvGmnvXR7b5TfMiDQGjH6w&s"
+                  />
+                </div>
+                <div>
+                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
+                    Economy
+                  </span>
+
+                  <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
+                    {viewRow.flightNumber || viewRow.id}&nbsp;&nbsp;{viewRow.origin} →{" "}
+                    {viewRow.destination}
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <div className="text-[18px] font-extrabold">{viewRow.departureTime}</div>
+                    <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
+                      <span className="absolute left-0 right-0 mx-auto -top-[7px] block h-[1px] w-[80px] bg-slate-300 rounded" />
+                    </div>
+                    <div className="text-[18px] font-extrabold">{viewRow.arrivalTime}</div>
+                  </div>
+
+                  {/* Foot meta */}
+                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
+                    <span>
+                      {viewRow.aircraftDescription
+                        ? `${viewRow.aircraftDescription} • ${viewRow.duration}`
+                        : viewRow.duration}
+                    </span>
+                    <span>•</span>
+                    <span>Nonstop</span>
+                    <span>•</span>
+                    <span>7 kg per person</span>
+                    {viewRow.co2 && (
+                      <>
+                        <span>•</span>
+                        <span>{viewRow.co2}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT — price / actions (NO Select here) */}
+              <div className="flex flex-col items-end gap-1.5">
+                <div className="text-right">
+                  <span
+                    className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
+                    style={{
+                      color: "#0b4f8a",
+                      backgroundColor: hexToRgba(accent, 0.12),
+                    }}
+                  >
+                    {fmtMoney(viewRow.fareAmountIncludingTax, currency)}
+                  </span>
+
+                  <div className="text-[10px] text-slate-500">
+                    <span className="mr-2">ADT {pax.adult || 0}</span>
+                    {(pax.child || 0) > 0 && <span className="mr-2">CHD {pax.child}</span>}
+                    / {totalPax} pax*
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setViewOpen((v) => !v)}
+                  className={
+                    "text-[11px] border-b border-dashed transition-colors " +
+                    (viewOpen
+                      ? "text-blue-700 border-blue-300"
+                      : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
+                  }
+                >
+                  {viewOpen ? "Hide details ▴" : "Details ▾"}
+                </button>
+              </div>
+
+              {/* INLINE DETAILS */}
+              <div
+                className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
+                  viewOpen ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
+                }`}
+                aria-hidden={!viewOpen}
+              >
+                <InlineDetails row={viewRow} accent={accent} />
+              </div>
+            </article>
+          )}
         </div>
       )}
 
@@ -475,7 +623,6 @@ export default function JourneyTable({
           {rows.map((row, idx) => {
             const cardId = row.id || `${row.flightNumber}-${idx}`;
             const open = openId === cardId;
-
             const selected = selectedRow?.fareKey === row.fareKey;
 
             return (
@@ -505,23 +652,17 @@ export default function JourneyTable({
 
                     {/* Timeline */}
                     <div className="flex items-center gap-3 mt-0.5">
-                      <div className="text-[18px] font-extrabold">
-                        {row.departureTime}
-                      </div>
+                      <div className="text-[18px] font-extrabold">{row.departureTime}</div>
                       <div className="flex-1 h-[1px] bg-slate-200 relative rounded">
                         <span className="absolute left-0 right-0 mx-auto -top-[7px] block h-[1px] w-[80px] bg-slate-300 rounded" />
                       </div>
-                      <div className="text-[18px] font-extrabold">
-                        {row.arrivalTime}
-                      </div>
+                      <div className="text-[18px] font-extrabold">{row.arrivalTime}</div>
                     </div>
 
                     {/* Foot meta */}
                     <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-1">
                       <span>
-                        {row.aircraftDescription
-                          ? `${row.aircraftDescription} • ${row.duration}`
-                          : row.duration}
+                        {row.aircraftDescription ? `${row.aircraftDescription} • ${row.duration}` : row.duration}
                       </span>
                       <span>•</span>
                       <span>Nonstop</span>
@@ -544,9 +685,7 @@ export default function JourneyTable({
                       className="font-bold text-[20px] leading-none px-2 py-1 rounded transition-colors"
                       style={{
                         color: selected ? "#4927F5" : "#0b4f8a",
-                        backgroundColor: selected
-                          ? hexToRgba(accent, 0.18)
-                          : "transparent",
+                        backgroundColor: selected ? hexToRgba(accent, 0.18) : "transparent",
                       }}
                     >
                       {fmtMoney(row.fareAmountIncludingTax, currency)}
@@ -554,9 +693,7 @@ export default function JourneyTable({
 
                     <div className="text-[10px] text-slate-500">
                       <span className="mr-2">ADT {pax.adult || 0}</span>
-                      {(pax.child || 0) > 0 && (
-                        <span className="mr-2">CHD {pax.child}</span>
-                      )}
+                      {(pax.child || 0) > 0 && <span className="mr-2">CHD {pax.child}</span>}
                       / {totalPax} pax*
                     </div>
                   </div>
@@ -565,9 +702,7 @@ export default function JourneyTable({
                     onClick={() => selectLite(row)}
                     className={
                       "rounded-lg text-white font-bold px-3 py-1.5 shadow min-w-[100px] text-sm transition-colors " +
-                      (selected
-                        ? "bg-[#0a65a0] hover:bg-[var(--dow)]"
-                        : "bg-[#0B73B1] hover:bg-[var(--dow)]")
+                      (selected ? "bg-[#0a65a0] hover:bg-[var(--dow)]" : "bg-[#0B73B1] hover:bg-[var(--dow)]")
                     }
                   >
                     {selected ? "Selected" : "Select"}
@@ -586,12 +721,10 @@ export default function JourneyTable({
                   </button>
                 </div>
 
-                {/* INLINE DETAILS (expanded) */}
+                {/* INLINE DETAILS */}
                 <div
                   className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
-                    open
-                      ? "grid-rows-[1fr] border-slate-200"
-                      : "grid-rows-[0fr] border-transparent"
+                    open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
                   }`}
                   aria-hidden={!open}
                 >
@@ -603,13 +736,9 @@ export default function JourneyTable({
         </div>
       )}
 
-      {/* Footer (NEXT original stays as-is) */}
+      {/* Footer (Original NEXT stays) */}
       <div className="mt-2 flex items-center justify-end gap-2">
-        {nextLoading && (
-          <div className="text-xs text-slate-600">
-            Loading price & seat map…
-          </div>
-        )}
+        {nextLoading && <div className="text-xs text-slate-600">Loading price & seat map…</div>}
         {!nextLoading && pricingStatus === "failed" && (
           <div className="text-xs text-red-600">Failed to load price.</div>
         )}
@@ -623,9 +752,7 @@ export default function JourneyTable({
             disabled={!canNext}
             className={
               "px-3 py-1.5 rounded-md text-white text-xs transition-colors " +
-              (canNext
-                ? "bg-blue-600 hover:bg-[var(--dow)]"
-                : "bg-gray-300 cursor-not-allowed")
+              (canNext ? "bg-blue-600 hover:bg-[var(--dow)]" : "bg-gray-300 cursor-not-allowed")
             }
           >
             {nextLoading ? "Loading..." : "NEXT"}

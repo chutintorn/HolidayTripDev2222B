@@ -39,7 +39,7 @@ export default function RoundTripTabs({
         disabled={false} // ✅ allow Return first
       />
 
-    <div className="flex items-center gap-2 sm:ml-auto">
+      <div className="ml-auto flex items-center gap-2">
         <button
           type="button"
           onClick={onReset}

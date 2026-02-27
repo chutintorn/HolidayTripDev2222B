@@ -373,7 +373,7 @@ export default function TripFormBasic({ onSubmit }) {
 
   // ✅ Minimum price summary from current results (may be null while loading)
   const minSummary = useMemo(() => {
-    if (!results) return null;
+    if (!results) return null; 
     return getMinPriceSummary(results, {
       tripType,
       origin: origin.trim().toUpperCase(),
@@ -425,9 +425,7 @@ export default function TripFormBasic({ onSubmit }) {
               onChange={setOrigin}
               placeholder={t.placeholders?.from ?? (isTH ? "ต้นทาง" : "From")}
             />
-            <div className="px-1 pt-1 text-xs text-slate-500">
-              {t.form?.allAirports ?? (isTH ? "ทุกสนามบิน" : "All airports")}
-            </div>
+
           </div>
 
           {/* To */}
@@ -437,9 +435,7 @@ export default function TripFormBasic({ onSubmit }) {
               onChange={setDestination}
               placeholder={t.placeholders?.to ?? (isTH ? "ปลายทาง" : "To")}
             />
-            <div className="px-1 pt-1 text-xs text-slate-500">
-              {t.form?.allAirports ?? (isTH ? "ทุกสนามบิน" : "All airports")}
-            </div>
+
           </div>
 
           {/* Depart */}

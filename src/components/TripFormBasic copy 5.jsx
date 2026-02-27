@@ -373,7 +373,7 @@ export default function TripFormBasic({ onSubmit }) {
 
   // ✅ Minimum price summary from current results (may be null while loading)
   const minSummary = useMemo(() => {
-    if (!results) return null;
+    if (!results) return null; 
     return getMinPriceSummary(results, {
       tripType,
       origin: origin.trim().toUpperCase(),
@@ -425,9 +425,7 @@ export default function TripFormBasic({ onSubmit }) {
               onChange={setOrigin}
               placeholder={t.placeholders?.from ?? (isTH ? "ต้นทาง" : "From")}
             />
-            <div className="px-1 pt-1 text-xs text-slate-500">
-              {t.form?.allAirports ?? (isTH ? "ทุกสนามบิน" : "All airports")}
-            </div>
+
           </div>
 
           {/* To */}
@@ -437,9 +435,7 @@ export default function TripFormBasic({ onSubmit }) {
               onChange={setDestination}
               placeholder={t.placeholders?.to ?? (isTH ? "ปลายทาง" : "To")}
             />
-            <div className="px-1 pt-1 text-xs text-slate-500">
-              {t.form?.allAirports ?? (isTH ? "ทุกสนามบิน" : "All airports")}
-            </div>
+
           </div>
 
           {/* Depart */}
@@ -507,9 +503,7 @@ export default function TripFormBasic({ onSubmit }) {
               <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* LEFT: Cabin (display only) */}
                 <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="text-sm font-semibold text-slate-700 mb-2">
-                    {t.form?.cabin ?? (isTH ? "ชั้นโดยสาร" : "Cabin")}
-                  </div>
+
 
                   <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 flex items-center gap-3">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-sky-300 text-sky-700">
@@ -519,12 +513,7 @@ export default function TripFormBasic({ onSubmit }) {
                       <div className="font-semibold text-slate-900">
                         {t.form?.economy ?? (isTH ? "ชั้นประหยัด" : "Economy")}
                       </div>
-                      <div className="text-xs text-slate-600">
-                        {t.form?.nokSingleCabinHint ??
-                          (isTH
-                            ? "Nok Air มีชั้นโดยสารเดียว"
-                            : "Nok Air offers one cabin class.")}
-                      </div>
+
                     </div>
                   </div>
                 </div>

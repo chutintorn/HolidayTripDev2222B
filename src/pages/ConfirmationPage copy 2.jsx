@@ -1,8 +1,11 @@
 // src/pages/ConfirmationPage.jsx
 import React, { useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import QRCode from "react-qr-code";
+
+// ✅ Logo from assets (adjust filename if needed)
+import NokAirLogo from "../assets/NokAirLogo.png";
 
 /* ========================= helpers ========================= */
 function extractIsoFromJourneyKey(journeyKey) {
@@ -61,23 +64,26 @@ function isBgSb(code) {
   return /^BG\d{2}$/.test(s) || /^SB\d{2}$/.test(s);
 }
 
-/* ========================= NEW: Meal/Drink SSR helpers ========================= */
+/* ========================= Meal/Drink SSR helpers ========================= */
 function isMealSsr(code) {
   const s = norm(code);
-  // MH04 / MS01
   return /^(MH|MS)\d{2}$/.test(s);
 }
 function isBevSsr(code) {
   const s = norm(code);
-  // BEV1 / BEV2 / BEV10 ...
   return /^BEV\d+$/.test(s);
 }
 
-/* ========================= NEW: Friendly fallback names (when taxName missing) ========================= */
+/* ========================= PBOD helpers ========================= */
+function isPBOD(code) {
+  return norm(code) === "PBOD";
+}
+
+/* ========================= Friendly fallback names ========================= */
 function baggageFallbackName(code, lang) {
   const s = norm(code);
   if (/^BG\d{2}$/.test(s)) {
-    const kg = s.slice(2); // "20"
+    const kg = s.slice(2);
     return lang === "th" ? `กระเป๋า ${kg} กก.` : `Bag ${kg}kg`;
   }
   if (/^SB\d{2}$/.test(s)) {
@@ -150,13 +156,7 @@ function getSeatFromApi(holdResponse, paxId, legIndex = 0) {
   const p = findPaxInApiByLeg(holdResponse, paxId, legIndex);
   if (!p) return "";
 
-  const raw =
-    p?.seatSelect ??
-    p?.selectedSeat ??
-    p?.seat ??
-    p?.seatNumber ??
-    p?.seatNo ??
-    "";
+  const raw = p?.seatSelect ?? p?.selectedSeat ?? p?.seat ?? p?.seatNumber ?? p?.seatNo ?? "";
 
   if (typeof raw === "string") return raw || "";
 
@@ -187,16 +187,16 @@ function getSeatFromRedux(allSaved, paxId, journeyKey) {
   return s?.seatCode || "";
 }
 
-/* ========================= NEW: taxName map builder from taxesAndFees ========================= */
+/* ========================= taxName map builder from taxesAndFees ========================= */
 function buildSsrNameMapFromTaxes(taxesAndFees) {
   const list = Array.isArray(taxesAndFees) ? taxesAndFees : [];
-  const map = {}; // { CODE: "NAME" }
+  const map = {};
   for (const x of list) {
     if (!x?.isSSR) continue;
     const code = norm(x?.taxCode);
     const name = String(x?.taxName || "").trim();
     if (!code) continue;
-    if (!map[code] && name) map[code] = name; // first wins
+    if (!map[code] && name) map[code] = name;
   }
   return map;
 }
@@ -240,22 +240,20 @@ function getBaggageFromApiCodesAndNameMap(holdResponse, paxId, legIndex = 0) {
 }
 
 function formatBaggageDisplay(codes, nameMap, lang) {
-  // codes: ["BG20","SB20"]
   if (!codes || !codes.length) return "-";
 
   const items = codes.map((c) => {
     const code = norm(c);
-    const taxName = (nameMap && nameMap[code]) ? String(nameMap[code]) : "";
+    const taxName = nameMap && nameMap[code] ? String(nameMap[code]) : "";
     const fallback = baggageFallbackName(code, lang);
     const label = taxName || fallback || "";
-    // show: BG20 Bag 20kg / SB20 Special bag 20kg (small font label)
     return label ? `${code} ${label}` : code;
   });
 
   return items.join("  +  ");
 }
 
-/* ========================= NEW: Meal/Drink read (Redux + API) ========================= */
+/* ========================= Meal/Drink read (Redux + API) ========================= */
 function getMealDrinkFromReduxCodes(allSavedMeal, paxId, journeyKey) {
   if (!allSavedMeal || !paxId || !journeyKey) return [];
   const byPax = allSavedMeal?.[String(paxId)];
@@ -268,7 +266,6 @@ function getMealDrinkFromReduxCodes(allSavedMeal, paxId, journeyKey) {
   if (meal) out.push(meal);
   if (bev) out.push(bev);
 
-  // dedupe
   const seen = new Set();
   return out.filter((c) => {
     if (!c) return false;
@@ -306,9 +303,6 @@ function getMealDrinkFromApiCodesAndNameMap(holdResponse, paxId, legIndex = 0) {
 }
 
 function formatMealDrinkDisplay(codes, nameMap, lang) {
-  // Display requested:
-  // taxCode: "MH04", taxName: "STIR FRIED CHICKEN BASIL WITH RICE"
-  // taxCode: "BEV1", taxName: "COKE"
   const mealCodes = (codes || []).filter((c) => isMealSsr(c));
   const bevCodes = (codes || []).filter((c) => isBevSsr(c));
 
@@ -316,10 +310,8 @@ function formatMealDrinkDisplay(codes, nameMap, lang) {
     ? mealCodes
         .map((c) => {
           const code = norm(c);
-          const name = (nameMap && nameMap[code]) ? String(nameMap[code]) : "";
-          const fallback = name ? "" : (lang === "th" ? "อาหาร" : "Meal");
-          // If name exists: "MH04 : STIR FRIED..."
-          // If no name: "MH04 : Meal"
+          const name = nameMap && nameMap[code] ? String(nameMap[code]) : "";
+          const fallback = name ? "" : lang === "th" ? "อาหาร" : "Meal";
           return name ? `${code} : ${name}` : `${code} : ${fallback}`;
         })
         .join("  +  ")
@@ -329,17 +321,35 @@ function formatMealDrinkDisplay(codes, nameMap, lang) {
     ? bevCodes
         .map((c) => {
           const code = norm(c);
-          const name = (nameMap && nameMap[code]) ? String(nameMap[code]) : "";
-          const fallback = name ? "" : (lang === "th" ? "เครื่องดื่ม" : "Drink");
+          const name = nameMap && nameMap[code] ? String(nameMap[code]) : "";
+          const fallback = name ? "" : lang === "th" ? "เครื่องดื่ม" : "Drink";
           return name ? `${code} : ${name}` : `${code} : ${fallback}`;
         })
         .join("  +  ")
     : "-";
 
-  return {
-    mealText: mealPart,
-    bevText: bevPart,
-  };
+  return { mealText: mealPart, bevText: bevPart };
+}
+
+/* ========================= PBOD read (Redux + API) ========================= */
+function extractPBODFromTaxes(taxesAndFees) {
+  const list = Array.isArray(taxesAndFees) ? taxesAndFees : [];
+  return list.some((x) => x?.isSSR && isPBOD(x?.taxCode));
+}
+
+function getPBODFromApiSelected(holdResponse, paxId, legIndex = 0) {
+  const p = findPaxInApiByLeg(holdResponse, paxId, legIndex);
+  if (!p) return false;
+  const taxes = p?.pricingDetails?.taxesAndFees;
+  return extractPBODFromTaxes(taxes);
+}
+
+function getPBODFromReduxSelected(allSavedPB, paxId, journeyKey) {
+  if (!allSavedPB || !paxId || !journeyKey) return false;
+  const byPax = allSavedPB?.[String(paxId)];
+  const leg = byPax?.[String(journeyKey)];
+  const pbod = leg?.pbod;
+  return !!(pbod && isPBOD(pbod?.ssrCode));
 }
 
 /* ========================= legs builder ========================= */
@@ -415,12 +425,10 @@ function buildFlightLegs({ holdResponse, selectedOffers, lang }) {
 
 /* ========================= page ========================= */
 export default function ConfirmationPage() {
-  const nav = useNavigate();
   const { state } = useLocation() || {};
 
   const allSavedSeats = useSelector((s) => s?.seatSelection?.saved || {});
 
-  // ✅ Safe read baggage saved
   const allSavedBaggage = useSelector((s) => {
     return (
       s?.baggageSelection?.saved ||
@@ -431,13 +439,22 @@ export default function ConfirmationPage() {
     );
   });
 
-  // ✅ Safe read meal saved
   const allSavedMeal = useSelector((s) => {
     return (
       s?.mealSelection?.saved ||
       s?.mealSelectionSlice?.saved ||
       s?.meals?.saved ||
       s?.mealSelections?.saved ||
+      {}
+    );
+  });
+
+  const allSavedPB = useSelector((s) => {
+    return (
+      s?.priorityBoardingSelection?.saved ||
+      s?.priorityBoardingSelectionSlice?.saved ||
+      s?.priorityBoarding?.saved ||
+      s?.pbodSelection?.saved ||
       {}
     );
   });
@@ -456,8 +473,6 @@ export default function ConfirmationPage() {
 
   const tripTotal = Number(priceSummary?.tripTotal ?? priceSummary?.total ?? 0) || 0;
   const airTotal = Number(priceSummary?.airTotal ?? 0) || 0;
-
-  // NOTE: keep existing variables (legacy)
   const seatTotal = Number(priceSummary?.seatTotal ?? priceSummary?.addonsTotal ?? 0) || 0;
 
   const baseTotal = Number(priceSummary?.baseTotal ?? 0) || 0;
@@ -498,24 +513,21 @@ export default function ConfirmationPage() {
   const qrAmountOnly = useMemo(() => String(Number(tripTotal || 0).toFixed(2)), [tripTotal]);
 
   const [showFareDetails, setShowFareDetails] = useState(false);
-  const [showCompare, setShowCompare] = useState(false);
 
   const t = useMemo(
     () => ({
-      title: lang === "th" ? "ยืนยันการจอง & ชำระเงิน" : "Confirmation & Payment",
+      title: lang === "th" ? "ยืนยันการจอง" : "Confirmation",
+
+      thanks: lang === "th" ? "ขอบคุณ" : "Thank you",
       passengers: lang === "th" ? "ผู้โดยสาร" : "Passengers",
       depart: lang === "th" ? "ขาไป" : "Depart",
       ret: lang === "th" ? "ขากลับ" : "Return",
       confirmed: lang === "th" ? "ยืนยันแล้ว" : "Confirmed",
       noPassengers: lang === "th" ? "ยังไม่มีรายชื่อผู้โดยสาร" : "No passenger list provided.",
-      flightSummary: lang === "th" ? "สรุปเที่ยวบิน" : "Flight summary",
-      route: lang === "th" ? "เส้นทาง" : "Route",
-      departArrive: lang === "th" ? "เวลาออก/ถึง" : "Departure / Arrival",
-      flight: lang === "th" ? "เที่ยวบิน" : "Flight",
-      back: lang === "th" ? "กลับไปแก้ไข" : "Back to edit",
+      back: lang === "th" ? "กลับ" : "Back",
       reservation: lang === "th" ? "รหัสการจอง" : "Reservation code",
       total: lang === "th" ? "ยอดรวม" : "Total",
-      timeLimit: lang === "th" ? "เวลาชำระเงินภายใน" : "Time limit",
+      timeLimit: lang === "th" ? "ชำระเงินภายใน" : "Pay by",
       payment: lang === "th" ? "ชำระเงิน" : "Payment",
       choosePayment: lang === "th" ? "เลือกวิธีชำระเงิน" : "Choose payment method",
       counter: lang === "th" ? "เคาน์เตอร์ / QR (เดโม)" : "Counter / QR (demo)",
@@ -531,14 +543,15 @@ export default function ConfirmationPage() {
       copy: lang === "th" ? "คัดลอก" : "Copy",
       holdOk: lang === "th" ? "Hold booking สำเร็จ" : "Hold booking successful",
       holdFail: lang === "th" ? "Hold booking ไม่สำเร็จ" : "Hold booking failed",
-      demoTopNote:
-        lang === "th"
-          ? "สำหรับเดโมเท่านั้น: QR แบบธนาคารจริงต้องเป็น Thai QR / PromptPay."
-          : "Demo only: Bank payment requires Thai QR / PromptPay standard.",
+
       seatTitle: lang === "th" ? "ที่นั่ง" : "Seat",
       baggageTitle: lang === "th" ? "สัมภาระ" : "Baggage",
       mealTitle: lang === "th" ? "อาหาร" : "Meal",
       drinkTitle: lang === "th" ? "เครื่องดื่ม" : "Drink",
+      pbodTitle: lang === "th" ? "Priority Boarding" : "Priority Boarding",
+      yes: lang === "th" ? "ใช่" : "Yes",
+      notSelected: lang === "th" ? "ไม่ได้เลือก" : "Not selected",
+
       fareSummary: lang === "th" ? "สรุปราคา" : "Fare summary",
       tripTotal: lang === "th" ? "ยอดรวมทั้งทริป" : "Trip total",
       airFare: lang === "th" ? "ค่าโดยสาร" : "Air fare",
@@ -550,13 +563,12 @@ export default function ConfirmationPage() {
       vat: "VAT",
       seatsPerPassenger: lang === "th" ? "ที่นั่งต่อผู้โดยสาร" : "Seats per passenger",
       none: lang === "th" ? "ไม่มี" : "None",
-      compare: lang === "th" ? "ตรวจสอบ Requested vs Received" : "Check Requested vs Received",
-      compareHint:
-        lang === "th"
-          ? "อ่านจาก Redux (ที่เลือก) เทียบกับ holdResponse (ที่ระบบตอบกลับจริง)"
-          : "Compare Redux selections vs holdResponse returned by API.",
-      requested: lang === "th" ? "Requested (Redux)" : "Requested (Redux)",
-      received: lang === "th" ? "Received (API)" : "Received (API)",
+
+      tripSummary: lang === "th" ? "สรุปทริป" : "Trip summary",
+      flightNo: lang === "th" ? "เที่ยวบิน" : "Flight",
+      services: lang === "th" ? "รายละเอียดการซื้อ" : "Purchased services",
+      viewServices: lang === "th" ? "ดูรายละเอียด" : "View details",
+      hideServices: lang === "th" ? "ซ่อนรายละเอียด" : "Hide details",
     }),
     [lang]
   );
@@ -576,8 +588,32 @@ export default function ConfirmationPage() {
     return String(g);
   };
 
+  const greetingName = useMemo(() => {
+    const p0 = passengerInfos?.[0] || {};
+    const full = `${safeUpper(p0?.title)} ${p0?.firstName || ""} ${p0?.lastName || ""}`.trim();
+    return full || "Customer";
+  }, [passengerInfos]);
+
+  /* ========================= Small UI blocks ========================= */
+  function InfoBox({ title, children }) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <div className="text-[12px] font-extrabold tracking-wide text-slate-700 uppercase">{title}</div>
+        <div className="mt-2">{children}</div>
+      </div>
+    );
+  }
+
+  function LegChip({ text }) {
+    return (
+      <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-bold text-xs">
+        {text}
+      </span>
+    );
+  }
+
   /* ========================= Seat UI ========================= */
-  function SeatLine({ paxId }) {
+  function SeatBox({ paxId }) {
     const hasLegs = legs.length > 0;
 
     const items = hasLegs
@@ -605,26 +641,24 @@ export default function ConfirmationPage() {
         ];
 
     return (
-      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2">
-        <div className="text-sm font-semibold text-slate-800 mb-1">{t.seatTitle}:</div>
-
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-700">
+      <InfoBox title={t.seatTitle}>
+        <div className="space-y-2 text-sm text-slate-800">
           {items.map((it) => (
-            <div key={it.idx} className="flex items-baseline gap-2">
-              <span className="whitespace-nowrap">{it.label} :</span>
-              <span className="text-lg font-semibold text-slate-700 leading-none">{it.seat}</span>
-              {it.idx === 0 && items.length > 1 ? (
-                <span className="mx-1 text-slate-300 font-semibold">|</span>
-              ) : null}
+            <div key={it.idx} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <LegChip text={it.label} />
+                <span className="text-slate-600">{it.label}:</span>
+              </div>
+              <div className="text-lg font-extrabold text-slate-900 leading-none">{it.seat}</div>
             </div>
           ))}
         </div>
-      </div>
+      </InfoBox>
     );
   }
 
   /* ========================= Baggage UI (BG/SB) ========================= */
-  function BaggageLine({ paxId }) {
+  function BaggageBox({ paxId }) {
     const hasLegs = legs.length > 0;
 
     const items = hasLegs
@@ -632,20 +666,12 @@ export default function ConfirmationPage() {
           const api = getBaggageFromApiCodesAndNameMap(holdResponse, paxId, L.legIndex);
           const reduxCodes = getBaggageFromReduxCodes(allSavedBaggage, paxId, L.journeyKey);
 
-          // Prefer API codes if exist
-          const codes = (api.codes && api.codes.length)
-            ? api.codes
-            : [reduxCodes.bg, reduxCodes.sb].map(norm).filter(Boolean);
+          const codes =
+            api.codes && api.codes.length ? api.codes : [reduxCodes.bg, reduxCodes.sb].map(norm).filter(Boolean);
 
-          const text = codes.length
-            ? formatBaggageDisplay(codes, api.nameMap || {}, lang)
-            : "-";
+          const text = codes.length ? formatBaggageDisplay(codes, api.nameMap || {}, lang) : "-";
 
-          return {
-            idx,
-            label: idx === 0 ? t.depart : t.ret,
-            text,
-          };
+          return { idx, label: idx === 0 ? t.depart : t.ret, text };
         })
       : [
           {
@@ -659,25 +685,26 @@ export default function ConfirmationPage() {
         ];
 
     return (
-      <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2">
-        <div className="text-sm font-semibold text-slate-800 mb-1">{t.baggageTitle}:</div>
-
-        <div className="flex flex-col gap-1 text-sm text-slate-700">
+      <InfoBox title={t.baggageTitle}>
+        <div className="space-y-2 text-sm text-slate-800">
           {items.map((it) => (
-            <div key={it.idx} className="flex items-start gap-2">
-              <span className="whitespace-nowrap">{it.label} :</span>
-              <span className="text-[12px] font-semibold text-slate-700 leading-snug">
+            <div key={it.idx} className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 pt-0.5">
+                <LegChip text={it.label} />
+                <span className="text-slate-600">{it.label}:</span>
+              </div>
+              <div className="text-[12px] font-semibold text-slate-900 leading-snug text-right">
                 {it.text}
-              </span>
+              </div>
             </div>
           ))}
         </div>
-      </div>
+      </InfoBox>
     );
   }
 
-  /* ========================= Meal + Drink UI (MH/MS + BEV using taxName) ========================= */
-  function MealDrinkLine({ paxId }) {
+  /* ========================= Meal + Drink UI ========================= */
+  function MealDrinkBox({ paxId }) {
     const hasLegs = legs.length > 0;
 
     const items = hasLegs
@@ -685,10 +712,9 @@ export default function ConfirmationPage() {
           const api = getMealDrinkFromApiCodesAndNameMap(holdResponse, paxId, L.legIndex);
           const reduxCodes = getMealDrinkFromReduxCodes(allSavedMeal, paxId, L.journeyKey);
 
-          const codes = (api.codes && api.codes.length) ? api.codes : reduxCodes;
+          const codes = api.codes && api.codes.length ? api.codes : reduxCodes;
           const clean = (codes || []).map(norm).filter(Boolean);
 
-          // dedupe
           const seen = new Set();
           const unique = clean.filter((c) => {
             if (seen.has(c)) return false;
@@ -698,12 +724,7 @@ export default function ConfirmationPage() {
 
           const { mealText, bevText } = formatMealDrinkDisplay(unique, api.nameMap || {}, lang);
 
-          return {
-            idx,
-            label: idx === 0 ? t.depart : t.ret,
-            mealText,
-            bevText,
-          };
+          return { idx, label: idx === 0 ? t.depart : t.ret, mealText, bevText };
         })
       : [
           {
@@ -723,171 +744,116 @@ export default function ConfirmationPage() {
         ];
 
     return (
-      <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2">
-        <div className="text-sm font-semibold text-slate-800 mb-1">
-          {t.mealTitle} / {t.drinkTitle}:
-        </div>
-
-        <div className="flex flex-col gap-2 text-sm text-slate-700">
+      <InfoBox title={`${t.mealTitle} / ${t.drinkTitle}`}>
+        <div className="space-y-3 text-sm text-slate-800">
           {items.map((it) => (
-            <div key={it.idx} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-              <div className="shrink-0 font-semibold">{it.label} :</div>
-              <div className="min-w-0">
-                <div className="text-[12px] font-semibold text-slate-700 leading-snug">
-                  <span className="text-slate-500">{t.mealTitle}:</span>{" "}
-                  <span className="text-slate-800">{it.mealText || "-"}</span>
-                </div>
-                <div className="text-[12px] font-semibold text-slate-700 leading-snug">
-                  <span className="text-slate-500">{t.drinkTitle}:</span>{" "}
-                  <span className="text-slate-800">{it.bevText || "-"}</span>
-                </div>
+            <div key={it.idx} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <LegChip text={it.label} />
+                <span className="text-slate-600">{it.label}</span>
+              </div>
+              <div className="text-[12px] leading-snug">
+                <span className="text-slate-500 font-semibold">{t.mealTitle}:</span>{" "}
+                <span className="font-semibold text-slate-900">{it.mealText || "-"}</span>
+              </div>
+              <div className="text-[12px] leading-snug">
+                <span className="text-slate-500 font-semibold">{t.drinkTitle}:</span>{" "}
+                <span className="font-semibold text-slate-900">{it.bevText || "-"}</span>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </InfoBox>
     );
   }
 
-  /* ========================= Requested vs Received section ========================= */
-  const compareRows = useMemo(() => {
-    const rows = [];
-    const airArr = Array.isArray(holdResponse?.airlines) ? holdResponse.airlines : [];
+  /* ========================= Priority Boarding UI ========================= */
+  function PriorityBoardingBox({ paxId }) {
+    const hasLegs = legs.length > 0;
 
-    for (let legIdx = 0; legIdx < airArr.length; legIdx++) {
-      const leg = airArr[legIdx];
-      const label = legs?.[legIdx]?.label || (legIdx === 0 ? t.depart : t.ret);
+    const items = hasLegs
+      ? legs.map((L, idx) => {
+          const apiSelected = getPBODFromApiSelected(holdResponse, paxId, L.legIndex);
+          const reduxSelected = getPBODFromReduxSelected(allSavedPB, paxId, L.journeyKey);
+          const selected = !!(apiSelected || reduxSelected);
 
-      const pds = Array.isArray(leg?.passengerDetails) ? leg.passengerDetails : [];
-      for (const pd of pds) {
-        const paxNumber = pd?.paxNumber ?? pd?.paxNo ?? pd?.passengerNumber ?? pd?.travelerNumber;
-        if (paxNumber == null) continue;
-
-        const paxId = String(paxNumber);
-        const journeyKey = legs?.[legIdx]?.journeyKey || "";
-
-        const reqSeat = journeyKey ? getSeatFromRedux(allSavedSeats, paxId, journeyKey) : "";
-
-        const reqBagObj = journeyKey ? getBaggageFromReduxCodes(allSavedBaggage, paxId, journeyKey) : { bg: "", sb: "" };
-        const reqBagCodes = [reqBagObj.bg, reqBagObj.sb].map(norm).filter(Boolean);
-        const reqBagText = reqBagCodes.length ? formatBaggageDisplay(reqBagCodes, {}, lang) : "-";
-
-        const reqMD = journeyKey ? getMealDrinkFromReduxCodes(allSavedMeal, paxId, journeyKey) : [];
-        const reqMDText = reqMD.length ? reqMD.join(" + ") : "-";
-
-        const recSeat = norm(pd?.seatSelect) || "";
-
-        const taxes = pd?.pricingDetails?.taxesAndFees;
-        const nameMap = buildSsrNameMapFromTaxes(taxes);
-
-        const recBagCodes = extractBgSbCodesFromTaxes(taxes);
-        const recBagText = recBagCodes.length ? formatBaggageDisplay(recBagCodes, nameMap, lang) : "-";
-
-        const recMDCodes = extractMealDrinkCodesFromTaxes(taxes);
-        const recMDParts = [];
-        for (const c of recMDCodes) {
-          const code = norm(c);
-          const nm = nameMap?.[code] ? String(nameMap[code]) : "";
-          recMDParts.push(nm ? `${code}:${nm}` : code);
-        }
-        const recMDText = recMDParts.length ? recMDParts.join(" + ") : "-";
-
-        rows.push({
-          legIdx,
-          label,
-          route: `${leg?.origin || ""}-${leg?.destination || ""}`,
-          flightNo: leg?.travelInfos?.[0]?.flightNumber || leg?.flightNumber || "",
-          paxId,
-          name: `${pd?.title || ""} ${pd?.firstName || ""} ${pd?.lastName || ""}`.trim(),
-          requestedSeat: reqSeat || "-",
-          requestedBag: reqBagText,
-          requestedMD: reqMDText,
-          receivedSeat: recSeat || "-",
-          receivedBag: recBagText,
-          receivedMD: recMDText,
-        });
-      }
-    }
-
-    rows.sort((a, b) => (a.legIdx - b.legIdx) || (Number(a.paxId) - Number(b.paxId)));
-    return rows;
-  }, [holdResponse, legs, t.depart, t.ret, allSavedSeats, allSavedBaggage, allSavedMeal, lang]);
-
-  function CompareCard() {
-    if (!compareRows.length) return null;
+          return { idx, label: idx === 0 ? t.depart : t.ret, selected };
+        })
+      : [{ idx: 0, label: t.depart, selected: getPBODFromApiSelected(holdResponse, paxId, 0) || false }];
 
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <div className="font-extrabold text-slate-800">{t.compare}</div>
-            <div className="text-xs text-slate-500 mt-1">{t.compareHint}</div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowCompare((v) => !v)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm font-extrabold hover:border-blue-400 hover:text-blue-700"
-          >
-            {showCompare ? t.hide : t.details}
-          </button>
+      <InfoBox title={t.pbodTitle}>
+        <div className="space-y-2 text-sm text-slate-800">
+          {items.map((it) => (
+            <div key={it.idx} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <LegChip text={it.label} />
+                <span className="text-slate-600">{it.label}:</span>
+              </div>
+              {it.selected ? (
+                <span className="text-[12px] font-extrabold text-emerald-700">{t.yes}</span>
+              ) : (
+                <span className="text-[12px] font-semibold text-slate-400">{t.notSelected}</span>
+              )}
+            </div>
+          ))}
         </div>
+      </InfoBox>
+    );
+  }
 
-        {!showCompare ? null : (
-          <div className="mt-3 space-y-2">
-            {compareRows.map((r, idx) => {
-              const seatOk = r.requestedSeat === "-" ? true : r.requestedSeat === r.receivedSeat;
-              const bagOk = r.requestedBag === "-" ? true : r.requestedBag === r.receivedBag;
-              const mdOk = r.requestedMD === "-" ? true : r.requestedMD === r.receivedMD;
+  /* ========================= Trip summary card ========================= */
+  function TripSummaryCard() {
+    if (!legs.length) return null;
 
-              return (
-                <div key={`${r.legIdx}-${r.paxId}-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="text-sm font-extrabold text-slate-900">
-                      {r.label} • {safeUpper(r.route || "").replace("-", "–")} {r.flightNo ? `• ${r.flightNo}` : ""}
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-4">
+        <div className="font-extrabold text-slate-800">{t.tripSummary}</div>
+
+        <div className="mt-3 space-y-2">
+          {legs.map((L, idx) => {
+            const dateText = formatDate(L.dateIso, lang);
+            return (
+              <div
+                key={`${L.journeyKey || idx}`}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-extrabold text-slate-900">{idx === 0 ? t.depart : t.ret}</div>
+                      <div className="text-sm font-extrabold text-slate-800">
+                        {safeUpper(L.origin) || "---"} → {safeUpper(L.destination) || "---"}
+                      </div>
+                      {L.depTime ? (
+                        <div className="ml-1 text-sm font-extrabold text-sky-700">{L.depTime}</div>
+                      ) : null}
                     </div>
-                    <div className="text-xs font-bold text-slate-600">
-                      Pax {r.paxId} • {r.name || "-"}
+
+                    <div className="mt-1 flex items-center gap-2 flex-wrap text-sm">
+                      {L.flightNo ? (
+                        <span className="font-extrabold text-slate-900">{L.flightNo}</span>
+                      ) : null}
+                      {L.dow ? <LegChip text={L.dow} /> : null}
+                      {dateText ? <span className="font-semibold text-slate-700">{dateText}</span> : null}
                     </div>
                   </div>
 
-                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-slate-200 bg-white p-2">
-                      <div className="text-[11px] font-extrabold text-slate-700">{t.requested}</div>
-                      <div className="mt-1 text-sm text-slate-900">
-                        Seat: <span className="font-extrabold">{r.requestedSeat}</span>
-                      </div>
-                      <div className="mt-1 text-[12px] font-semibold text-slate-800">
-                        BG/SB: <span className="font-semibold">{r.requestedBag}</span>
-                      </div>
-                      <div className="mt-1 text-[12px] font-semibold text-slate-800">
-                        Meal/Drink: <span className="font-semibold">{r.requestedMD}</span>
-                      </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-[11px] font-bold text-slate-500">
+                      {lang === "th" ? "ออก/ถึง" : "Dep/Arr"}
                     </div>
-
-                    <div className="rounded-lg border border-slate-200 bg-white p-2">
-                      <div className="text-[11px] font-extrabold text-slate-700">{t.received}</div>
-                      <div className="mt-1 text-sm text-slate-900">
-                        Seat:{" "}
-                        <span className={seatOk ? "font-extrabold text-emerald-700" : "font-extrabold text-rose-700"}>
-                          {r.receivedSeat}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-[12px] font-semibold">
-                        BG/SB:{" "}
-                        <span className={bagOk ? "text-emerald-700" : "text-rose-700"}>{r.receivedBag}</span>
-                      </div>
-                      <div className="mt-1 text-[12px] font-semibold">
-                        Meal/Drink:{" "}
-                        <span className={mdOk ? "text-emerald-700" : "text-rose-700"}>{r.receivedMD}</span>
-                      </div>
+                    <div className="text-sm font-extrabold text-slate-900">
+                      {L.depTime || "--:--"}{" "}
+                      <span className="text-slate-400 font-bold">,</span>{" "}
+                      {L.arrTime || "--:--"}
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -897,7 +863,7 @@ export default function ConfirmationPage() {
     const legsCount = legs.length || seatByLeg.length || (selectedOffers?.length || 0);
 
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4">
         <div className="font-extrabold text-slate-800">{t.fareSummary}</div>
 
         <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
@@ -913,7 +879,7 @@ export default function ConfirmationPage() {
               ) : null}
             </div>
 
-            <div className="text-lg sm:text-xl font-bold text-sky-700 text-right leading-tight">
+            <div className="text-lg sm:text-xl font-extrabold text-sky-700 text-right leading-tight">
               {fmt(tripTotal)}
             </div>
           </div>
@@ -1043,8 +1009,16 @@ export default function ConfirmationPage() {
       <div className="bg-sky-100 border-b border-sky-200">
         <div className="max-w-[1180px] mx-auto px-3 sm:px-4 py-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="font-extrabold text-sky-800 text-xl whitespace-nowrap">Nok Holiday</div>
-            <div className="font-extrabold text-sky-700 truncate">{t.title}</div>
+            <img
+              src={NokAirLogo}
+              alt="Nok Air"
+              className="h-10 w-10 rounded-full border border-slate-200 bg-white object-contain"
+              draggable="false"
+            />
+            <div className="min-w-0 leading-tight">
+              <div className="font-extrabold text-sky-600 text-xl whitespace-nowrap">Demo</div>
+              <div className="font-bold text-sky-600 truncate">{t.title}</div>
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -1052,9 +1026,7 @@ export default function ConfirmationPage() {
               onClick={() => setLang("th")}
               className={
                 "px-4 py-2 rounded-lg border text-sm font-extrabold " +
-                (lang === "th"
-                  ? "bg-sky-600 border-sky-600 text-white"
-                  : "bg-white border-sky-400 text-sky-800")
+                (lang === "th" ? "bg-sky-600 border-sky-600 text-white" : "bg-white border-sky-400 text-sky-800")
               }
             >
               ไทย
@@ -1063,9 +1035,7 @@ export default function ConfirmationPage() {
               onClick={() => setLang("en")}
               className={
                 "px-4 py-2 rounded-lg border text-sm font-extrabold " +
-                (lang === "en"
-                  ? "bg-sky-600 border-sky-600 text-white"
-                  : "bg-white border-sky-400 text-sky-800")
+                (lang === "en" ? "bg-sky-600 border-sky-600 text-white" : "bg-white border-sky-400 text-sky-800")
               }
             >
               English
@@ -1075,117 +1045,102 @@ export default function ConfirmationPage() {
       </div>
 
       <div className="max-w-[1180px] mx-auto px-3 sm:px-4 py-5">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,58%)_minmax(0,42%)] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,60%)_minmax(0,40%)] gap-4">
           {/* LEFT */}
           <div className="space-y-4">
-            {/* Hold status + reservation code */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-extrabold text-slate-800">{ok ? t.holdOk : t.holdFail}</div>
+            {/* Top: Thank you + Reservation code */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+              <div className="text-slate-900 font-extrabold text-lg">
+                {t.thanks}, {greetingName}
+              </div>
 
-                  <div className="mt-3">
-                    <div className="text-sm text-slate-500">{t.reservation}:</div>
-                    <div className="font-mono font-extrabold text-slate-900 text-xl break-all">
-                      {reservationCode}
-                    </div>
-
-                    {timeLimit ? (
-                      <div className="mt-1 text-xs text-slate-500">
-                        {t.timeLimit}:{" "}
-                        <span className="font-semibold text-slate-700 break-all">{String(timeLimit)}</span>
-                      </div>
-                    ) : null}
-                  </div>
+              <div className="mt-4">
+                <div className="text-xs font-bold text-slate-600 tracking-wide uppercase">{t.reservation}</div>
+                <div className="mt-1 font-mono font-extrabold text-slate-900 text-4xl tracking-tight break-all">
+                  {reservationCode}
                 </div>
+              </div>
 
-                <div className="flex flex-col items-end gap-2">
-                  <span
-                    className={
-                      "px-3 py-1 rounded-full border font-bold text-sm shrink-0 " +
-                      (ok
-                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                        : "bg-rose-50 border-rose-200 text-rose-700")
-                    }
-                  >
-                    {ok ? "OK" : "ERROR"}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span
+                  className={
+                    "px-3 py-1 rounded-full border font-extrabold text-sm " +
+                    (ok ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-rose-50 border-rose-200 text-rose-700")
+                  }
+                >
+                  {ok ? t.holdOk : t.holdFail}
+                </span>
+
+                {timeLimit ? (
+                  <span className="px-3 py-1 rounded-full border border-sky-200 bg-sky-50 text-sky-800 font-bold text-sm">
+                    {t.timeLimit}: {String(timeLimit)}
                   </span>
+                ) : null}
 
-                  <button
-                    onClick={() => copy(reservationCode)}
-                    className="px-3 py-2 rounded border border-slate-300 bg-white text-sm"
-                  >
-                    {t.copy}
-                  </button>
-                </div>
+                <button
+                  onClick={() => copy(reservationCode)}
+                  className="px-3 py-1.5 rounded-full border border-slate-300 bg-white text-sm font-extrabold hover:border-sky-400 hover:text-sky-800"
+                >
+                  {t.copy}
+                </button>
               </div>
 
               <div className="mt-4 flex items-end justify-between border-t border-slate-200 pt-3 gap-3">
-                <div className="text-slate-700">{t.total}</div>
-                <div className="text-xl font-bold text-slate-900 text-right">{fmt(tripTotal)}</div>
+                <div className="text-slate-700 font-bold">{t.total}</div>
+                <div className="text-2xl font-extrabold text-slate-900 text-right">{fmt(tripTotal)}</div>
               </div>
-
-              <div className="mt-2 text-xs text-slate-500">{t.demoTopNote}</div>
-
-              <button
-                onClick={() => nav(-1)}
-                className="mt-4 px-4 py-2 rounded border border-slate-300 bg-white text-sm"
-              >
-                {t.back}
-              </button>
             </div>
+
+            {/* Trip summary (NEW) */}
+            <TripSummaryCard />
 
             {/* Fare summary */}
             <FareSummaryCard />
 
-            {/* Compare */}
-            <CompareCard />
-
-            {/* Passenger cards */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
+            {/* Passengers - 1 per line + details collapsible */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
               <div className="font-extrabold text-slate-800">{t.passengers}</div>
 
               {passengerInfos.length ? (
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="mt-3 space-y-3">
                   {passengerInfos.map((p, i) => {
                     const paxId = p?.paxNumber ?? p?.paxNo ?? p?.pax ?? i + 1;
                     const fullName = `${safeUpper(p.title)} ${p.firstName || ""} ${p.lastName || ""}`.trim();
-
-                    const g =
-                      genderLabel(p?.gender) ||
-                      genderLabel(p?.sex) ||
-                      genderLabel(p?.genderCode) ||
-                      "";
+                    const g = genderLabel(p?.gender) || genderLabel(p?.sex) || genderLabel(p?.genderCode) || "";
 
                     return (
-                      <div key={String(paxId)} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-center justify-between gap-2">
+                      <div key={String(paxId)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="font-semibold text-slate-800 truncate whitespace-nowrap">
+                            <div className="font-extrabold text-slate-900 truncate">
                               {fullName || "-"}
                               <span className="ml-2 text-xs font-bold text-slate-500">#{paxId}</span>
                             </div>
 
-                            <div className="text-xs text-slate-500 truncate whitespace-nowrap">
-                              <span className="font-semibold text-slate-700">{p.passengerType || "-"}</span>
+                            <div className="text-sm text-slate-600 mt-1">
+                              <span className="font-semibold text-slate-800">{p.passengerType || "-"}</span>
                               {g ? <span className="text-slate-400">{"  •  "}</span> : null}
-                              {g ? <span className="font-semibold text-slate-700">{g}</span> : null}
+                              {g ? <span className="font-semibold text-slate-800">{g}</span> : null}
                             </div>
                           </div>
 
-                          <span className="px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold shrink-0">
+                          <span className="px-3 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-extrabold shrink-0">
                             {t.confirmed}
                           </span>
                         </div>
 
-                        {/* 1) Seat */}
-                        <SeatLine paxId={paxId} />
+                        <details className="mt-3">
+                          <summary className="cursor-pointer select-none text-sm font-extrabold text-sky-700">
+                            {t.services} — {t.viewServices}
+                          </summary>
 
-                        {/* 2) BG/SB with small font + friendly names */}
-                        <BaggageLine paxId={paxId} />
-
-                        {/* 3) Meal + Drink using taxName */}
-                        <MealDrinkLine paxId={paxId} />
+                          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <SeatBox paxId={paxId} />
+                            <BaggageBox paxId={paxId} />
+                            <MealDrinkBox paxId={paxId} />
+                            <PriorityBoardingBox paxId={paxId} />
+                          </div>
+                        </details>
                       </div>
                     );
                   })}
@@ -1195,72 +1150,12 @@ export default function ConfirmationPage() {
               )}
             </div>
 
-            {/* Flight summary */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <div className="font-extrabold text-slate-800">{t.flightSummary}</div>
-
-              {legs.length ? (
-                <div className="mt-3 space-y-3">
-                  {legs.map((L, idx) => {
-                    const dateText = formatDate(L.dateIso, lang);
-                    return (
-                      <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="font-extrabold text-slate-800">{L.label}</div>
-                        </div>
-
-                        <div className="mt-2">
-                          <div className="text-xs text-slate-500">{t.route}</div>
-
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="font-bold text-slate-800">
-                              {safeUpper(L.origin) || "---"} → {safeUpper(L.destination) || "---"}
-                            </div>
-
-                            {L.dow ? (
-                              <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-bold text-xs">
-                                {L.dow}
-                              </span>
-                            ) : null}
-
-                            {dateText ? (
-                              <span className="text-xs font-bold text-slate-600">{dateText}</span>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                          <div>
-                            <div className="text-xs text-slate-500">{t.departArrive}</div>
-                            <div className="font-bold text-slate-800">
-                              {L.depTime || "--:--"}
-                              <span className="text-slate-400">{"  ,  "}</span>
-                              {L.arrTime || "--:--"}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs text-slate-500">{t.flight}</div>
-                            <div className="font-bold text-slate-800">{L.flightNo || "-"}</div>
-                          </div>
-
-                          <div className="hidden sm:block" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="mt-2 text-sm text-slate-500">
-                  {lang === "th" ? "ยังไม่มีข้อมูลเที่ยวบิน" : "No flight details available yet."}
-                </div>
-              )}
-            </div>
+            {/* ✅ Removed: Flight summary section (as requested) */}
           </div>
 
           {/* RIGHT: payment */}
           <div className="space-y-4">
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
               <div className="font-extrabold text-slate-800">{t.payment}</div>
               <div className="mt-2 text-sm font-bold text-slate-700">{t.choosePayment}</div>
 
@@ -1268,7 +1163,7 @@ export default function ConfirmationPage() {
                 <button
                   onClick={() => setPayMethod("counter")}
                   className={
-                    "px-3 py-2 rounded border text-sm font-bold " +
+                    "px-3 py-2 rounded-xl border text-sm font-extrabold " +
                     (payMethod === "counter"
                       ? "bg-sky-600 border-sky-600 text-white"
                       : "bg-white border-slate-300 text-slate-700")
@@ -1280,44 +1175,38 @@ export default function ConfirmationPage() {
                 <button
                   onClick={() => setPayMethod("card")}
                   className={
-                    "px-3 py-2 rounded border text-sm font-bold " +
-                    (payMethod === "card"
-                      ? "bg-sky-600 border-sky-600 text-white"
-                      : "bg-white border-slate-300 text-slate-700")
+                    "px-3 py-2 rounded-xl border text-sm font-extrabold " +
+                    (payMethod === "card" ? "bg-sky-600 border-sky-600 text-white" : "bg-white border-slate-300 text-slate-700")
                   }
                 >
                   {t.card}
                 </button>
               </div>
 
-              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-slate-700 font-bold">{t.amountToPay}</div>
-                  <div className="text-lg sm:text-xl font-extrabold text-sky-700 text-right">
-                    {fmt(tripTotal)}
-                  </div>
+                  <div className="text-lg sm:text-xl font-extrabold text-sky-700 text-right">{fmt(tripTotal)}</div>
                 </div>
                 <div className="mt-1 text-xs text-slate-500">{t.demoDisabled}</div>
               </div>
 
               {payMethod === "counter" ? (
-                <div className="mt-4 border border-slate-200 rounded-xl p-3 bg-white">
+                <div className="mt-4 border border-slate-200 rounded-2xl p-3 bg-white">
                   <div className="text-sm font-extrabold text-slate-800">{t.qrTitle}</div>
 
                   <div className="mt-3 flex flex-col sm:flex-row items-start gap-3">
-                    <div className="bg-white p-2 border border-slate-200 rounded-lg">
+                    <div className="bg-white p-2 border border-slate-200 rounded-xl">
                       <QRCode value={qrAmountOnly} size={160} />
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-slate-500">{t.qrAmount}</div>
-                      <div className="mt-1 text-sm font-extrabold text-slate-800">
-                        {Number(tripTotal || 0).toFixed(2)}
-                      </div>
+                      <div className="mt-1 text-sm font-extrabold text-slate-800">{Number(tripTotal || 0).toFixed(2)}</div>
 
                       <button
                         onClick={() => copy(qrAmountOnly)}
-                        className="mt-2 px-3 py-2 rounded border border-slate-300 bg-white text-sm"
+                        className="mt-2 px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm font-extrabold hover:border-sky-400 hover:text-sky-800"
                       >
                         {t.copy}
                       </button>
@@ -1329,45 +1218,34 @@ export default function ConfirmationPage() {
               ) : null}
 
               {payMethod === "card" ? (
-                <div className="mt-4 border border-slate-200 rounded-xl p-3">
-                  <div className="text-sm font-extrabold text-slate-800">
-                    {lang === "th" ? "กรอกรายละเอียดบัตร" : "Enter card details"}
-                  </div>
+                <div className="mt-4 border border-slate-200 rounded-2xl p-3">
+                  <div className="text-sm font-extrabold text-slate-800">{lang === "th" ? "กรอกรายละเอียดบัตร" : "Enter card details"}</div>
                   <div className="mt-3 space-y-2">
-                    <input className="w-full border rounded p-2" placeholder={lang === "th" ? "ชื่อบนบัตร" : "Name on card"} />
-                    <input className="w-full border rounded p-2" placeholder={lang === "th" ? "หมายเลขบัตร" : "Card number"} />
+                    <input className="w-full border rounded-xl p-2" placeholder={lang === "th" ? "ชื่อบนบัตร" : "Name on card"} />
+                    <input className="w-full border rounded-xl p-2" placeholder={lang === "th" ? "หมายเลขบัตร" : "Card number"} />
                     <div className="grid grid-cols-2 gap-2">
-                      <input className="w-full border rounded p-2" placeholder="MM/YY" />
-                      <input className="w-full border rounded p-2" placeholder="CVV" />
+                      <input className="w-full border rounded-xl p-2" placeholder="MM/YY" />
+                      <input className="w-full border rounded-xl p-2" placeholder="CVV" />
                     </div>
-                    <button disabled className="w-full px-4 py-3 rounded bg-slate-300 text-white font-bold cursor-not-allowed">
+                    <button disabled className="w-full px-4 py-3 rounded-xl bg-slate-300 text-white font-extrabold cursor-not-allowed">
                       {lang === "th" ? "ชำระเงิน" : "Pay now"}
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 border border-slate-200 rounded-xl p-3">
-                  <div className="text-sm font-extrabold text-slate-800">
-                    {lang === "th" ? "สแกน QR สำหรับชำระเงิน" : "Scan QR for payment"}
-                  </div>
+                <div className="mt-4 border border-slate-200 rounded-2xl p-3">
+                  <div className="text-sm font-extrabold text-slate-800">{lang === "th" ? "สแกน QR สำหรับชำระเงิน" : "Scan QR for payment"}</div>
                   <div className="mt-3 text-xs text-slate-600">
-                    {lang === "th"
-                      ? "เดโม: QR แสดงเฉพาะตอนเลือกเคาน์เตอร์/QR"
-                      : "Demo: QR shows only when Counter/QR is selected."}
+                    {lang === "th" ? "เดโม: QR แสดงเฉพาะตอนเลือกเคาน์เตอร์/QR" : "Demo: QR shows only when Counter/QR is selected."}
                   </div>
-                  <button disabled className="mt-3 w-full px-4 py-3 rounded bg-slate-300 text-white font-bold cursor-not-allowed">
+                  <button disabled className="mt-3 w-full px-4 py-3 rounded-xl bg-slate-300 text-white font-extrabold cursor-not-allowed">
                     {lang === "th" ? "ชำระเงิน" : "Pay now"}
                   </button>
                 </div>
               )}
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <div className="font-extrabold text-slate-800">Debug: holdResponse</div>
-              <pre className="mt-2 text-xs overflow-auto bg-slate-50 border border-slate-200 rounded p-2 max-h-[360px]">
-                {JSON.stringify(holdResponse, null, 2)}
-              </pre>
-            </div>
+            {/* ✅ Removed share buttons and back-to-edit as requested */}
           </div>
         </div>
       </div>

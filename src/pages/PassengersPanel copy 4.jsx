@@ -13,7 +13,7 @@ import BaggagePanel from "../components/BaggagePanel";
 // ✅ Meal panel (MH/MS + BEV per leg)
 import MealPanel from "../components/MealPanel";
 
-// ✅ Priority boarding panel (PBOD per leg)
+// ✅ NEW: Priority boarding panel (PBOD per leg)
 import PriorityBoardingPanel from "../components/PriorityBoardingPanel";
 
 /* ========================= small hook: isMobile ========================= */
@@ -111,7 +111,7 @@ function resolveMealStatus(savedLeg, draftLeg) {
   };
 }
 
-/* ✅ resolve Priority Boarding (PBOD) */
+/* ✅ NEW: resolve Priority Boarding (PBOD) */
 function resolvePbStatus(savedLeg, draftLeg) {
   const s = normUpper(savedLeg?.pbod?.ssrCode);
   const d = normUpper(draftLeg?.pbod?.ssrCode);
@@ -155,7 +155,7 @@ export default function PassengersPanel({
   setContact,
   showContactErrors,
   selectedOffers = [],
-  rawDetail,
+  rawDetail, // ✅ price detail response (airlines[].availableExtraServices)
 }) {
   const deepCopy = (x) => JSON.parse(JSON.stringify(x || {}));
   useIsMobile();
@@ -170,6 +170,7 @@ export default function PassengersPanel({
   const mealDraft = useSelector((s) => s?.mealSelection?.draft || {});
   const mealSaved = useSelector((s) => s?.mealSelection?.saved || {});
 
+  // ✅ NEW: priority boarding draft/saved
   const pbDraft = useSelector((s) => s?.priorityBoardingSelection?.draft || {});
   const pbSaved = useSelector((s) => s?.priorityBoardingSelection?.saved || {});
 
@@ -234,6 +235,7 @@ export default function PassengersPanel({
     if (!travellers?.length) return;
     setShowForm((prev) => {
       const next = { ...prev };
+      // if nothing open -> open first
       const anyOpen = travellers.some((p) => !!next[p.id]);
       if (!anyOpen && travellers[0]?.id) next[travellers[0].id] = true;
       return next;
@@ -250,6 +252,7 @@ export default function PassengersPanel({
         if (isOpening) {
           snapshotRef.current[paxId] = deepCopy(forms[paxId] || {});
         } else {
+          // closing -> open next pax
           const nextId = findNextPaxIdLoop(paxId);
           if (nextId) next[nextId] = true;
         }
@@ -382,6 +385,7 @@ export default function PassengersPanel({
       .filter((x) => x.journeyKey);
   }, [selectedOffers, t]);
 
+  // ✅ NEW: legs mapping for PriorityBoardingPanel (it expects flightNumber)
   const legsForPB = useMemo(() => {
     return (legs || []).map((l) => ({
       ...l,
@@ -420,6 +424,7 @@ export default function PassengersPanel({
       {FlashStyle}
 
       <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4">
+        {/* ✅ Contact anchor (auto-scroll lands here) */}
         <div ref={passengerTopRef} className="h-0" />
 
         {/* Contact Information BEFORE travellers */}
@@ -462,6 +467,7 @@ export default function PassengersPanel({
                   ].join(" ")}
                 >
                   <div className="px-3 sm:px-4 py-3 bg-slate-50 border-b border-slate-200">
+                    {/* ✅ Title + Chip + Small Edit button same line */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex items-center gap-2 flex-wrap">
                         <div className="font-extrabold">{p.label}</div>
@@ -505,37 +511,34 @@ export default function PassengersPanel({
 
                       <div className="px-3 sm:px-4 pb-4">
                         <div className="pt-3 border-t border-slate-200 flex flex-col gap-4">
-                          {/* ✅ 2 buttons per line on mobile, same as before on desktop */}
                           <div
                             className={
                               showAncillaryForThisPax
-                                ? "grid grid-cols-2 gap-2 w-full sm:flex sm:flex-row sm:gap-2 sm:w-auto"
+                                ? ["flex gap-2", "flex-col sm:flex-row", "w-full sm:w-auto"].join(" ")
                                 : "hidden"
                             }
                           >
                             {showAncillaryForThisPax
-                              ? ANCILLARY_TABS
-                                  .filter((tab) => tab.key !== "assist") // ❌ remove Assist button
-                                  .map((tab) => {
-                                    const active = activeForThisPax === tab.key;
-                                    return (
-                                      <button
-                                        key={`${p.id}-${tab.key}`}
-                                        type="button"
-                                        onClick={() => onClickAncTab(p.id, tab.key)}
-                                        className={[
-                                          "flex items-center justify-center",
-                                          "h-10 px-4 rounded-full font-semibold transition-colors",
-                                          "text-sm",
-                                          "w-full sm:w-auto",
-                                          "min-w-0 sm:min-w-[120px]",
-                                          ancBtnClass(active),
-                                        ].join(" ")}
-                                      >
-                                        {tab.label}
-                                      </button>
-                                    );
-                                  })
+                              ? ANCILLARY_TABS.map((tab) => {
+                                  const active = activeForThisPax === tab.key;
+                                  return (
+                                    <button
+                                      key={`${p.id}-${tab.key}`}
+                                      type="button"
+                                      onClick={() => onClickAncTab(p.id, tab.key)}
+                                      className={[
+                                        "flex items-center justify-center",
+                                        "h-10 px-4 rounded-full font-semibold transition-colors",
+                                        "text-sm",
+                                        "w-full sm:w-auto",
+                                        "min-w-0 sm:min-w-[120px]",
+                                        ancBtnClass(active),
+                                      ].join(" ")}
+                                    >
+                                      {tab.label}
+                                    </button>
+                                  );
+                                })
                               : null}
                           </div>
 
@@ -616,15 +619,13 @@ export default function PassengersPanel({
                               ) : activeForThisPax === "pb" ? (
                                 <div>
                                   <div className="font-bold text-slate-900 mb-1">{t.ancPb}</div>
-                                  <PriorityBoardingPanel
-                                    paxId={p.id}
-                                    legs={legsForPB}
-                                    rawDetail={rawDetail}
-                                  />
+                                  <PriorityBoardingPanel paxId={p.id} legs={legsForPB} rawDetail={rawDetail} />
                                 </div>
                               ) : (
-                                // ✅ no Assist anymore (fallback only)
-                                <div className="text-slate-600">{t.ancPickOne}</div>
+                                <div>
+                                  <div className="font-bold text-slate-900 mb-1">{t.ancAssist}</div>
+                                  <div>Assist / special service UI for this passenger.</div>
+                                </div>
                               )}
                             </div>
                           ) : (
@@ -650,7 +651,9 @@ export default function PassengersPanel({
               onClick={() => setPreviewOpen((s) => !s)}
               className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
             >
-              {previewOpen ? t?.hideSummary || "Hide summary" : t?.previewSummaryBtn || "Preview summary"}
+              {previewOpen
+                ? t?.hideSummary || "Hide summary"
+                : t?.previewSummaryBtn || "Preview summary"}
             </button>
             <div className="text-xs text-slate-500">
               {t?.previewSummaryBelowHint ||
@@ -658,7 +661,6 @@ export default function PassengersPanel({
             </div>
           </div>
 
-          {/* previewOpen block unchanged (same as your original) */}
           {previewOpen ? (
             <div className="mt-3 border border-slate-200 rounded-2xl bg-slate-50 p-3 sm:p-4">
               <div className="flex items-start justify-between gap-2">

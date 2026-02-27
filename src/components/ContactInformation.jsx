@@ -1,20 +1,12 @@
 // src/components/ContactInformation.jsx
 import React, { memo, useEffect, useState, useCallback } from "react";
 
-/**
- * ContactInformation
- * Props:
- *  - t: i18n dict with keys { contact, mobilePhone, emailAddress, required }
- *  - value: { dialCode, phone, email, optIn }
- *  - onChange: (next) => void
- *  - showErrors: boolean (when true, shows required errors)
- */
 function ContactInformationBase({ t, value, onChange, showErrors }) {
   const [local, setLocal] = useState(
     value || { dialCode: "+66", phone: "", email: "", optIn: false }
   );
 
-  // keep in sync with parent updates
+  // keep sync with parent
   useEffect(() => {
     setLocal(value || { dialCode: "+66", phone: "", email: "", optIn: false });
   }, [value]);
@@ -31,27 +23,53 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
   const phoneErr = !!(showErrors && !String(local.phone || "").trim());
   const emailErr = !!(showErrors && !String(local.email || "").trim());
 
-  const label = useCallback(
-    (text) => (
-      <span>
-        {text} <span className="text-red-500">*</span>
-      </span>
-    ),
-    []
+  const label = (text) => (
+    <span>
+      {text} <span className="text-red-500">*</span>
+    </span>
   );
 
   return (
+    // ✅ KEEP SAME WRAPPER (no scroll change)
     <div className="mt-3 bg-slate-100 rounded-xl p-4 border border-slate-300">
-      <h3 className="mt-0 text-base font-semibold">{t?.contact || "Contact"}</h3>
+      <h3 className="mt-0 text-base font-semibold">
+        {t?.contact || "Contact Information"}
+      </h3>
 
-      <div className="grid grid-cols-[140px_1fr] max-[480px]:grid-cols-1 gap-2">
-        {/* Dial code */}
-        <div>
-          <div className="text-xs text-slate-600 mb-1">{label("+ Code")}</div>
+      {/* ================= EMAIL FIRST ================= */}
+      <div>
+        <div className="text-xs text-slate-600 mb-1">
+          {label(t?.emailAddress || "E-mail")}
+        </div>
+        <input
+          value={local.email}
+          onChange={(e) => set("email", e.target.value)}
+          placeholder="name@example.com"
+          className={`w-full rounded-lg border px-3 py-2 bg-white ${
+            emailErr ? "border-red-400" : "border-slate-300"
+          }`}
+          inputMode="email"
+          autoComplete="email"
+        />
+        {emailErr && (
+          <div className="text-red-600 text-xs mt-1">
+            {t?.required || "Required"}
+          </div>
+        )}
+      </div>
+
+      {/* ================= CODE + PHONE SAME LINE ================= */}
+      <div className="mt-3">
+        <div className="text-xs text-slate-600 mb-1">
+          {label(t?.mobilePhone || "Mobile Phone")}
+        </div>
+
+        {/* ✅ ALWAYS SAME LINE */}
+        <div className="flex gap-2">
           <select
             value={local.dialCode}
             onChange={(e) => set("dialCode", e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-white"
+            className="w-[110px] rounded-lg border border-slate-300 px-3 py-2 bg-white"
           >
             <option value="+66">+66</option>
             <option value="+60">+60</option>
@@ -59,46 +77,19 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
             <option value="+84">+84</option>
             <option value="+62">+62</option>
           </select>
-        </div>
 
-        {/* Email */}
-        <div>
-          <div className="text-xs text-slate-600 mb-1">
-            {label(t?.emailAddress || "E-mail")}
-          </div>
           <input
-            value={local.email}
-            onChange={(e) => set("email", e.target.value)}
-            placeholder="name@example.com"
-            className={`w-full rounded-lg border px-3 py-2 bg-white ${
-              emailErr ? "border-red-400" : "border-slate-300"
+            value={local.phone}
+            onChange={(e) => set("phone", e.target.value)}
+            placeholder="8x-xxxxxxx"
+            className={`flex-1 rounded-lg border px-3 py-2 bg-white ${
+              phoneErr ? "border-red-400" : "border-slate-300"
             }`}
-            inputMode="email"
-            autoComplete="email"
+            inputMode="tel"
+            autoComplete="tel"
           />
-          {emailErr && (
-            <div className="text-red-600 text-xs mt-1">
-              {t?.required || "Required"}
-            </div>
-          )}
         </div>
-      </div>
 
-      {/* Phone */}
-      <div className="mt-2">
-        <div className="text-xs text-slate-600 mb-1">
-          {label(t?.mobilePhone || "Mobile Phone")}
-        </div>
-        <input
-          value={local.phone}
-          onChange={(e) => set("phone", e.target.value)}
-          placeholder="8x-xxxxxxx"
-          className={`w-full rounded-lg border px-3 py-2 bg-white ${
-            phoneErr ? "border-red-400" : "border-slate-300"
-          }`}
-          inputMode="tel"
-          autoComplete="tel"
-        />
         {phoneErr && (
           <div className="text-red-600 text-xs mt-1">
             {t?.required || "Required"}
@@ -106,15 +97,14 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
         )}
       </div>
 
-      {/* Marketing opt-in */}
+      {/* ================= PRIVACY ================= */}
       <label className="flex items-center gap-2 mt-3 text-sm text-slate-700">
         <input
           type="checkbox"
           checked={!!local.optIn}
           onChange={(e) => set("optIn", e.target.checked)}
         />
-        {t?.marketingOptIn ||
-          "I would like to receive news and special offers and accept the privacy policy."}
+        {t?.acceptPrivacyPolicy || "I accept Privacy Policy"}
       </label>
     </div>
   );
