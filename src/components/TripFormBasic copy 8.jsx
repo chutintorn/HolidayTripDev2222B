@@ -7,7 +7,7 @@ import useT from "../i18n/useT";
 
 // 🔌 Redux
 import { useDispatch, useSelector } from "react-redux";
-import { fetchSearchResults, selectSearch, clearResults } from "../redux/searchSlice";
+import { fetchSearchResults, selectSearch } from "../redux/searchSlice";
 
 // ✅ clear old selection before new search (safety)
 import { clearSelectedOfferLegs } from "../redux/offerSelectionSlice";
@@ -192,6 +192,7 @@ export default function TripFormBasic({ onSubmit }) {
     setTripType(type);
     if (type === "oneway") setRet(null);
 
+    // reset both navigators when switching mode
     setAnchorYMD(null);
     lastPayloadRef.current = null;
 
@@ -199,37 +200,9 @@ export default function TripFormBasic({ onSubmit }) {
     lastPayloadRTRef.current = null;
     setRtActiveTab("depart");
 
+    // reset one-way bridge controls
     setOwTab("list");
     setOwClearTick(0);
-
-    dispatch(clearSelectedOfferLegs());
-  };
-
-  // ✅ Clear Search = refresh screen
-  const handleClearSearch = () => {
-    setOrigin("");
-    setDestination("");
-    setDepart(startOfToday());
-    setRet(null);
-
-    setAdult(1);
-    setChild(0);
-    setInfant(0);
-
-    setShowPax(false);
-
-    setAnchorYMD(null);
-    lastPayloadRef.current = null;
-
-    setRtAnchor({ departYMD: null, returnYMD: null });
-    lastPayloadRTRef.current = null;
-    setRtActiveTab("depart");
-
-    setOwTab("list");
-    setOwClearTick((x) => x + 1);
-
-    dispatch(clearSelectedOfferLegs());
-    dispatch(clearResults()); // ✅ removes flight list
   };
 
   // infants ≤ adults
@@ -294,6 +267,7 @@ export default function TripFormBasic({ onSubmit }) {
 
     if (onSubmit) onSubmit(payload);
 
+    // ✅ Save payload for date navigation
     if (payload.ret == null) {
       lastPayloadRef.current = payload;
       setAnchorYMD(payload.depart);
@@ -361,11 +335,9 @@ export default function TripFormBasic({ onSubmit }) {
 
   // ✅ FORCE From/To to be full width on mobile (different line)
   const fromSpan =
-    "col-span-12 " +
-    (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
+    "col-span-12 " + (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
   const toSpan =
-    "col-span-12 " +
-    (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
+    "col-span-12 " + (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
   const departSpan = "col-span-12 md:col-span-3";
 
   const showNavigator = tripType === "oneway" && !!anchorYMD;
@@ -383,8 +355,19 @@ export default function TripFormBasic({ onSubmit }) {
 
   const canUseSelectionActions = !!results && status !== "loading";
 
+  const handleClearSelectionFromNav = () => {
+    dispatch(clearSelectedOfferLegs());
+    setOwClearTick((x) => x + 1);
+    setOwTab("list");
+  };
+
+  const handleViewSelectionFromNav = () => {
+    setOwTab("view");
+  };
+
   return (
     <CustomProvider locale={calendarLocale}>
+      {/* ✅ wider on desktop + more space on wide screen */}
       <div className="px-[2px] sm:px-4 md:px-8 lg:px-10 xl:px-12 max-w-7xl mx-auto">
         <form
           onSubmit={handleSubmit}
@@ -395,44 +378,40 @@ export default function TripFormBasic({ onSubmit }) {
             text-[13px] sm:text-sm
           "
         >
-          {/* ✅ Round-trip / One-way capsule: +30% height on md+ */}
+          {/* ✅ Round-trip / One-way: less bold + smaller text */}
           <div className="w-full">
-            <div className="w-full rounded-[999px] bg-slate-200 p-[3px] overflow-hidden">
-              <div className="flex w-full">
-                <button
-                  type="button"
-                  onClick={() => switchTripType("roundtrip")}
-                  className={
-                    "w-1/2 h-10 md:h-[52px] rounded-l-[999px] text-[13px] sm:text-sm font-medium transition-all " +
-                    (tripType === "roundtrip"
-                      ? "bg-sky-600 text-white shadow-md"
-                      : "bg-transparent text-slate-700")
-                  }
-                >
-                  {t.form?.roundtrip ?? (isTH ? "ไป-กลับ" : "Round-trip")}
-                </button>
+            <div className="flex w-full rounded-[999px] bg-slate-200 p-[2px]">
+              <button
+                type="button"
+                onClick={() => switchTripType("roundtrip")}
+                className={
+                  "w-1/2 h-10 rounded-[999px] text-[13px] sm:text-sm font-medium transition-all " +
+                  (tripType === "roundtrip"
+                    ? "bg-sky-600 text-white shadow-md"
+                    : "bg-transparent text-slate-700")
+                }
+              >
+                {t.form?.roundtrip ?? (isTH ? "ไป-กลับ" : "Round-trip")}
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() => switchTripType("oneway")}
-                  className={
-                    "w-1/2 h-10 md:h-[52px] rounded-r-[999px] text-[13px] sm:text-sm font-medium transition-all " +
-                    (tripType === "oneway"
-                      ? "bg-sky-600 text-white shadow-md"
-                      : "bg-transparent text-slate-700")
-                  }
-                >
-                  {t.form?.oneway ?? (isTH ? "เที่ยวเดียว" : "One-way")}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => switchTripType("oneway")}
+                className={
+                  "w-1/2 h-10 rounded-[999px] text-[13px] sm:text-sm font-medium transition-all " +
+                  (tripType === "oneway"
+                    ? "bg-sky-600 text-white shadow-md"
+                    : "bg-transparent text-slate-700")
+                }
+              >
+                {t.form?.oneway ?? (isTH ? "เที่ยวเดียว" : "One-way")}
+              </button>
             </div>
           </div>
 
-          {/* ✅ MORE vertical space under the tabs */}
-          <div className="h-3 md:h-5" />
-
-          {/* ✅ MAIN ROWS */}
+          {/* ✅ MAIN ROWS: more spacing on large screens */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 lg:gap-6 xl:gap-8 items-center">
+            {/* From */}
             <div className={fromSpan}>
               <AirportSelect
                 value={origin}
@@ -441,6 +420,7 @@ export default function TripFormBasic({ onSubmit }) {
               />
             </div>
 
+            {/* To */}
             <div className={toSpan}>
               <AirportSelect
                 value={destination}
@@ -449,6 +429,7 @@ export default function TripFormBasic({ onSubmit }) {
               />
             </div>
 
+            {/* Dates */}
             {tripType === "roundtrip" ? (
               <div className="col-span-12 md:col-span-6">
                 <DepartReturnDateBox
@@ -487,20 +468,19 @@ export default function TripFormBasic({ onSubmit }) {
                     placement="bottomEnd"
                   />
                 </div>
-              </div>  
+              </div>
             )}
           </div>
 
-          {/* ✅ pax + actions: make actions take full width on desktop too */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 !items-end">
-            {/* pax */}
-            <div className="md:col-span-6 lg:col-span-5 relative" ref={paxRef}>
+          {/* ✅ pax + search: less bold text */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-6">
+            <div className="relative" ref={paxRef}>
               <button
                 type="button"
                 onClick={() => setShowPax((s) => !s)}
                 className="
-                  w-full
-                  h-12
+                  w-full md:w-[280px] lg:w-[320px]
+                  h-11
                   rounded-xl
                   border border-slate-200 bg-white
                   px-4
@@ -608,49 +588,23 @@ export default function TripFormBasic({ onSubmit }) {
               )}
             </div>
 
-            {/* actions (Clear/Search) - full width like top tabs */}
-<div className="md:col-span-6 lg:col-span-7 mt-2 md:mt-5 lg:mt-4">
-  <div className="w-full rounded-[999px] bg-slate-200 p-[4px] overflow-hidden">
-    <div className="flex w-full h-10">
-      <button
-        type="button"
-        onClick={handleClearSearch}
-        className="
-          w-1/2
-          h-10 md:h-[44px]
-          rounded-l-[999px]
-          bg-transparent
-          text-slate-700
-          font-medium
-          hover:bg-white/60
-          transition
-        "
-      >
-        {isTH ? "ล้าง" : "Clear"}
-      </button>
-
-      <button
-        type="submit"
-        disabled={status === "loading"}
-        className="
-          w-1/2
-          h-10 md:h-[44px]
-          rounded-r-[999px]
-          bg-sky-600
-          text-white
-          font-semibold
-          hover:bg-sky-700
-          transition
-          disabled:opacity-60
-        "
-      >
-        {status === "loading"
-          ? t.form?.searching ?? (isTH ? "กำลังค้นหา..." : "Searching...")
-          : t.form?.search ?? (isTH ? "ค้นหา" : "Search Flights")}
-      </button>
-    </div>
-  </div>
-</div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={status === "loading"}
+                className="
+                  h-10 px-6 rounded-xl
+                  bg-sky-600 text-white font-medium
+                  hover:bg-sky-700 shadow
+                  disabled:opacity-60
+                  w-full sm:w-auto
+                "
+              >
+                {status === "loading"
+                  ? t.form?.searching ?? (isTH ? "กำลังค้นหา..." : "Searching...")
+                  : t.form?.search ?? (isTH ? "ค้นหา" : "Search")}
+              </button>
+            </div>
           </div>
 
           {error && <div className="text-sm text-red-600">{error}</div>}
@@ -731,7 +685,9 @@ function Stepper({ value, setValue, min, max = Infinity, tall = false }) {
       >
         −
       </button>
-      <span className="w-8 text-center font-medium text-slate-900">{value}</span>
+      <span className="w-8 text-center font-medium text-slate-900">
+        {value}
+      </span>
       <button
         type="button"
         onClick={() => setValue(clampInt((value ?? 0) + 1, min, max))}
