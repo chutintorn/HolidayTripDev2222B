@@ -27,17 +27,9 @@
     }
   }
 
-  /* ✅ Input (toggle) inside our picker wrapper
-     - Compact ONLY on mobile (Power App feel)
-     - Desktop unchanged */
+  /* Input (toggle) inside our picker wrapper */
   .ibe-datepicker .rs-picker-toggle {
-    @apply h-12 sm:h-14
-      w-full
-      rounded-xl sm:rounded-2xl
-      border border-slate-200
-      bg-white
-      px-3 sm:px-4
-      shadow-sm;
+    @apply h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 shadow-sm;
   }
 
   .ibe-datepicker .rs-picker-toggle:hover {
@@ -47,7 +39,7 @@
   .ibe-datepicker .rs-picker-toggle.rs-btn,
   .ibe-datepicker .rs-picker-toggle .rs-picker-toggle-value,
   .ibe-datepicker .rs-picker-toggle .rs-picker-toggle-placeholder {
-    @apply text-[15px] sm:text-[16px] text-slate-800;
+    @apply text-[16px] text-slate-800;
   }
 
   /* Focus ring + border on focus */
@@ -69,7 +61,7 @@
     @apply font-semibold;
   }
 
-  /* Day cell sizing + shape (base) */
+  /* Day cell sizing + shape */
   .rs-calendar-table-cell-content {
     @apply w-9 h-9 leading-9 rounded-full;
   }
@@ -130,8 +122,10 @@
   }
 
   /* calendar panels scroll inside */
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panel,
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panels {
+  .rs-picker-popup.rs-picker-popup-daterange
+    .rs-picker-daterange-panel,
+  .rs-picker-popup.rs-picker-popup-daterange
+    .rs-picker-daterange-panels {
     flex: 1 1 auto !important;
     overflow: auto !important;
     -webkit-overflow-scrolling: touch;
@@ -147,7 +141,7 @@
     padding-bottom: max(env(safe-area-inset-bottom), 8px) !important;
   }
 
-  /* easier tap (mobile only) */
+  /* easier tap */
   .rs-calendar-table-cell-content {
     width: 40px !important;
     height: 40px !important;

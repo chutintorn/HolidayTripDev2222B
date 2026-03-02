@@ -63,8 +63,7 @@ function seatCodeFromSeatObj(seatObj) {
   if (typeof seatObj === "string") return seatObj;
   const s = seatObj.seatCode || seatObj.seat || seatObj.seatNumber;
   if (s) return String(s);
-  if (seatObj.rowNumber && seatObj.column)
-    return `${seatObj.rowNumber}${seatObj.column}`;
+  if (seatObj.rowNumber && seatObj.column) return `${seatObj.rowNumber}${seatObj.column}`;
   return "";
 }
 function pillClass(status) {
@@ -91,8 +90,8 @@ function resolveBagStatus(savedLeg, draftLeg) {
   const draftAny = !!(dBg || dSb);
 
   return {
-    bg: savedAny ? sBg || "-" : draftAny ? dBg || "-" : "-",
-    sb: savedAny ? sSb || "-" : draftAny ? dSb || "-" : "-",
+    bg: savedAny ? (sBg || "-") : draftAny ? (dBg || "-") : "-",
+    sb: savedAny ? (sSb || "-") : draftAny ? (dSb || "-") : "-",
     status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
   };
 }
@@ -106,8 +105,8 @@ function resolveMealStatus(savedLeg, draftLeg) {
   const draftAny = !!(dMeal || dBev);
 
   return {
-    meal: savedAny ? sMeal || "-" : draftAny ? dMeal || "-" : "-",
-    bev: savedAny ? sBev || "-" : draftAny ? dBev || "-" : "-",
+    meal: savedAny ? (sMeal || "-") : draftAny ? (dMeal || "-") : "-",
+    bev: savedAny ? (sBev || "-") : draftAny ? (dBev || "-") : "-",
     status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
   };
 }
@@ -121,7 +120,7 @@ function resolvePbStatus(savedLeg, draftLeg) {
   const draftAny = !!d;
 
   return {
-    pbod: savedAny ? s || "-" : draftAny ? d || "-" : "-",
+    pbod: savedAny ? (s || "-") : draftAny ? (d || "-") : "-",
     status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
   };
 }
@@ -159,7 +158,7 @@ export default function PassengersPanel({
   rawDetail,
 }) {
   const deepCopy = (x) => JSON.parse(JSON.stringify(x || {}));
-  const isMobile = useIsMobile();
+  useIsMobile();
 
   /* ========================= Redux: read draft/saved seat & baggage & meal & priority ========================= */
   const seatDraft = useSelector((s) => s?.seatSelection?.draft || {});
@@ -206,11 +205,10 @@ export default function PassengersPanel({
     const rect = el.getBoundingClientRect();
     const currentY = window.scrollY || 0;
 
-    // ✅ Mobile: offset a bit more (avoid header overlap)
-    const OFFSET = isMobile ? 92 : 80;
+    const OFFSET = 80;
     const targetY = Math.max(0, currentY + rect.top - OFFSET);
     window.scrollTo({ top: targetY, behavior: "smooth" });
-  }, [isMobile]);
+  }, []);
 
   const findNextPaxIdLoop = useCallback(
     (currentId) => {
@@ -259,14 +257,14 @@ export default function PassengersPanel({
         return ensureSomePassengerOpen(next);
       });
 
-      // ✅ IMPORTANT: remove scrollToPassengerTop to avoid "jerking"
-      // (Old code used requestAnimationFrame(scrollToPassengerTop))
+      requestAnimationFrame(scrollToPassengerTop);
     },
     [
       deepCopy,
       ensureSomePassengerOpen,
       findNextPaxIdLoop,
       forms,
+      scrollToPassengerTop,
       setShowForm,
       snapshotRef,
     ]
@@ -334,6 +332,8 @@ export default function PassengersPanel({
     const nextId = findNextPaxIdLoop(currentId);
     if (!nextId) return;
 
+    const yBefore = typeof window !== "undefined" ? window.scrollY || 0 : 0;
+
     openOnlyThisPassenger(nextId);
 
     const nextType = travellers.find((x) => x.id === nextId)?.type;
@@ -348,10 +348,13 @@ export default function PassengersPanel({
 
     if (nextType !== "INF" && desiredTab) lastAncRef.current = desiredTab;
 
-    // ✅ no "scroll restore" (yBefore) → avoids double-jump
     requestAnimationFrame(() => {
-      flashCard(nextId);
-      requestAnimationFrame(() => smoothScrollToPax(nextId));
+      if (typeof window !== "undefined") window.scrollTo({ top: yBefore });
+
+      requestAnimationFrame(() => {
+        flashCard(nextId);
+        requestAnimationFrame(() => smoothScrollToPax(nextId));
+      });
     });
   };
 
@@ -419,7 +422,17 @@ export default function PassengersPanel({
       <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4">
         <div ref={passengerTopRef} className="h-0" />
 
-        {/* ✅ Travellers FIRST */}
+        {/* Contact Information BEFORE travellers */}
+        <div className="mb-4">
+          <ContactInformation
+            t={t}
+            value={contact}
+            onChange={setContact}
+            showErrors={showContactErrors}
+          />
+        </div>
+
+        {/* Travellers AFTER contact */}
         <div className="mt-2">
           <div className="text-base font-semibold mb-2">{t.travellers}</div>
 
@@ -578,16 +591,12 @@ export default function PassengersPanel({
                             <div className="mt-3 border border-slate-200 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
                               {activeForThisPax === "seat" ? (
                                 <div>
-                                  <div className="font-bold text-slate-900 mb-1">
-                                    {t.ancSeat}
-                                  </div>
+                                  <div className="font-bold text-slate-900 mb-1">{t.ancSeat}</div>
                                   <SeatMapPanel paxId={p.id} selectedOffers={selectedOffers} t={t} />
                                 </div>
                               ) : activeForThisPax === "bag" ? (
                                 <div>
-                                  <div className="font-bold text-slate-900 mb-1">
-                                    {t.ancBag}
-                                  </div>
+                                  <div className="font-bold text-slate-900 mb-1">{t.ancBag}</div>
                                   <BaggagePanel
                                     paxId={p.id}
                                     selectedOffers={selectedOffers}
@@ -606,9 +615,7 @@ export default function PassengersPanel({
                                 </div>
                               ) : activeForThisPax === "pb" ? (
                                 <div>
-                                  <div className="font-bold text-slate-900 mb-1">
-                                    {t.ancPb}
-                                  </div>
+                                  <div className="font-bold text-slate-900 mb-1">{t.ancPb}</div>
                                   <PriorityBoardingPanel
                                     paxId={p.id}
                                     legs={legsForPB}
@@ -635,20 +642,7 @@ export default function PassengersPanel({
           </div>
         </div>
 
-        {/* ✅ Contact Information AFTER travellers */}
-        <div className="mt-4">
-          <div className="text-base font-semibold mb-2">
-            {t?.contactInfoTitle || t?.contactInformation || "Contact Information"}
-          </div>
-          <ContactInformation
-            t={t}
-            value={contact}
-            onChange={setContact}
-            showErrors={showContactErrors}
-          />
-        </div>
-
-        {/* Preview summary button remains (after contact) */}
+        {/* Preview summary button remains (after travellers) */}
         <div className="mt-4">
           <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <button
@@ -664,6 +658,7 @@ export default function PassengersPanel({
             </div>
           </div>
 
+          {/* previewOpen block unchanged (same as your original) */}
           {previewOpen ? (
             <div className="mt-3 border border-slate-200 rounded-2xl bg-slate-50 p-3 sm:p-4">
               <div className="flex items-start justify-between gap-2">

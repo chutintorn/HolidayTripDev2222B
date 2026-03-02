@@ -23,6 +23,7 @@ export default function DateNavigatorOneWay({
   minTotal = null,
   currency = "THB",
 
+  // ✅ NEW
   onClearSelection,
   onViewSelection,
   clearDisabled = false,
@@ -67,10 +68,6 @@ export default function DateNavigatorOneWay({
   const dow = getDow(activeDate, lang);
   const dowStyle = getDowStyleByRuleVivid(activeDate);
 
-  // ✅ Sun -> S U N (English only)
-  const dowDisplay =
-    lang === "th" ? dow : String(dow).toUpperCase().split("").join(" ");
-
   const { day: dDay, mon: dMon } = fmtDayMon(activeDate);
 
   const minRowTint = useMemo(() => {
@@ -79,8 +76,90 @@ export default function DateNavigatorOneWay({
 
   return (
     <section style={styles.wrap} aria-label="Date navigator">
-      {/* ✅ ACTION BUTTONS ON TOP */}
-      <div style={styles.actionRowTop}>
+
+      {/* NAVIGATION ROW */}
+      <div style={styles.navRow}>
+        <button
+          type="button"
+          style={{ ...styles.btn, ...(prevWeekDisabled ? styles.btnDisabled : null) }}
+          disabled={prevWeekDisabled}
+          onClick={() => doNavigate(addDays(activeDate, -7))}
+        >
+          ⏪
+        </button>
+
+        <button
+          type="button"
+          style={{ ...styles.btn, ...(prevDayDisabled ? styles.btnDisabled : null) }}
+          disabled={prevDayDisabled}
+          onClick={() => doNavigate(addDays(activeDate, -1))}
+        >
+          ◀
+        </button>
+
+        <div style={styles.center}>
+          <div style={styles.bigDate}>
+            <span style={styles.dayNum}>{dDay}</span>
+            <span style={styles.monTxt}>{dMon}</span>
+          </div>
+          <div style={{ ...styles.dowPill, ...dowStyle }}>{dow}</div>
+        </div>
+
+        <button
+          type="button"
+          style={{ ...styles.btn, ...(nextDayDisabled ? styles.btnDisabled : null) }}
+          disabled={nextDayDisabled}
+          onClick={() => doNavigate(addDays(activeDate, +1))}
+        >
+          ▶
+        </button>
+
+        <button
+          type="button"
+          style={{ ...styles.btn, ...(nextWeekDisabled ? styles.btnDisabled : null) }}
+          disabled={nextWeekDisabled}
+          onClick={() => doNavigate(addDays(activeDate, +7))}
+        >
+          ⏩
+        </button>
+
+        <button
+          type="button"
+          style={{
+            ...styles.btn,
+            ...styles.resetBtn,
+            ...(resetDisabled ? styles.btnDisabled : null),
+          }}
+          disabled={resetDisabled}
+          onClick={() => {
+            const a = anchorRef.current || startOfToday();
+            doNavigate(a);
+          }}
+        >
+          ●
+        </button>
+      </div>
+
+      {/* MINIMUM PRICE */}
+      <div
+        style={{
+          ...styles.minRow,
+          background: minRowTint.background,
+          borderColor: minRowTint.borderColor,
+        }}
+      >
+        <div style={styles.minLabel}>
+          {lang === "th" ? "ราคาต่ำสุด" : "Minimum price"}
+        </div>
+
+        <div style={styles.minValue}>
+          {minTotal === null ? "—" : `${fmtMoney(minTotal)} `}
+          <span style={styles.minChip}>{currency}</span>
+        </div>
+      </div>
+
+      {/* ✅ ACTION BUTTONS UNDER MIN PRICE */}
+      <div style={styles.actionRow}>
         <button
           type="button"
           onClick={() => onClearSelection && onClearSelection()}
@@ -105,121 +184,6 @@ export default function DateNavigatorOneWay({
         >
           {lang === "th" ? "ดูที่เลือก" : "View selection"}
         </button>
-      </div>
-
-      {/* NAVIGATION ROW */}
-      <div style={styles.navRow}>
-        {/* -7 days */}
-        <button
-          type="button"
-          style={{
-            ...styles.btn,
-            ...styles.btnWeek,
-            ...(prevWeekDisabled ? styles.btnDisabled : null),
-          }}
-          disabled={prevWeekDisabled}
-          onClick={() => doNavigate(addDays(activeDate, -7))}
-          aria-label="Back 7 days"
-          title={lang === "th" ? "ย้อนกลับ 7 วัน" : "Back 7 days"}
-        >
-          «
-        </button>
-
-        {/* -1 day */}
-        <button
-          type="button"
-          style={{
-            ...styles.btn,
-            ...styles.btnDay,
-            ...(prevDayDisabled ? styles.btnDisabled : null),
-          }}
-          disabled={prevDayDisabled}
-          onClick={() => doNavigate(addDays(activeDate, -1))}
-          aria-label="Back 1 day"
-          title={lang === "th" ? "ย้อนกลับ 1 วัน" : "Back 1 day"}
-        >
-          ‹
-        </button>
-
-        <div style={styles.center}>
-          {/* ✅ Date reduced size + reduced boldness (~60%) */}
-          <div style={styles.bigDate}>
-            <span style={styles.dayNum}>{dDay}</span>
-            <span style={styles.monTxt}>{dMon}</span>
-          </div>
-
-          {/* ✅ DOW rectangle with tiny rounded corner */}
-          <div style={{ ...styles.dowPill, ...dowStyle }}>{dowDisplay}</div>
-        </div>
-
-        {/* +1 day */}
-        <button
-          type="button"
-          style={{
-            ...styles.btn,
-            ...styles.btnDay,
-            ...(nextDayDisabled ? styles.btnDisabled : null),
-          }}
-          disabled={nextDayDisabled}
-          onClick={() => doNavigate(addDays(activeDate, +1))}
-          aria-label="Forward 1 day"
-          title={lang === "th" ? "ไปข้างหน้า 1 วัน" : "Forward 1 day"}
-        >
-          ›
-        </button>
-
-        {/* +7 days */}
-        <button
-          type="button"
-          style={{
-            ...styles.btn,
-            ...styles.btnWeek,
-            ...(nextWeekDisabled ? styles.btnDisabled : null),
-          }}
-          disabled={nextWeekDisabled}
-          onClick={() => doNavigate(addDays(activeDate, +7))}
-          aria-label="Forward 7 days"
-          title={lang === "th" ? "ไปข้างหน้า 7 วัน" : "Forward 7 days"}
-        >
-          »
-        </button>
-
-        {/* reset to anchor */}
-        <button
-          type="button"
-          style={{
-            ...styles.btn,
-            ...styles.resetBtn,
-            ...(resetDisabled ? styles.btnDisabled : null),
-          }}
-          disabled={resetDisabled}
-          onClick={() => {
-            const a = anchorRef.current || startOfToday();
-            doNavigate(a);
-          }}
-          aria-label="Reset to searched date"
-          title={lang === "th" ? "กลับไปวันค้นหา" : "Back to searched date"}
-        >
-          ●
-        </button>
-      </div>
-
-      {/* MINIMUM PRICE */}
-      <div
-        style={{
-          ...styles.minRow,
-          background: minRowTint.background,
-          borderColor: minRowTint.borderColor,
-        }}
-      >
-        <div style={styles.minLabel}>
-          {lang === "th" ? "ราคาต่ำสุด" : "Minimum price"}
-        </div>
-
-        <div style={styles.minValue}>
-          {minTotal === null ? "—" : `${fmtMoney(minTotal)} `}
-          <span style={styles.minChip}>{currency}</span>
-        </div>
       </div>
 
       <div style={styles.toast} id="dn_toast" />
@@ -252,11 +216,11 @@ function toDate(v) {
   return isNaN(d.getTime()) ? null : d;
 }
 function fmtDayMon(d) {
-  const months = [
-    "JAN","FEB","MAR","APR","MAY","JUN",
-    "JUL","AUG","SEP","OCT","NOV","DEC"
-  ];
-  return { day: String(d.getDate()).padStart(2, "0"), mon: months[d.getMonth()] };
+  const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  return {
+    day: String(d.getDate()).padStart(2, "0"),
+    mon: months[d.getMonth()],
+  };
 }
 function getDow(d, lang) {
   const en = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -279,7 +243,10 @@ function getDowStyleByRuleVivid(d) {
   return { background: "#e2d0f5", borderColor: "#8b5cf6", color: "#752cf4" };
 }
 function getLightFromVivid(vivid) {
-  return { background: vivid.background + "55", borderColor: vivid.borderColor + "88" };
+  return {
+    background: vivid.background + "55",
+    borderColor: vivid.borderColor + "88",
+  };
 }
 function toast(msg) {
   const el = document.getElementById("dn_toast");
@@ -299,124 +266,72 @@ const styles = {
     borderRadius: 16,
     padding: "10px 12px 14px",
   },
-
-  /* ✅ ACTION BUTTONS ON TOP */
-  actionRowTop: {
-    display: "flex",
-    gap: 10,
-    marginBottom: 10,
-  },
-
-  /* ✅ Professional buttons */
-  actionBtn: {
-    flex: 1,
-    height: 36,
-    borderRadius: 12,
-    border: "1px solid #E2E8F0",
-    background: "#F8FAFC",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#475569",
-    whiteSpace: "nowrap",
-    cursor: "pointer",
-    transition: "all 0.15s ease",
-  },
-  viewBtn: {
-    background: "#EAF2FF",
-    border: "1px solid #C7D9FF",
-    color: "#1E40AF",
-  },
-
   navRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 6,
-    padding: "6px 0",
   },
-
-  /* ✅ Light arrow buttons (compact) */
   btn: {
     width: 36,
     height: 32,
-    borderRadius: 10,
-    border: "1px solid #EEF2F7",
+    borderRadius: 6,
+    border: "1px solid #0ea5e9",
     background: "#fff",
     fontWeight: 700,
     cursor: "pointer",
-    color: "#94A3B8",
-    fontSize: 16,
-    lineHeight: "30px",
-    userSelect: "none",
-    transition: "all 0.15s ease",
+    color: "#0ea5e9",
   },
-  btnDay: { fontSize: 18, color: "#64748B" },
-  btnWeek: { fontSize: 16, color: "#A8B3C3", letterSpacing: 1 },
-
-  resetBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 999,
-    border: "1px solid #EEF2F7",
-    background: "#F8FAFC",
-    color: "#64748B",
-    fontSize: 10,
-    lineHeight: "30px",
-  },
-
   btnDisabled: { opacity: 0.4, cursor: "not-allowed" },
-
-  center: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-
-  /* ✅ Date reduced to ~60% (size + boldness) */
-  bigDate: { display: "flex", gap: 5, alignItems: "baseline" },
-  dayNum: { fontWeight: 600, fontSize: 12, color: "#0F172A" },
-  monTxt: { fontWeight: 600, fontSize: 12, color: "#0F172A" },
-
-  /* ✅ DOW rectangle, tiny corner */
-  dowPill: {
-    padding: "2px 8px",
-    borderRadius: 3,
-    border: "1px solid",
-    fontWeight: 600,
-    fontSize: 9,
-    letterSpacing: 2,
-    lineHeight: "1",
-    whiteSpace: "nowrap",
-  },
+  center: { flex: 1, display: "flex", justifyContent: "center", gap: 8 },
+  bigDate: { display: "flex", gap: 4 },
+  dayNum: { fontWeight: 800 },
+  monTxt: { fontWeight: 800, color: "#0ea5e9" },
+  dowPill: { padding: "2px 6px", borderRadius: 8, border: "1px solid" },
+  resetBtn: { background: "#e0f2fe" },
 
   minRow: {
     marginTop: 10,
-    padding: "10px 12px",
-    borderRadius: 14,
+    padding: "8px 10px",
+    borderRadius: 12,
     border: "1px solid transparent",
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
   },
-  minLabel: { fontSize: 12, color: "#6B7280", fontWeight: 650 },
-  minValue: { fontWeight: 900, fontSize: 18, color: "#111827" },
+  minLabel: { fontSize: 12 },
+  minValue: { fontWeight: 800 },
   minChip: {
-    marginLeft: 8,
+    marginLeft: 6,
     fontSize: 11,
-    padding: "3px 10px",
+    padding: "2px 6px",
     borderRadius: 999,
-    background: "#ffffff",
-    border: "1px solid #E9EDF3",
-    fontWeight: 900,
+    background: "#e9f2ff",
+    border: "1px solid #c8defa",
   },
 
-  toast: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#0f172a",
-    opacity: 0,
-    transition: "opacity 0.2s ease",
-  },
+  actionRow: {
+  marginTop: 10,
+  display: "flex",
+  gap: 10,
+},
+
+actionBtn: {
+  flex: 1,
+  height: 32,
+  borderRadius: 6,
+  border: "1px solid #d1d5db",     // light gray border
+  background: "#ffffff",           // white background
+  fontSize: 12,
+  fontWeight: 400,                 // NOT bold
+  color: "#475569",                // soft slate gray text
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+},
+
+viewBtn: {
+  background: "#ffffff",           // same white
+  border: "1px solid #cbd5e1",     // slightly cooler gray
+  color: "#475569",
+},
 };

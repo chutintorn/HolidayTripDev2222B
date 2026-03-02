@@ -6,10 +6,9 @@
    RSuite DatePicker / DateRangePicker polish
    ------------------------------------------- */
 @layer components {
-  /* Ensure the popup floats above other UI
-     ✅ FIX: Tailwind may not have z-60; use plain CSS */
+  /* Ensure the popup floats above other UI */
   .rs-picker-popup {
-    z-index: 9999;
+    @apply z-60;
   }
 
   /* Make the two-month menu comfortably wide on md+ screens */
@@ -18,8 +17,7 @@
       min-width: 560px;
     }
   }
-
-  /* Mobile friendliness: let the popup fit viewport width (base) */
+  /* Mobile friendliness: let the popup fit viewport width */
   @media (max-width: 767px) {
     .rs-picker-daterange-menu {
       width: calc(100vw - 2rem);
@@ -27,17 +25,9 @@
     }
   }
 
-  /* ✅ Input (toggle) inside our picker wrapper
-     - Compact ONLY on mobile (Power App feel)
-     - Desktop unchanged */
+  /* Input (toggle) inside our picker wrapper */
   .ibe-datepicker .rs-picker-toggle {
-    @apply h-12 sm:h-14
-      w-full
-      rounded-xl sm:rounded-2xl
-      border border-slate-200
-      bg-white
-      px-3 sm:px-4
-      shadow-sm;
+    @apply h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 shadow-sm;
   }
 
   .ibe-datepicker .rs-picker-toggle:hover {
@@ -47,7 +37,7 @@
   .ibe-datepicker .rs-picker-toggle.rs-btn,
   .ibe-datepicker .rs-picker-toggle .rs-picker-toggle-value,
   .ibe-datepicker .rs-picker-toggle .rs-picker-toggle-placeholder {
-    @apply text-[15px] sm:text-[16px] text-slate-800;
+    @apply text-[16px] text-slate-800;
   }
 
   /* Focus ring + border on focus */
@@ -69,7 +59,7 @@
     @apply font-semibold;
   }
 
-  /* Day cell sizing + shape (base) */
+  /* Day cell sizing + shape */
   .rs-calendar-table-cell-content {
     @apply w-9 h-9 leading-9 rounded-full;
   }
@@ -94,63 +84,54 @@
 }
 
 /* =========================================================
-   ✅ Mobile-first: Popup below inputs + 75% height
-   - Lower popup under depart/return fields
-   - Reduce height from 100% to ~75%
-   - Keep OK/Clean always visible (sticky)
+   ✅ Mobile "near full width" DateRangePicker popup
+   - Uses !important to beat RSuite default/inline constraints
    ========================================================= */
 @media (max-width: 767px) {
-  /* ✅ daterange popup: below inputs, not full screen */
+  /* allow popup to use the full viewport width */
+  .rs-picker-popup,
   .rs-picker-popup.rs-picker-popup-daterange {
-    position: fixed !important;
-    left: 10px !important;
-    right: 10px !important;
-
-    /* ✅ move popup down under your depart/return boxes */
-    top: 220px !important; /* adjust 200-260 if needed */
-
-    /* ✅ 75% height feel */
-    height: 75vh !important;
-    bottom: auto !important;
-
-    max-width: none !important;
-    max-height: none !important;
+    max-width: 100vw !important;
   }
 
-  /* menu fills popup height */
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-menu {
-    width: 100% !important;
-    height: 100% !important;
-
-    display: flex !important;
-    flex-direction: column !important;
-
-    overflow: hidden !important; /* ✅ scroll happens inside panels */
-    -webkit-overflow-scrolling: touch;
+  /* main daterange menu container */
+  .rs-picker-daterange-menu {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    min-width: unset !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
 
-  /* calendar panels scroll inside */
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panel,
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panels {
-    flex: 1 1 auto !important;
-    overflow: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* toolbar stays visible */
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-toolbar {
-    position: sticky !important;
-    bottom: 0 !important;
-    z-index: 10 !important;
-    background: #fff !important;
-    border-top: 1px solid rgba(148, 163, 184, 0.35) !important;
-    padding-bottom: max(env(safe-area-inset-bottom), 8px) !important;
-  }
-
-  /* easier tap (mobile only) */
+  /* make date cells easier to tap */
   .rs-calendar-table-cell-content {
     width: 40px !important;
     height: 40px !important;
     line-height: 40px !important;
   }
+
+/* =========================================================
+   ✅ Mobile popup height + scroll (fix can't reach 30/31)
+   ========================================================= */
+@media (max-width: 767px) {
+  /* popup container must not exceed viewport */
+  .rs-picker-popup,
+  .rs-picker-popup.rs-picker-popup-daterange {
+    max-height: calc(100vh - 12px) !important;
+  }
+
+  /* daterange menu must scroll inside itself */
+  .rs-picker-daterange-menu {
+    max-height: calc(100vh - 20px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* prevent inner panel from forcing fixed height */
+  .rs-picker-daterange-panel,
+  .rs-picker-daterange-panels {
+    max-height: none !important;
+  }
+}
+
 }

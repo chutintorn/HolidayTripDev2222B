@@ -3,20 +3,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DateRangePicker, CustomProvider } from "rsuite";
 import enGB from "rsuite/locales/en_GB";
 import thTH from "rsuite/locales/th_TH";
-import useT from "../i18n/useT"; 
+import useT from "../i18n/useT";
 
 // 🔌 Redux
 import { useDispatch, useSelector } from "react-redux";
 import { fetchSearchResults, selectSearch } from "../redux/searchSlice";
 
-// ✅ NEW: clear old selection before new search (safety)
+// ✅ clear old selection before new search (safety)
 import { clearSelectedOfferLegs } from "../redux/offerSelectionSlice";
 
-// ✅ NEW: minimum price calculator
+// ✅ minimum price calculator
 import { getMinPriceSummary } from "../utils/minPrice";
 
 import JourneyTable from "./JourneyTable";
-import RoundTripResultsLite from "./RoundTripResultsLite"; // ⬅️ Supports depart/return split
+import RoundTripResultsLite from "./RoundTripResultsLite";
 
 // 🛫 Airport dropdown component (reads from airportsSlice)
 import AirportSelect from "./AirportSelect";
@@ -27,32 +27,12 @@ import DateNavigatorOneWay from "./DateNavigatorOneWay";
 // ✅ Date navigator (round-trip)
 import DateNavigatorRoundTrip from "./DateNavigatorRoundTrip";
 
+// ✅ TG-style shared depart/return calendar (round-trip only)
+import DepartReturnDateBox from "./DepartReturnDateBox";
+
 /* ---------------------------------------------
  * Helpers
  * -------------------------------------------*/
-
-/** Responsive hook: treat viewport < 768px as "mobile" */
-function useIsMobile(breakpoint = 768) {
-  const get = () =>
-    typeof window !== "undefined" ? window.innerWidth < breakpoint : false;
-
-  const [isMobile, setIsMobile] = useState(get());
-
-  useEffect(() => {
-    const onResize = () => setIsMobile(get());
-    if (typeof window !== "undefined") {
-      window.addEventListener("resize", onResize);
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("resize", onResize);
-      }
-    };
-  }, [breakpoint]);
-
-  return isMobile;
-}
-
 const startOfToday = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -93,9 +73,7 @@ const toYMDLocal = (d) => {
 };
 
 /* ---------------------------------------------
- * Responsive single-date picker
- *  - Mobile: one calendar
- *  - Desktop: two calendars
+ * Responsive single-date picker (one-way)
  * -------------------------------------------*/
 function TwoMonthSingleDatePicker({
   value,
@@ -107,10 +85,22 @@ function TwoMonthSingleDatePicker({
   style,
   locale,
   placement = "bottomEnd",
-  /** Optional override to force behavior regardless of screen */
-  forceOneCalendar, // true | false | undefined
+  forceOneCalendar,
 }) {
-  const isMobile = useIsMobile();
+  const [isMobile, setIsMobile] = useState(() => {
+    return typeof window !== "undefined" ? window.innerWidth < 768 : false;
+  });
+
+  useEffect(() => {
+    const onResize = () =>
+      setIsMobile(typeof window !== "undefined" ? window.innerWidth < 768 : false);
+    if (typeof window !== "undefined") window.addEventListener("resize", onResize);
+    return () => {
+      if (typeof window !== "undefined")
+        window.removeEventListener("resize", onResize);
+    };
+  }, []);
+
   const showOne =
     typeof forceOneCalendar === "boolean" ? forceOneCalendar : isMobile;
 
@@ -142,10 +132,12 @@ function TwoMonthSingleDatePicker({
  * -------------------------------------------*/
 export default function TripFormBasic({ onSubmit }) {
   const t = useT();
+
   const calendarLocale =
     t?.lang === "th" || t?.locale === "th" || t?.locale === "th-TH"
       ? thTH
       : enGB;
+
   const weekdayStyle = "SUN";
   const isTH = t?.lang === "th" || t?.locale === "th" || t?.locale === "th-TH";
   const lang = isTH ? "th" : "en";
@@ -179,7 +171,6 @@ export default function TripFormBasic({ onSubmit }) {
   const lastPayloadRef = useRef(null);
 
   // ✅ Round-trip: anchors + last payload for navigator
-  // IMPORTANT: keep anchor object stable so navigator doesn't disappear during loading
   const [rtAnchor, setRtAnchor] = useState(() => ({
     departYMD: null,
     returnYMD: null,
@@ -188,6 +179,10 @@ export default function TripFormBasic({ onSubmit }) {
 
   // ✅ Round-trip: active tab
   const [rtActiveTab, setRtActiveTab] = useState("depart");
+
+  // ✅ bridge control for JourneyTable (one-way only)
+  const [owTab, setOwTab] = useState("list");
+  const [owClearTick, setOwClearTick] = useState(0);
 
   // ---- helpers ----
   const clampInt = (val, min, max = Infinity) =>
@@ -204,6 +199,10 @@ export default function TripFormBasic({ onSubmit }) {
     setRtAnchor({ departYMD: null, returnYMD: null });
     lastPayloadRTRef.current = null;
     setRtActiveTab("depart");
+
+    // reset one-way bridge controls
+    setOwTab("list");
+    setOwClearTick(0);
   };
 
   // infants ≤ adults
@@ -239,7 +238,6 @@ export default function TripFormBasic({ onSubmit }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Basic validation
     if (!origin || !destination || !depart) {
       alert(
         t?.form?.pleaseFill ??
@@ -250,7 +248,6 @@ export default function TripFormBasic({ onSubmit }) {
       return;
     }
 
-    // roundtrip must have return
     if (tripType === "roundtrip" && !ret) {
       alert(isTH ? "กรุณาเลือกวันกลับ" : "Please select return date.");
       return;
@@ -272,33 +269,27 @@ export default function TripFormBasic({ onSubmit }) {
 
     // ✅ Save payload for date navigation
     if (payload.ret == null) {
-      // one-way
       lastPayloadRef.current = payload;
       setAnchorYMD(payload.depart);
 
-      // clear round-trip
       lastPayloadRTRef.current = null;
       setRtAnchor({ departYMD: null, returnYMD: null });
       setRtActiveTab("depart");
-    } else {
-      // round-trip
-      lastPayloadRTRef.current = payload;
 
-      // IMPORTANT: update anchor without wiping object shape
-      setRtAnchor({
-        departYMD: payload.depart,
-        returnYMD: payload.ret,
-      });
+      setOwTab("list");
+    } else {
+      lastPayloadRTRef.current = payload;
+      setRtAnchor({ departYMD: payload.depart, returnYMD: payload.ret });
       setRtActiveTab("depart");
 
-      // clear one-way
       lastPayloadRef.current = null;
       setAnchorYMD(null);
+
+      setOwTab("list");
+      setOwClearTick(0);
     }
 
-    // ✅ SAFETY: clear old selection before searching
     dispatch(clearSelectedOfferLegs());
-
     dispatch(fetchSearchResults(payload));
     setShowPax(false);
   };
@@ -315,9 +306,8 @@ export default function TripFormBasic({ onSubmit }) {
     const payload2 = { ...last, depart: ymd };
     lastPayloadRef.current = payload2;
 
-    // ✅ SAFETY: clear selection before new results
     dispatch(clearSelectedOfferLegs());
-
+    setOwTab("list");
     dispatch(fetchSearchResults(payload2));
   };
 
@@ -337,43 +327,25 @@ export default function TripFormBasic({ onSubmit }) {
     };
 
     lastPayloadRTRef.current = payload2;
+    setRtAnchor({ departYMD: payload2.depart, returnYMD: payload2.ret });
 
-    // ✅ keep navigator anchor updated (so it never disappears)
-    setRtAnchor({
-      departYMD: payload2.depart,
-      returnYMD: payload2.ret,
-    });
-
-    // ✅ SAFETY: clear selection before new results
     dispatch(clearSelectedOfferLegs());
-
     dispatch(fetchSearchResults(payload2));
   };
 
-  // ---- styles ----
-  const chipBtn = (active) =>
-    `h-10 px-4 rounded-full text-sm font-medium transition ${
-      active
-        ? "bg-sky-600 text-white"
-        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-    }`;
+  // ✅ FORCE From/To to be full width on mobile (different line)
+  const fromSpan =
+    "col-span-12 " + (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
+  const toSpan =
+    "col-span-12 " + (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
+  const departSpan = "col-span-12 md:col-span-3";
 
-  // dynamic spans
-  const fromSpan = tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4";
-  const toSpan = tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4";
-  const departSpan =
-    tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-3";
-  const returnSpan = "md:col-span-3";
-
-  // ✅ show navigators based on anchors (NOT results)
   const showNavigator = tripType === "oneway" && !!anchorYMD;
-
   const showRTNavigator =
     tripType === "roundtrip" && !!rtAnchor.departYMD && !!rtAnchor.returnYMD;
 
-  // ✅ Minimum price summary from current results (may be null while loading)
   const minSummary = useMemo(() => {
-    if (!results) return null; 
+    if (!results) return null;
     return getMinPriceSummary(results, {
       tripType,
       origin: origin.trim().toUpperCase(),
@@ -381,289 +353,315 @@ export default function TripFormBasic({ onSubmit }) {
     });
   }, [results, tripType, origin, destination]);
 
+  const canUseSelectionActions = !!results && status !== "loading";
+
+  const handleClearSelectionFromNav = () => {
+    dispatch(clearSelectedOfferLegs());
+    setOwClearTick((x) => x + 1);
+    setOwTab("list");
+  };
+
+  const handleViewSelectionFromNav = () => {
+    setOwTab("view");
+  };
+
   return (
     <CustomProvider locale={calendarLocale}>
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white/90 rounded-3xl shadow-lg p-4 md:p-6 space-y-4"
-      >
-        {/* trip type */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => switchTripType("roundtrip")}
-              className={chipBtn(tripType === "roundtrip")}
-            >
-              {t.form?.roundtrip ?? (isTH ? "ไป-กลับ" : "Round-trip")}
-            </button>
+      {/* ✅ wider on desktop + more space on wide screen */}
+      <div className="px-[2px] sm:px-4 md:px-8 lg:px-10 xl:px-12 max-w-7xl mx-auto">
+        <form
+          onSubmit={handleSubmit}
+          className="
+            bg-white/90 rounded-2xl shadow-lg
+            px-4 py-3 sm:px-6 md:px-8 md:py-4
+            space-y-3
+            text-[13px] sm:text-sm
+          "
+        >
+          {/* ✅ Round-trip / One-way: less bold + smaller text */}
+          <div className="w-full">
+            <div className="flex w-full rounded-[999px] bg-slate-200 p-[2px]">
+              <button
+                type="button"
+                onClick={() => switchTripType("roundtrip")}
+                className={
+                  "w-1/2 h-10 rounded-[999px] text-[13px] sm:text-sm font-medium transition-all " +
+                  (tripType === "roundtrip"
+                    ? "bg-sky-600 text-white shadow-md"
+                    : "bg-transparent text-slate-700")
+                }
+              >
+                {t.form?.roundtrip ?? (isTH ? "ไป-กลับ" : "Round-trip")}
+              </button>
 
-            <button
-              type="button"
-              onClick={() => switchTripType("oneway")}
-              className={chipBtn(tripType === "oneway")}
-            >
-              {t.form?.oneway ?? (isTH ? "เที่ยวเดียว" : "One-way")}
-            </button>
+              <button
+                type="button"
+                onClick={() => switchTripType("oneway")}
+                className={
+                  "w-1/2 h-10 rounded-[999px] text-[13px] sm:text-sm font-medium transition-all " +
+                  (tripType === "oneway"
+                    ? "bg-sky-600 text-white shadow-md"
+                    : "bg-transparent text-slate-700")
+                }
+              >
+                {t.form?.oneway ?? (isTH ? "เที่ยวเดียว" : "One-way")}
+              </button>
+            </div>
           </div>
 
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-            />
-            {t.form?.nonstop ?? (isTH ? "บินตรง" : "Nonstop")}
-          </label>
-        </div>
-
-        {/* MAIN ROWS */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* From */}
-          <div className={fromSpan}>
-            <AirportSelect
-              value={origin}
-              onChange={setOrigin}
-              placeholder={t.placeholders?.from ?? (isTH ? "ต้นทาง" : "From")}
-            />
-
-          </div>
-
-          {/* To */}
-          <div className={toSpan}>
-            <AirportSelect
-              value={destination}
-              onChange={setDestination}
-              placeholder={t.placeholders?.to ?? (isTH ? "ปลายทาง" : "To")}
-            />
-
-          </div>
-
-          {/* Depart */}
-          <div className={departSpan}>
-            <div className="w-full">
-              <TwoMonthSingleDatePicker
-                value={depart}
-                onChange={(val) => {
-                  setDepart(val);
-                  if (ret && val && ret < val) setRet(val);
-                }}
-                minDate={today}
-                placeholder={t.form?.depart ?? (isTH ? "วันไป" : "Depart")}
-                renderValue={(v) => (v ? formatUiDate(v, weekdayStyle) : "")}
-                className="ibe-datepicker ibe-datepicker-tall w-full"
-                style={{ width: "100%" }}
-                locale={calendarLocale}
-                placement="bottomEnd"
+          {/* ✅ MAIN ROWS: more spacing on large screens */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 lg:gap-6 xl:gap-8 items-center">
+            {/* From */}
+            <div className={fromSpan}>
+              <AirportSelect
+                value={origin}
+                onChange={setOrigin}
+                placeholder={t.placeholders?.from ?? (isTH ? "ต้นทาง" : "From")}
               />
             </div>
-          </div>
 
-          {/* Return */}
-          {tripType === "roundtrip" && (
-            <div className={returnSpan}>
-              <div className="w-full">
-                <TwoMonthSingleDatePicker
-                  value={ret}
-                  onChange={setRet}
-                  minDate={depart || today}
-                  placeholder={t.form?.return ?? (isTH ? "วันกลับ" : "Return")}
-                  renderValue={(v) => (v ? formatUiDate(v, weekdayStyle) : "")}
-                  className="ibe-datepicker ibe-datepicker-tall w-full"
-                  style={{ width: "100%" }}
+            {/* To */}
+            <div className={toSpan}>
+              <AirportSelect
+                value={destination}
+                onChange={setDestination}
+                placeholder={t.placeholders?.to ?? (isTH ? "ปลายทาง" : "To")}
+              />
+            </div>
+
+            {/* Dates */}
+            {tripType === "roundtrip" ? (
+              <div className="col-span-12 md:col-span-6">
+                <DepartReturnDateBox
+                  tripType={tripType}
+                  depart={depart}
+                  ret={ret}
+                  minDate={today}
                   locale={calendarLocale}
                   placement="bottomEnd"
+                  formatUiDate={(d) => formatUiDate(d, weekdayStyle)}
+                  labels={{
+                    departLabel: t.form?.depart ?? (isTH ? "วันไป" : "Depart"),
+                    returnLabel: t.form?.return ?? (isTH ? "วันกลับ" : "Return"),
+                  }}
+                  onCommit={({ depart: d0, ret: d1 }) => {
+                    setDepart(d0);
+                    setRet(d1);
+                  }}
                 />
               </div>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className={departSpan}>
+                <div className="w-full">
+                  <TwoMonthSingleDatePicker
+                    value={depart}
+                    onChange={(val) => {
+                      setDepart(val);
+                      if (ret && val && ret < val) setRet(val);
+                    }}
+                    minDate={today}
+                    placeholder={t.form?.depart ?? (isTH ? "วันไป" : "Depart")}
+                    renderValue={(v) => (v ? formatUiDate(v, weekdayStyle) : "")}
+                    className="ibe-datepicker ibe-datepicker-tall w-full"
+                    style={{ width: "100%" }}
+                    locale={calendarLocale}
+                    placement="bottomEnd"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
-        {/* passenger + cabin summary */}
-        <div className="relative" ref={paxRef}>
-          <button
-            type="button"
-            onClick={() => setShowPax((s) => !s)}
-            className="w-full md:w-auto h-14 rounded-2xl border border-slate-200 bg-white px-4 text-[16px] shadow-sm hover:bg-slate-50 flex items-center gap-2"
-          >
-            <span aria-hidden>👤</span>
-            <span className="font-medium text-slate-800">{paxSummary}</span>
-          </button>
+          {/* ✅ pax + search: less bold text */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-6">
+            <div className="relative" ref={paxRef}>
+              <button
+                type="button"
+                onClick={() => setShowPax((s) => !s)}
+                className="
+                  w-full md:w-[280px] lg:w-[320px]
+                  h-11
+                  rounded-xl
+                  border border-slate-200 bg-white
+                  px-4
+                  shadow-sm hover:bg-slate-50
+                  flex items-center gap-2
+                "
+              >
+                <span aria-hidden>👤</span>
+                <span className="font-medium text-slate-800">{paxSummary}</span>
+              </button>
 
-          {showPax && (
-            <div className="absolute z-50 mt-2 w-full md:w-[640px] left-0 rounded-2xl border border-slate-200 bg-white shadow-2xl">
-              {/* Header */}
-
-
-              {/* Body: left = cabin, right = pax */}
-              <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* LEFT: Cabin (display only) */}
-                <div className="rounded-2xl border border-slate-200 p-4">
-
-
-                  <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 flex items-center gap-3">
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-sky-300 text-sky-700">
-                      ✓
-                    </span>
-                    <div>
-                      <div className="font-semibold text-slate-900">
-                        {t.form?.economy ?? (isTH ? "ชั้นประหยัด" : "Economy")}
+              {showPax && (
+                <div className="absolute z-50 mt-2 w-full md:w-[640px] left-0 rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                  <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                      <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 flex items-center gap-3">
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-sky-300 text-sky-700 text-xs">
+                          ✓
+                        </span>
+                        <div className="font-medium text-slate-900 text-sm">
+                          {t.form?.economy ?? (isTH ? "ชั้นประหยัด" : "Economy")}
+                        </div>
                       </div>
+                    </div>
 
+                    <div className="space-y-4">
+                      <Row
+                        label={
+                          t.form?.adult ??
+                          t.form?.adults ??
+                          (isTH ? "ผู้ใหญ่" : "Adult")
+                        }
+                      >
+                        <Stepper
+                          value={adult}
+                          setValue={(v) => {
+                            const nv = clampInt(v, 1);
+                            setAdult(nv);
+                            setInfant((x) => Math.min(x ?? 0, nv));
+                          }}
+                          min={1}
+                          tall
+                        />
+                      </Row>
+
+                      <Row
+                        label={
+                          t.form?.child ??
+                          t.form?.children ??
+                          (isTH ? "เด็ก" : "Child")
+                        }
+                        hint={
+                          t.form?.childrenAgeHint ??
+                          (isTH ? "อายุ 2–11 ปี" : "2–11 years")
+                        }
+                      >
+                        <Stepper
+                          value={child}
+                          setValue={(v) => setChild(clampInt(v, 0))}
+                          min={0}
+                          tall
+                        />
+                      </Row>
+
+                      <Row
+                        label={
+                          t.form?.infant ??
+                          t.form?.infants ??
+                          (isTH ? "ทารก" : "Infant")
+                        }
+                        hint={
+                          t.form?.infantsAgeHint ??
+                          (isTH ? "อายุต่ำกว่า 2 ปี" : "Under 2 years")
+                        }
+                      >
+                        <Stepper
+                          value={infant}
+                          setValue={(v) => setInfant(clampInt(v, 0, adult))}
+                          min={0}
+                          max={adult}
+                          tall
+                        />
+                      </Row>
                     </div>
                   </div>
+
+                  <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-100">
+                    <button
+                      type="button"
+                      className="h-10 px-4 rounded-xl border border-slate-300 hover:bg-slate-50 font-medium"
+                      onClick={() => setShowPax(false)}
+                    >
+                      {t.form?.cancel ?? (isTH ? "ยกเลิก" : "Cancel")}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="h-10 px-6 rounded-xl bg-sky-600 text-white font-medium hover:bg-sky-700 shadow"
+                      onClick={() => setShowPax(false)}
+                    >
+                      {t.form?.confirm ?? (isTH ? "ยืนยัน" : "Confirm")}
+                    </button>
+                  </div>
                 </div>
-
-                {/* RIGHT: Passengers */}
-                <div className="space-y-4">
-                  <Row
-                    label={
-                      t.form?.adult ??
-                      t.form?.adults ??
-                      (isTH ? "ผู้ใหญ่" : "Adult")
-                    }
-                  >
-                    <Stepper
-                      value={adult}
-                      setValue={(v) => {
-                        const nv = clampInt(v, 1);
-                        setAdult(nv);
-                        setInfant((x) => Math.min(x ?? 0, nv));
-                      }}
-                      min={1}
-                      tall
-                    />
-                  </Row>
-
-                  <Row
-                    label={
-                      t.form?.child ??
-                      t.form?.children ??
-                      (isTH ? "เด็ก" : "Child")
-                    }
-                    hint={
-                      t.form?.childrenAgeHint ??
-                      (isTH ? "อายุ 2–11 ปี" : "2–11 years")
-                    }
-                  >
-                    <Stepper
-                      value={child}
-                      setValue={(v) => setChild(clampInt(v, 0))}
-                      min={0}
-                      tall
-                    />
-                  </Row>
-
-                  <Row
-                    label={
-                      t.form?.infant ??
-                      t.form?.infants ??
-                      (isTH ? "ทารก" : "Infant")
-                    }
-                    hint={
-                      t.form?.infantsAgeHint ??
-                      (isTH ? "อายุต่ำกว่า 2 ปี" : "Under 2 years")
-                    }
-                  >
-                    <Stepper
-                      value={infant}
-                      setValue={(v) => setInfant(clampInt(v, 0, adult))}
-                      min={0}
-                      max={adult}
-                      tall
-                    />
-                  </Row>
-                </div>
-              </div>
-
-              {/* Footer buttons */}
-              <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  className="h-11 px-4 rounded-xl border border-slate-300 hover:bg-slate-50"
-                  onClick={() => setShowPax(false)}
-                >
-                  {t.form?.cancel ?? (isTH ? "ยกเลิก" : "Cancel")}
-                </button>
-
-                <button
-                  type="button"
-                  className="h-11 px-6 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700 shadow"
-                  onClick={() => setShowPax(false)}
-                >
-                  {t.form?.confirm ?? (isTH ? "ยืนยัน" : "Confirm")}
-                </button>
-              </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* bottom submit */}
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={status === "loading"}
-            className="
-              h-12 px-8 rounded-xl
-              bg-sky-600 text-white font-semibold
-              hover:bg-sky-700 shadow
-              disabled:opacity-60
-              w-full sm:w-auto
-            "
-          >
-            {status === "loading"
-              ? t.form?.searching ?? (isTH ? "กำลังค้นหา..." : "Searching...")
-              : t.form?.search ?? (isTH ? "ค้นหา" : "Search")}
-          </button>
-        </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={status === "loading"}
+                className="
+                  h-10 px-6 rounded-xl
+                  bg-sky-600 text-white font-medium
+                  hover:bg-sky-700 shadow
+                  disabled:opacity-60
+                  w-full sm:w-auto
+                "
+              >
+                {status === "loading"
+                  ? t.form?.searching ?? (isTH ? "กำลังค้นหา..." : "Searching...")
+                  : t.form?.search ?? (isTH ? "ค้นหา" : "Search")}
+              </button>
+            </div>
+          </div>
 
-        {/* error from Redux */}
-        {error && <div className="text-sm text-red-600">{error}</div>}
-      </form>
+          {error && <div className="text-sm text-red-600">{error}</div>}
+        </form>
 
-      {/* ✅ One-way navigator (show by anchors, not results) */}
-      {showNavigator && (
-        <div className="mt-3">
-          <DateNavigatorOneWay
-            anchorDate={anchorYMD}
-            minDate={toYMDLocal(today)}
-            isLoading={status === "loading"}
-            lang={lang}
-            onNavigate={handleNavigateDate}
-            minTotal={minSummary?.minTotal ?? null}
-            currency={minSummary?.currency ?? "THB"}
-          />
-        </div>
-      )}
+        {showNavigator && (
+          <div className="mt-2">
+            <DateNavigatorOneWay
+              anchorDate={anchorYMD}
+              minDate={toYMDLocal(today)}
+              isLoading={status === "loading"}
+              lang={lang}
+              onNavigate={handleNavigateDate}
+              minTotal={minSummary?.minTotal ?? null}
+              currency={minSummary?.currency ?? "THB"}
+              onClearSelection={() => {
+                dispatch(clearSelectedOfferLegs());
+                setOwClearTick((x) => x + 1);
+                setOwTab("list");
+              }}
+              onViewSelection={() => setOwTab("view")}
+              clearDisabled={!canUseSelectionActions}
+              viewDisabled={!canUseSelectionActions}
+            />
+          </div>
+        )}
 
-      {/* ✅ Round-trip navigator (show by anchors, not results) */}
-      {showRTNavigator && (
-        <div className="mt-3">
-          <DateNavigatorRoundTrip
-            anchorDepart={rtAnchor.departYMD}
-            anchorReturn={rtAnchor.returnYMD}
-            activeTab={rtActiveTab}
-            minDate={toYMDLocal(today)}
-            isLoading={status === "loading"}
-            lang={lang}
-            onNavigate={handleNavigateRoundTrip}
-            minTotal={minSummary?.minTotal ?? null}
-            minDepart={minSummary?.minDepart ?? null}
-            minReturn={minSummary?.minReturn ?? null}
-            currency={minSummary?.currency ?? "THB"}
-          />
-        </div>
-      )}
+        {showRTNavigator && (
+          <div className="mt-2">
+            <DateNavigatorRoundTrip
+              anchorDepart={rtAnchor.departYMD}
+              anchorReturn={rtAnchor.returnYMD}
+              activeTab={rtActiveTab}
+              minDate={toYMDLocal(today)}
+              isLoading={status === "loading"}
+              lang={lang}
+              onNavigate={handleNavigateRoundTrip}
+              minTotal={minSummary?.minTotal ?? null}
+              minDepart={minSummary?.minDepart ?? null}
+              minReturn={minSummary?.minReturn ?? null}
+              currency={minSummary?.currency ?? "THB"}
+            />
+          </div>
+        )}
 
-      {/* Results */}
-      {results &&
-        (Array.isArray(results?.data) && results.data.length > 1 ? (
-          <RoundTripResultsLite
-            // OPTIONAL: if you later add this prop, it can control disable rule
-            // onTabChange={(tab) => setRtActiveTab(tab)}
-          />
-        ) : (
-          <JourneyTable showNextButton />
-        ))}
+        {results &&
+          (Array.isArray(results?.data) && results.data.length > 1 ? (
+            <RoundTripResultsLite />
+          ) : (
+            <JourneyTable
+              showNextButton
+              externalTab={owTab}
+              onExternalTabChange={setOwTab}
+              externalClearSignal={owClearTick}
+            />
+          ))}
+      </div>
     </CustomProvider>
   );
 }
@@ -687,7 +685,7 @@ function Stepper({ value, setValue, min, max = Infinity, tall = false }) {
       >
         −
       </button>
-      <span className="w-8 text-center font-semibold text-slate-900">
+      <span className="w-8 text-center font-medium text-slate-900">
         {value}
       </span>
       <button
@@ -707,7 +705,7 @@ function Row({ label, hint, children }) {
   return (
     <div className="flex items-center justify-between">
       <div>
-        <div className="font-semibold text-slate-800">{label}</div>
+        <div className="font-medium text-slate-800">{label}</div>
         {hint && <div className="text-xs text-slate-500">{hint}</div>}
       </div>
       {children}

@@ -3,17 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DateRangePicker, CustomProvider } from "rsuite";
 import enGB from "rsuite/locales/en_GB";
 import thTH from "rsuite/locales/th_TH";
-import useT from "../i18n/useT"; 
+import useT from "../i18n/useT";
 
 // 🔌 Redux
 import { useDispatch, useSelector } from "react-redux";
 import { fetchSearchResults, selectSearch } from "../redux/searchSlice";
-
-// ✅ NEW: clear old selection before new search (safety)
-import { clearSelectedOfferLegs } from "../redux/offerSelectionSlice";
-
-// ✅ NEW: minimum price calculator
-import { getMinPriceSummary } from "../utils/minPrice";
 
 import JourneyTable from "./JourneyTable";
 import RoundTripResultsLite from "./RoundTripResultsLite"; // ⬅️ Supports depart/return split
@@ -24,7 +18,7 @@ import AirportSelect from "./AirportSelect";
 // ✅ Date navigator (one-way)
 import DateNavigatorOneWay from "./DateNavigatorOneWay";
 
-// ✅ Date navigator (round-trip)
+// ✅ NEW: Date navigator (round-trip)
 import DateNavigatorRoundTrip from "./DateNavigatorRoundTrip";
 
 /* ---------------------------------------------
@@ -90,6 +84,19 @@ const toYMDLocal = (d) => {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+};
+
+/** Convert YYYY-MM-DD -> Date local */
+const fromYMDLocal = (s) => {
+  if (!s || typeof s !== "string") return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+  if (!m) return null;
+  const yyyy = Number(m[1]);
+  const mm = Number(m[2]) - 1;
+  const dd = Number(m[3]);
+  const d = new Date(yyyy, mm, dd);
+  d.setHours(0, 0, 0, 0);
+  return isNaN(d.getTime()) ? null : d;
 };
 
 /* ---------------------------------------------
@@ -178,15 +185,12 @@ export default function TripFormBasic({ onSubmit }) {
   const [anchorYMD, setAnchorYMD] = useState(null);
   const lastPayloadRef = useRef(null);
 
-  // ✅ Round-trip: anchors + last payload for navigator
-  // IMPORTANT: keep anchor object stable so navigator doesn't disappear during loading
-  const [rtAnchor, setRtAnchor] = useState(() => ({
-    departYMD: null,
-    returnYMD: null,
-  }));
+  // ✅ Round-trip: anchors + last payload (first search) for navigator
+  const [rtAnchor, setRtAnchor] = useState(null); // { departYMD, returnYMD }
   const lastPayloadRTRef = useRef(null);
 
-  // ✅ Round-trip: active tab
+  // ✅ Round-trip: active tab for disable rule (-1/-7 disabled on return tab)
+  // (optional now — default depart is OK)
   const [rtActiveTab, setRtActiveTab] = useState("depart");
 
   // ---- helpers ----
@@ -201,7 +205,7 @@ export default function TripFormBasic({ onSubmit }) {
     setAnchorYMD(null);
     lastPayloadRef.current = null;
 
-    setRtAnchor({ departYMD: null, returnYMD: null });
+    setRtAnchor(null);
     lastPayloadRTRef.current = null;
     setRtActiveTab("depart");
   };
@@ -235,7 +239,7 @@ export default function TripFormBasic({ onSubmit }) {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [showPax]);
 
-  // ---- submit ----
+  // ---- submit (uses Redux thunk) ----
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -247,12 +251,6 @@ export default function TripFormBasic({ onSubmit }) {
             ? "กรุณาเลือกต้นทาง ปลายทาง และวันเดินทาง"
             : "Please select origin, destination, and departure date.")
       );
-      return;
-    }
-
-    // roundtrip must have return
-    if (tripType === "roundtrip" && !ret) {
-      alert(isTH ? "กรุณาเลือกวันกลับ" : "Please select return date.");
       return;
     }
 
@@ -278,26 +276,18 @@ export default function TripFormBasic({ onSubmit }) {
 
       // clear round-trip
       lastPayloadRTRef.current = null;
-      setRtAnchor({ departYMD: null, returnYMD: null });
+      setRtAnchor(null);
       setRtActiveTab("depart");
     } else {
       // round-trip
       lastPayloadRTRef.current = payload;
-
-      // IMPORTANT: update anchor without wiping object shape
-      setRtAnchor({
-        departYMD: payload.depart,
-        returnYMD: payload.ret,
-      });
+      setRtAnchor({ departYMD: payload.depart, returnYMD: payload.ret });
       setRtActiveTab("depart");
 
       // clear one-way
       lastPayloadRef.current = null;
       setAnchorYMD(null);
     }
-
-    // ✅ SAFETY: clear old selection before searching
-    dispatch(clearSelectedOfferLegs());
 
     dispatch(fetchSearchResults(payload));
     setShowPax(false);
@@ -310,18 +300,16 @@ export default function TripFormBasic({ onSubmit }) {
     if (status === "loading") return;
 
     const ymd = toYMDLocal(targetDate);
+
     setDepart(targetDate);
 
     const payload2 = { ...last, depart: ymd };
     lastPayloadRef.current = payload2;
 
-    // ✅ SAFETY: clear selection before new results
-    dispatch(clearSelectedOfferLegs());
-
     dispatch(fetchSearchResults(payload2));
   };
 
-  // ✅ Round-trip: arrow navigation handler
+  // ✅ Round-trip: arrow navigation handler (shift both depart + return by fixed gap)
   const handleNavigateRoundTrip = ({ departDate, returnDate }) => {
     const last = lastPayloadRTRef.current;
     if (!last) return;
@@ -337,16 +325,6 @@ export default function TripFormBasic({ onSubmit }) {
     };
 
     lastPayloadRTRef.current = payload2;
-
-    // ✅ keep navigator anchor updated (so it never disappears)
-    setRtAnchor({
-      departYMD: payload2.depart,
-      returnYMD: payload2.ret,
-    });
-
-    // ✅ SAFETY: clear selection before new results
-    dispatch(clearSelectedOfferLegs());
-
     dispatch(fetchSearchResults(payload2));
   };
 
@@ -365,21 +343,14 @@ export default function TripFormBasic({ onSubmit }) {
     tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-3";
   const returnSpan = "md:col-span-3";
 
-  // ✅ show navigators based on anchors (NOT results)
-  const showNavigator = tripType === "oneway" && !!anchorYMD;
+  // ✅ show navigators only when results exist and anchors exist
+  const showNavigator = tripType === "oneway" && !!results && !!anchorYMD;
 
   const showRTNavigator =
-    tripType === "roundtrip" && !!rtAnchor.departYMD && !!rtAnchor.returnYMD;
-
-  // ✅ Minimum price summary from current results (may be null while loading)
-  const minSummary = useMemo(() => {
-    if (!results) return null; 
-    return getMinPriceSummary(results, {
-      tripType,
-      origin: origin.trim().toUpperCase(),
-      destination: destination.trim().toUpperCase(),
-    });
-  }, [results, tripType, origin, destination]);
+    tripType === "roundtrip" &&
+    !!results &&
+    !!rtAnchor?.departYMD &&
+    !!rtAnchor?.returnYMD;
 
   return (
     <CustomProvider locale={calendarLocale}>
@@ -425,7 +396,9 @@ export default function TripFormBasic({ onSubmit }) {
               onChange={setOrigin}
               placeholder={t.placeholders?.from ?? (isTH ? "ต้นทาง" : "From")}
             />
-
+            <div className="px-1 pt-1 text-xs text-slate-500">
+              {t.form?.allAirports ?? (isTH ? "ทุกสนามบิน" : "All airports")}
+            </div>
           </div>
 
           {/* To */}
@@ -435,7 +408,9 @@ export default function TripFormBasic({ onSubmit }) {
               onChange={setDestination}
               placeholder={t.placeholders?.to ?? (isTH ? "ปลายทาง" : "To")}
             />
-
+            <div className="px-1 pt-1 text-xs text-slate-500">
+              {t.form?.allAirports ?? (isTH ? "ทุกสนามบิน" : "All airports")}
+            </div>
           </div>
 
           {/* Depart */}
@@ -632,7 +607,7 @@ export default function TripFormBasic({ onSubmit }) {
         {error && <div className="text-sm text-red-600">{error}</div>}
       </form>
 
-      {/* ✅ One-way navigator (show by anchors, not results) */}
+      {/* ✅ One-way navigator */}
       {showNavigator && (
         <div className="mt-3">
           <DateNavigatorOneWay
@@ -641,27 +616,21 @@ export default function TripFormBasic({ onSubmit }) {
             isLoading={status === "loading"}
             lang={lang}
             onNavigate={handleNavigateDate}
-            minTotal={minSummary?.minTotal ?? null}
-            currency={minSummary?.currency ?? "THB"}
           />
         </div>
       )}
 
-      {/* ✅ Round-trip navigator (show by anchors, not results) */}
+      {/* ✅ Round-trip navigator (NEW) */}
       {showRTNavigator && (
         <div className="mt-3">
           <DateNavigatorRoundTrip
             anchorDepart={rtAnchor.departYMD}
             anchorReturn={rtAnchor.returnYMD}
-            activeTab={rtActiveTab}
+            activeTab={rtActiveTab} // default "depart" (optional to wire later)
             minDate={toYMDLocal(today)}
             isLoading={status === "loading"}
             lang={lang}
             onNavigate={handleNavigateRoundTrip}
-            minTotal={minSummary?.minTotal ?? null}
-            minDepart={minSummary?.minDepart ?? null}
-            minReturn={minSummary?.minReturn ?? null}
-            currency={minSummary?.currency ?? "THB"}
           />
         </div>
       )}

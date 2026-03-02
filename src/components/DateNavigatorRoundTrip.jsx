@@ -1,4 +1,3 @@
-// src/components/DateNavigatorRoundTrip.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 export default function DateNavigatorRoundTrip({
@@ -10,11 +9,17 @@ export default function DateNavigatorRoundTrip({
   minDate,
   onNavigate,
 
-  // ✅ NEW: min price props
+  // ✅ min price props (keep compatible)
   minTotal = null,
   minDepart = null,
   minReturn = null,
   currency = "THB",
+
+  // ✅ NEW (optional): put actions on TOP like one-way
+  onClearSelection,
+  onViewSelection,
+  clearDisabled = false,
+  viewDisabled = false,
 }) {
   const [activeDepart, setActiveDepart] = useState(
     () => toDate(anchorDepart) || startOfToday()
@@ -22,7 +27,6 @@ export default function DateNavigatorRoundTrip({
 
   const anchorDepartRef = useRef(toDate(anchorDepart) || startOfToday());
   const anchorReturnRef = useRef(toDate(anchorReturn) || addDays(startOfToday(), 1));
-
   const gapRef = useRef(calcGapDays(anchorDepartRef.current, anchorReturnRef.current));
 
   useEffect(() => {
@@ -83,27 +87,71 @@ export default function DateNavigatorRoundTrip({
     prevActiveRef.current = activeDepart;
   }, [activeDepart]);
 
-  const departDow = getDow(activeDepart, lang);
-  const departDowStyle = getDowStyleByRuleVivid(activeDepart);
+  // DOW + style
+  const departDowRaw = getDow(activeDepart, lang);
+  const returnDowRaw = getDow(activeReturn, lang);
 
-  const returnDow = getDow(activeReturn, lang);
+  // ✅ Sun -> S U N (EN only)
+  const departDow =
+    lang === "th" ? departDowRaw : String(departDowRaw).toUpperCase().split("").join(" ");
+  const returnDow =
+    lang === "th" ? returnDowRaw : String(returnDowRaw).toUpperCase().split("").join(" ");
+
+  const departDowStyle = getDowStyleByRuleVivid(activeDepart);
   const returnDowStyle = getDowStyleByRuleVivid(activeReturn);
 
-  // split for perfect vertical alignment
+  // split for perfect alignment
   const dDay = fmtDayNum(activeDepart);
   const dMon = fmtMon3(activeDepart);
-
   const rDay = fmtDayNum(activeReturn);
   const rMon = fmtMon3(activeReturn);
 
-  // ✅ NEW: light highlight for minimum price row (use DEPART day only)
+  // light tint for minimum price row (depart day)
   const minRowTint = useMemo(() => {
     return getLightFromVivid(getDowStyleByRuleVivid(activeDepart));
   }, [activeDepart]);
 
+  // ✅ Top actions: show ONLY when handlers provided
+  const hasClear = typeof onClearSelection === "function";
+  const hasView = typeof onViewSelection === "function";
+  const showTopActions = hasClear || hasView;
+
+  const clearBtnDisabled = isLoading || clearDisabled || !hasClear;
+  const viewBtnDisabled = isLoading || viewDisabled || !hasView;
+
   return (
     <section style={styles.wrap} aria-label="Date navigator">
-      {/* ✅ Perfect centering: 1fr | center(auto) | 1fr */}
+      {/* ✅ TOP ACTIONS (like one-way) */}
+      {showTopActions && (
+        <div style={styles.actionRowTop}>
+          <button
+            type="button"
+            onClick={() => onClearSelection && onClearSelection()}
+            disabled={clearBtnDisabled}
+            style={{
+              ...styles.actionBtn,
+              ...(clearBtnDisabled ? styles.btnDisabled : null),
+            }}
+          >
+            {lang === "th" ? "ล้างที่เลือก" : "Clear selection"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onViewSelection && onViewSelection()}
+            disabled={viewBtnDisabled}
+            style={{
+              ...styles.actionBtn,
+              ...styles.viewBtn,
+              ...(viewBtnDisabled ? styles.btnDisabled : null),
+            }}
+          >
+            {lang === "th" ? "ดูที่เลือก" : "View selection"}
+          </button>
+        </div>
+      )}
+
+      {/* NAVIGATION ROW */}
       <div style={styles.navRow}>
         {/* LEFT */}
         <div style={styles.sideLeft}>
@@ -117,7 +165,7 @@ export default function DateNavigatorRoundTrip({
               doNavigate(addDays(activeDepart, -7));
             }}
           >
-            ⏪
+            «
           </button>
 
           <button
@@ -130,7 +178,7 @@ export default function DateNavigatorRoundTrip({
               doNavigate(addDays(activeDepart, -1));
             }}
           >
-            ◀
+            ‹
           </button>
         </div>
 
@@ -205,7 +253,7 @@ export default function DateNavigatorRoundTrip({
               doNavigate(addDays(activeDepart, +1));
             }}
           >
-            ▶
+            ›
           </button>
 
           <button
@@ -218,7 +266,7 @@ export default function DateNavigatorRoundTrip({
               doNavigate(addDays(activeDepart, +7));
             }}
           >
-            ⏩
+            »
           </button>
 
           <button
@@ -236,12 +284,12 @@ export default function DateNavigatorRoundTrip({
               doNavigate(a);
             }}
           >
-            <span style={styles.resetBullet}>●</span>
+            •
           </button>
         </div>
       </div>
 
-      {/* ✅ NEW: Minimum price row (clean & soft highlight by Depart DOW) */}
+      {/* MINIMUM PRICE */}
       <div
         style={{
           ...styles.minRow,
@@ -323,19 +371,17 @@ function fmtMoney(n) {
 function getDowStyleByRuleVivid(d) {
   const day = d.getDay();
   if (day === 0) return { background: "#edddde", borderColor: "#f58293", color: "#f7084c" };
-  if (day === 1) return { background: "#f1f3e3", borderColor: "#f0ec17", color: "#a1a908d3" };
-  if (day === 2) return { background: "#f4e5f0", borderColor: "#f62fc1", color: "#f424e6" };
-  if (day === 3) return { background: "#a9f9d0", borderColor: "#10b981", color: "#0dbf8c" };
-  if (day === 4) return { background: "#f5e9d7", borderColor: "#f0954b", color: "#e08d06" };
-  if (day === 5) return { background: "#d3e4fa", borderColor: "#3b82f6", color: "#1b8df8" };
-  return { background: "#e2d0f5", borderColor: "#8b5cf6", color: "#752cf4" };
+  if (day === 1) return { background: "#f1f3e3", borderColor: "#f0ec17", color: "#8a9307" };
+  if (day === 2) return { background: "#f4e5f0", borderColor: "#f62fc1", color: "#d81fd0" };
+  if (day === 3) return { background: "#a9f9d0", borderColor: "#10b981", color: "#0a9a71" };
+  if (day === 4) return { background: "#f5e9d7", borderColor: "#f0954b", color: "#c87905" };
+  if (day === 5) return { background: "#d3e4fa", borderColor: "#3b82f6", color: "#1b6fe6" };
+  return { background: "#e2d0f5", borderColor: "#8b5cf6", color: "#6b28d9" };
 }
-
-// ✅ convert vivid color to a very light background tint
 function getLightFromVivid(vivid) {
   return {
-    background: withAlpha(vivid.background, 0.35),
-    borderColor: withAlpha(vivid.borderColor, 0.55),
+    background: withAlpha(vivid.background, 0.22),
+    borderColor: withAlpha(vivid.borderColor, 0.35),
   };
 }
 function withAlpha(hex, alpha) {
@@ -363,10 +409,13 @@ function toast(msg) {
 }
 
 /* ========================= styles ========================= */
-const SKY = "#0ea5e9";
-const SKY_BG = "#e0f2fe";
-const SKY_BORDER = "#bae6fd";
-
+/**
+ * เป้าหมาย UX:
+ * - โทนอ่อน ไม่รก
+ * - ลูกศรสีอ่อน (light gray)
+ * - DOW เป็นสี่เหลี่ยมมุมโค้งเล็ก
+ * - วัน/เดือนขนาดเล็กลง (ใกล้ 60%)
+ */
 const styles = {
   wrap: {
     marginTop: 12,
@@ -376,6 +425,30 @@ const styles = {
     boxShadow: "0 10px 20px rgba(2,6,23,.08)",
     padding: "10px 10px 12px",
     overflow: "hidden",
+  },
+
+  // ✅ top actions
+  actionRowTop: {
+    display: "flex",
+    gap: 10,
+    marginBottom: 10,
+  },
+  actionBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 12,
+    border: "1px solid #E2E8F0",
+    background: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#334155",
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+  },
+  viewBtn: {
+    background: "#EAF2FF",
+    border: "1px solid #C7D9FF",
+    color: "#1E40AF",
   },
 
   navRow: {
@@ -389,22 +462,28 @@ const styles = {
   sideLeft: { justifySelf: "start", display: "flex", alignItems: "center", gap: 6 },
   sideRight: { justifySelf: "end", display: "flex", alignItems: "center", gap: 6 },
 
+  // ✅ lighter arrows
   btn: {
     width: 40,
     height: 36,
     borderRadius: 12,
-    border: "1px solid #e2e8f0",
+    border: "1px solid #EEF2F7",
     background: "#fff",
-    fontWeight: 700,
+    fontWeight: 900,
     cursor: "pointer",
     userSelect: "none",
-    fontSize: 16,
+    fontSize: 18,
     lineHeight: "1",
     display: "grid",
     placeItems: "center",
-    color: SKY,
+    color: "#94A3B8",
   },
-  btnDisabled: { opacity: 0.45, cursor: "not-allowed" },
+  resetBtn: {
+    background: "#F1F5F9",
+    border: "1px solid #E2E8F0",
+    color: "#64748B",
+  },
+  btnDisabled: { opacity: 0.55, cursor: "not-allowed" },
 
   center: { justifySelf: "center", display: "flex", alignItems: "center", justifyContent: "center" },
 
@@ -412,7 +491,7 @@ const styles = {
 
   line: {
     display: "grid",
-    gridTemplateColumns: "74px auto",
+    gridTemplateColumns: "68px auto",
     alignItems: "center",
     columnGap: 8,
     justifyContent: "center",
@@ -424,8 +503,8 @@ const styles = {
     alignItems: "baseline",
     gap: 5,
     whiteSpace: "nowrap",
-    color: "rgba(15,23,42,0.70)",
-    fontWeight: 300,
+    color: "rgba(15,23,42,0.78)",
+    fontWeight: 400,
     letterSpacing: ".2px",
     fontVariantNumeric: "tabular-nums",
   },
@@ -435,54 +514,48 @@ const styles = {
     alignItems: "baseline",
     gap: 5,
     whiteSpace: "nowrap",
-    color: "rgba(15,23,42,0.70)",
-    fontWeight: 700,
+    color: "rgba(15,23,42,0.78)",
+    fontWeight: 600,
     letterSpacing: ".2px",
     fontVariantNumeric: "tabular-nums",
   },
-dayNum: {
-  width: 26,
-  textAlign: "right",
-  fontSize: 16,                  // เด่นกว่า month
-  fontWeight: 800,
-  color: "rgba(15,23,42,0.88)",  // deep slate (premium)
-},
 
-monTxt: {
-  width: 40,
-  textAlign: "left",
-  fontSize: 13,                  // เล็กกว่า day ให้เห็น hierarchy
-  fontWeight: 800,
-  letterSpacing: "0.8px",
-  color: "rgba(14,165,233,0.95)", // SkyBlue (tailwind sky-500 느낌)
-  /* ถ้าอยากให้เดือน “เป็นธีม skyblue มากขึ้น” เปิด 3 บรรทัดนี้ */
-  // padding: "2px 6px",
-  // borderRadius: 8,
-  // background: "rgba(14,165,233,0.12)",
-},
+  // ✅ ลดขนาดลง (ใกล้ 60%)
+  dayNum: {
+    width: 24,
+    textAlign: "right",
+    fontSize: 13,
+    fontWeight: 700,
+    color: "rgba(15,23,42,0.88)",
+  },
+  monTxt: {
+    width: 38,
+    textAlign: "left",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.8px",
+    color: "rgba(14,165,233,0.95)",
+  },
 
-dowPill: {
-  fontSize: 13,
-  fontWeight: 800,
-  padding: "2px 8px",
-  borderRadius: 9,
-  border: "1px solid",
-  whiteSpace: "nowrap",
-  lineHeight: "1",
-  minWidth: 32,
-  textAlign: "center",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-},
-
-  resetBtn: { background: SKY_BG, borderColor: SKY_BORDER },
-  resetBullet: { color: SKY, fontSize: 22, lineHeight: "1", transform: "translateY(-1px)" },
+  // ✅ DOW rectangle tiny corner
+  dowPill: {
+    fontSize: 10,
+    fontWeight: 900,
+    padding: "2px 8px",
+    borderRadius: 3,
+    border: "1px solid",
+    whiteSpace: "nowrap",
+    lineHeight: "1",
+    minWidth: 34,
+    textAlign: "center",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   slideRight: { animation: "dnrt_slide_right 220ms ease" },
   slideLeft: { animation: "dnrt_slide_left 220ms ease" },
 
-  // ✅ NEW: minimum price row
   minRow: {
     marginTop: 10,
     borderRadius: 14,
@@ -492,7 +565,6 @@ dowPill: {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
-    transition: "background 180ms ease, border-color 180ms ease",
   },
   minLabel: { fontSize: 12, color: "rgba(15,23,42,0.70)", fontWeight: 600 },
   minValue: { fontSize: 14, color: "#0b4f8a", fontWeight: 900, whiteSpace: "nowrap" },
@@ -522,56 +594,12 @@ dowPill: {
   },
 };
 
-/* ✅ Always update style tag */
+/* ✅ keyframes */
 if (typeof document !== "undefined") {
   const css = `
-    @keyframes dnrt_slide_right {
-      from { transform: translateX(10px); opacity: .6; }
-      to { transform: translateX(0); opacity: 1; }
-    }
-    @keyframes dnrt_slide_left {
-      from { transform: translateX(-10px); opacity: .6; }
-      to { transform: translateX(0); opacity: 1; }
-    }
-
-    [aria-label="Date navigator"] .dnrt-dow {
-      border-radius: 6px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-    }
-
-    @media (max-width: 420px) {
-      [aria-label="Date navigator"] button {
-        width: 34px !important;
-        height: 32px !important;
-        font-size: 14px !important;
-        border-radius: 10px !important;
-      }
-      [aria-label="Date navigator"] .dnrt-day,
-      [aria-label="Date navigator"] .dnrt-mon { font-size: 9px !important; }
-
-      [aria-label="Date navigator"] .dnrt-dow {
-        font-size: 8px !important;
-        padding: 1px 5px !important;
-        border-radius: 6px !important;
-        min-width: 26px !important;
-      }
-    }
-
-    @media (min-width: 640px) {
-      [aria-label="Date navigator"] .dnrt-lines {
-        flex-direction: row !important;
-        gap: 18px !important;
-      }
-      [aria-label="Date navigator"] .dnrt-line {
-        grid-template-columns: auto auto !important;
-      }
-      [aria-label="Date navigator"] .dnrt-day,
-      [aria-label="Date navigator"] .dnrt-mon { width: auto !important; }
-    }
+    @keyframes dnrt_slide_right { from { transform: translateX(10px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes dnrt_slide_left  { from { transform: translateX(-10px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
   `;
-
   let styleEl = document.getElementById("dnrt_keyframes");
   if (!styleEl) {
     styleEl = document.createElement("style");

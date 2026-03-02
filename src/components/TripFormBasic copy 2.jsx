@@ -3,20 +3,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DateRangePicker, CustomProvider } from "rsuite";
 import enGB from "rsuite/locales/en_GB";
 import thTH from "rsuite/locales/th_TH";
-import useT from "../i18n/useT"; 
+import useT from "../i18n/useT";
 
 // 🔌 Redux
 import { useDispatch, useSelector } from "react-redux";
 import { fetchSearchResults, selectSearch } from "../redux/searchSlice";
 
-// ✅ NEW: clear old selection before new search (safety)
+// ✅ clear old selection before new search (safety)
 import { clearSelectedOfferLegs } from "../redux/offerSelectionSlice";
 
-// ✅ NEW: minimum price calculator
+// ✅ minimum price calculator
 import { getMinPriceSummary } from "../utils/minPrice";
 
 import JourneyTable from "./JourneyTable";
-import RoundTripResultsLite from "./RoundTripResultsLite"; // ⬅️ Supports depart/return split
+import RoundTripResultsLite from "./RoundTripResultsLite";
 
 // 🛫 Airport dropdown component (reads from airportsSlice)
 import AirportSelect from "./AirportSelect";
@@ -40,13 +40,10 @@ function useIsMobile(breakpoint = 768) {
 
   useEffect(() => {
     const onResize = () => setIsMobile(get());
-    if (typeof window !== "undefined") {
-      window.addEventListener("resize", onResize);
-    }
+    if (typeof window !== "undefined") window.addEventListener("resize", onResize);
     return () => {
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined")
         window.removeEventListener("resize", onResize);
-      }
     };
   }, [breakpoint]);
 
@@ -107,7 +104,6 @@ function TwoMonthSingleDatePicker({
   style,
   locale,
   placement = "bottomEnd",
-  /** Optional override to force behavior regardless of screen */
   forceOneCalendar, // true | false | undefined
 }) {
   const isMobile = useIsMobile();
@@ -142,10 +138,12 @@ function TwoMonthSingleDatePicker({
  * -------------------------------------------*/
 export default function TripFormBasic({ onSubmit }) {
   const t = useT();
+
   const calendarLocale =
     t?.lang === "th" || t?.locale === "th" || t?.locale === "th-TH"
       ? thTH
       : enGB;
+
   const weekdayStyle = "SUN";
   const isTH = t?.lang === "th" || t?.locale === "th" || t?.locale === "th-TH";
   const lang = isTH ? "th" : "en";
@@ -179,7 +177,6 @@ export default function TripFormBasic({ onSubmit }) {
   const lastPayloadRef = useRef(null);
 
   // ✅ Round-trip: anchors + last payload for navigator
-  // IMPORTANT: keep anchor object stable so navigator doesn't disappear during loading
   const [rtAnchor, setRtAnchor] = useState(() => ({
     departYMD: null,
     returnYMD: null,
@@ -188,6 +185,11 @@ export default function TripFormBasic({ onSubmit }) {
 
   // ✅ Round-trip: active tab
   const [rtActiveTab, setRtActiveTab] = useState("depart");
+
+  // ✅ NEW: bridge control for JourneyTable (one-way only)
+  // JourneyTable expects: "list" | "view"
+  const [owTab, setOwTab] = useState("list");
+  const [owClearTick, setOwClearTick] = useState(0);
 
   // ---- helpers ----
   const clampInt = (val, min, max = Infinity) =>
@@ -204,6 +206,10 @@ export default function TripFormBasic({ onSubmit }) {
     setRtAnchor({ departYMD: null, returnYMD: null });
     lastPayloadRTRef.current = null;
     setRtActiveTab("depart");
+
+    // reset one-way bridge controls
+    setOwTab("list");
+    setOwClearTick(0);
   };
 
   // infants ≤ adults
@@ -280,20 +286,22 @@ export default function TripFormBasic({ onSubmit }) {
       lastPayloadRTRef.current = null;
       setRtAnchor({ departYMD: null, returnYMD: null });
       setRtActiveTab("depart");
+
+      // reset one-way view tab to list (important)
+      setOwTab("list");
     } else {
       // round-trip
       lastPayloadRTRef.current = payload;
-
-      // IMPORTANT: update anchor without wiping object shape
-      setRtAnchor({
-        departYMD: payload.depart,
-        returnYMD: payload.ret,
-      });
+      setRtAnchor({ departYMD: payload.depart, returnYMD: payload.ret });
       setRtActiveTab("depart");
 
       // clear one-way
       lastPayloadRef.current = null;
       setAnchorYMD(null);
+
+      // reset one-way bridge controls
+      setOwTab("list");
+      setOwClearTick(0);
     }
 
     // ✅ SAFETY: clear old selection before searching
@@ -318,6 +326,9 @@ export default function TripFormBasic({ onSubmit }) {
     // ✅ SAFETY: clear selection before new results
     dispatch(clearSelectedOfferLegs());
 
+    // date move => go back to list
+    setOwTab("list");
+
     dispatch(fetchSearchResults(payload2));
   };
 
@@ -339,10 +350,7 @@ export default function TripFormBasic({ onSubmit }) {
     lastPayloadRTRef.current = payload2;
 
     // ✅ keep navigator anchor updated (so it never disappears)
-    setRtAnchor({
-      departYMD: payload2.depart,
-      returnYMD: payload2.ret,
-    });
+    setRtAnchor({ departYMD: payload2.depart, returnYMD: payload2.ret });
 
     // ✅ SAFETY: clear selection before new results
     dispatch(clearSelectedOfferLegs());
@@ -361,13 +369,11 @@ export default function TripFormBasic({ onSubmit }) {
   // dynamic spans
   const fromSpan = tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4";
   const toSpan = tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4";
-  const departSpan =
-    tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-3";
+  const departSpan = "md:col-span-3";
   const returnSpan = "md:col-span-3";
 
   // ✅ show navigators based on anchors (NOT results)
   const showNavigator = tripType === "oneway" && !!anchorYMD;
-
   const showRTNavigator =
     tripType === "roundtrip" && !!rtAnchor.departYMD && !!rtAnchor.returnYMD;
 
@@ -380,6 +386,20 @@ export default function TripFormBasic({ onSubmit }) {
       destination: destination.trim().toUpperCase(),
     });
   }, [results, tripType, origin, destination]);
+
+  // ✅ allow clear/view when results exist and not loading
+  const canUseSelectionActions = !!results && status !== "loading";
+
+  // ✅ handlers for DateNavigator buttons (one-way only)
+  const handleClearSelectionFromNav = () => {
+    dispatch(clearSelectedOfferLegs());
+    setOwClearTick((x) => x + 1); // tell JourneyTable to clear local state
+    setOwTab("list");
+  };
+
+  const handleViewSelectionFromNav = () => {
+    setOwTab("view");
+  };
 
   return (
     <CustomProvider locale={calendarLocale}>
@@ -425,9 +445,6 @@ export default function TripFormBasic({ onSubmit }) {
               onChange={setOrigin}
               placeholder={t.placeholders?.from ?? (isTH ? "ต้นทาง" : "From")}
             />
-            <div className="px-1 pt-1 text-xs text-slate-500">
-              {t.form?.allAirports ?? (isTH ? "ทุกสนามบิน" : "All airports")}
-            </div>
           </div>
 
           {/* To */}
@@ -437,9 +454,6 @@ export default function TripFormBasic({ onSubmit }) {
               onChange={setDestination}
               placeholder={t.placeholders?.to ?? (isTH ? "ปลายทาง" : "To")}
             />
-            <div className="px-1 pt-1 text-xs text-slate-500">
-              {t.form?.allAirports ?? (isTH ? "ทุกสนามบิน" : "All airports")}
-            </div>
           </div>
 
           {/* Depart */}
@@ -495,22 +509,9 @@ export default function TripFormBasic({ onSubmit }) {
 
           {showPax && (
             <div className="absolute z-50 mt-2 w-full md:w-[640px] left-0 rounded-2xl border border-slate-200 bg-white shadow-2xl">
-              {/* Header */}
-              <div className="px-5 py-4 border-b border-slate-100">
-                <div className="text-slate-800 font-semibold">
-                  {t.form?.passengersClass ??
-                    (isTH ? "ผู้โดยสาร / ชั้นโดยสาร" : "Passengers / Class")}
-                </div>
-              </div>
-
-              {/* Body: left = cabin, right = pax */}
               <div className="px-5 py-4 grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* LEFT: Cabin (display only) */}
+                {/* LEFT: Cabin */}
                 <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="text-sm font-semibold text-slate-700 mb-2">
-                    {t.form?.cabin ?? (isTH ? "ชั้นโดยสาร" : "Cabin")}
-                  </div>
-
                   <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 flex items-center gap-3">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-sky-300 text-sky-700">
                       ✓
@@ -518,12 +519,6 @@ export default function TripFormBasic({ onSubmit }) {
                     <div>
                       <div className="font-semibold text-slate-900">
                         {t.form?.economy ?? (isTH ? "ชั้นประหยัด" : "Economy")}
-                      </div>
-                      <div className="text-xs text-slate-600">
-                        {t.form?.nokSingleCabinHint ??
-                          (isTH
-                            ? "Nok Air มีชั้นโดยสารเดียว"
-                            : "Nok Air offers one cabin class.")}
                       </div>
                     </div>
                   </div>
@@ -591,7 +586,6 @@ export default function TripFormBasic({ onSubmit }) {
                 </div>
               </div>
 
-              {/* Footer buttons */}
               <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-100">
                 <button
                   type="button"
@@ -632,11 +626,10 @@ export default function TripFormBasic({ onSubmit }) {
           </button>
         </div>
 
-        {/* error from Redux */}
         {error && <div className="text-sm text-red-600">{error}</div>}
       </form>
 
-      {/* ✅ One-way navigator (show by anchors, not results) */}
+      {/* ✅ One-way navigator */}
       {showNavigator && (
         <div className="mt-3">
           <DateNavigatorOneWay
@@ -647,11 +640,16 @@ export default function TripFormBasic({ onSubmit }) {
             onNavigate={handleNavigateDate}
             minTotal={minSummary?.minTotal ?? null}
             currency={minSummary?.currency ?? "THB"}
+            // ✅ NEW actions inside navigator
+            onClearSelection={handleClearSelectionFromNav}
+            onViewSelection={handleViewSelectionFromNav}
+            clearDisabled={!canUseSelectionActions}
+            viewDisabled={!canUseSelectionActions}
           />
         </div>
       )}
 
-      {/* ✅ Round-trip navigator (show by anchors, not results) */}
+      {/* ✅ Round-trip navigator */}
       {showRTNavigator && (
         <div className="mt-3">
           <DateNavigatorRoundTrip
@@ -673,12 +671,15 @@ export default function TripFormBasic({ onSubmit }) {
       {/* Results */}
       {results &&
         (Array.isArray(results?.data) && results.data.length > 1 ? (
-          <RoundTripResultsLite
-            // OPTIONAL: if you later add this prop, it can control disable rule
-            // onTabChange={(tab) => setRtActiveTab(tab)}
-          />
+          <RoundTripResultsLite />
         ) : (
-          <JourneyTable showNextButton />
+          <JourneyTable
+            showNextButton
+            // ✅ NEW: DateNavigator controls JourneyTable
+            externalTab={owTab}
+            onExternalTabChange={setOwTab}
+            externalClearSignal={owClearTick}
+          />
         ))}
     </CustomProvider>
   );
@@ -703,9 +704,7 @@ function Stepper({ value, setValue, min, max = Infinity, tall = false }) {
       >
         −
       </button>
-      <span className="w-8 text-center font-semibold text-slate-900">
-        {value}
-      </span>
+      <span className="w-8 text-center font-semibold text-slate-900">{value}</span>
       <button
         type="button"
         onClick={() => setValue(clampInt((value ?? 0) + 1, min, max))}
