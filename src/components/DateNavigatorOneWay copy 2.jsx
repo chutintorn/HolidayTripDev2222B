@@ -1,4 +1,3 @@
-// src/components/DateNavigatorOneWay.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /**
@@ -72,6 +71,9 @@ export default function DateNavigatorOneWay({
   const dow = getDow(activeDate, lang);
   const dowStyle = getDowStyleByRuleVivid(activeDate);
 
+  // ✅ split day/month for SkyBlue theme (like RoundTrip)
+  const { day: dDay, mon: dMon } = fmtDayMon(activeDate);
+
   // ✅ NEW: tint for Minimum price row (very light) based on DOW
   const minRowTint = useMemo(() => {
     return getLightFromVivid(getDowStyleByRuleVivid(activeDate));
@@ -119,7 +121,12 @@ export default function DateNavigatorOneWay({
             }}
             key={activeDate.toISOString()}
           >
-            {fmtMonDay(activeDate)}
+            <span className="dn1w-day" style={styles.dayNum}>
+              {dDay}
+            </span>
+            <span className="dn1w-mon" style={styles.monTxt}>
+              {dMon}
+            </span>
           </div>
 
           <div style={{ ...styles.dowPill, ...dowStyle }}>{dow}</div>
@@ -227,9 +234,12 @@ function toDate(v) {
   }
   return null;
 }
-function fmtMonDay(d) {
+function fmtDayMon(d) {
   const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-  return `${String(d.getDate()).padStart(2, "0")} ${months[d.getMonth()]}`;
+  return {
+    day: String(d.getDate()).padStart(2, "0"),
+    mon: months[d.getMonth()],
+  };
 }
 function getDow(d, lang) {
   const en = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -323,6 +333,7 @@ const styles = {
     color: SKY,
   },
   btnDisabled: { opacity: 0.45, cursor: "not-allowed" },
+
   center: {
     flex: 1,
     minWidth: 0,
@@ -331,22 +342,56 @@ const styles = {
     justifyContent: "center",
     gap: 8,
   },
+
+  // ✅ bigDate becomes "DD + MMM" container (like RoundTrip)
   bigDate: {
-    fontWeight: 300,
-    letterSpacing: ".2px",
-    fontSize: 12,
+    display: "flex",
+    alignItems: "baseline",
+    justifyContent: "center",
+    gap: 6,
     whiteSpace: "nowrap",
-    color: "rgba(15,23,42,0.70)",
+    letterSpacing: ".2px",
+    fontVariantNumeric: "tabular-nums",
   },
+
+  // ✅ DD premium
+  dayNum: {
+    width: 26,
+    textAlign: "right",
+    fontSize: 16,
+    fontWeight: 800,
+    color: "rgba(15,23,42,0.88)",
+  },
+
+  // ✅ MMM maximum SkyBlue theme
+  monTxt: {
+    width: 40,
+    textAlign: "left",
+    fontSize: 13,
+    fontWeight: 800,
+    letterSpacing: "0.8px",
+    color: "#0ea5e9",
+    // ถ้าอยากให้เดือน "ธีมจัด" เป็น capsule เปิดได้:
+    // padding: "2px 6px",
+    // borderRadius: 8,
+    // background: "rgba(14,165,233,0.12)",
+  },
+
   dowPill: {
-    fontSize: 15,
-    fontWeight: 300,
-    padding: "4px 10px",
-    borderRadius: 999,
-    border: "0.5px solid",
+    fontSize: 13,
+    fontWeight: 800,
+    padding: "2px 8px",
+    borderRadius: 9,
+    border: "1px solid",
     whiteSpace: "nowrap",
     lineHeight: "1",
+    minWidth: 32,
+    textAlign: "center",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
+
   resetBtn: { background: SKY_BG, borderColor: SKY_BORDER },
   resetBullet: {
     color: SKY,
@@ -355,10 +400,11 @@ const styles = {
     display: "inline-block",
     transform: "translateY(-1px)",
   },
+
   slideRight: { animation: "dn_slide_right 220ms ease" },
   slideLeft: { animation: "dn_slide_left 220ms ease" },
 
-  // ✅ UPDATED: min price row below (now tinted + rounded)
+  // ✅ min price row
   minRow: {
     marginTop: 10,
     borderRadius: 14,
@@ -398,12 +444,17 @@ const styles = {
   },
 };
 
-if (typeof document !== "undefined" && !document.getElementById("dn_keyframes")) {
-  const style = document.createElement("style");
-  style.id = "dn_keyframes";
+if (typeof document !== "undefined") {
+  let style = document.getElementById("dn_keyframes");
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "dn_keyframes";
+    document.head.appendChild(style);
+  }
   style.textContent = `
     @keyframes dn_slide_right { from { transform: translateX(10px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
     @keyframes dn_slide_left  { from { transform: translateX(-10px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
+
     @media (max-width: 420px) {
       [aria-label="Date navigator"] button {
         width: 34px !important;
@@ -411,7 +462,9 @@ if (typeof document !== "undefined" && !document.getElementById("dn_keyframes"))
         font-size: 14px !important;
         border-radius: 10px !important;
       }
+      /* keep DD/MMM readable on very narrow phones */
+      [aria-label="Date navigator"] .dn1w-day { font-size: 15px !important; }
+      [aria-label="Date navigator"] .dn1w-mon { font-size: 12px !important; }
     }
   `;
-  document.head.appendChild(style);
 }

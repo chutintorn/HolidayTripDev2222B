@@ -9,14 +9,11 @@ export default function AirportSelect({
   placeholder = "Select airport",
   disabled = false,
 
-  // ✅ NEW: make selected text bigger (for Depart airport only)
-  emphasis = false,
-
-  // ✅ Keep defaults, but lighter typography & no wrap
+  // ✅ Mobile-compact only (desktop unchanged)
   className =
     "w-full h-12 sm:h-14 rounded-xl sm:rounded-2xl " +
     "border border-slate-200 bg-white " +
-    "px-3 sm:px-4 " +
+    "px-3 sm:px-4 text-[15px] sm:text-[16px] " +
     "shadow-sm focus:outline-none focus:ring focus:ring-sky-200/70",
 
   name,
@@ -135,18 +132,6 @@ export default function AirportSelect({
     }
   };
 
-  // ✅ Selected label styling:
-  // - reduce boldness (font-medium)
-  // - prevent wrap (whitespace-nowrap truncate)
-  // - emphasis = ~130% size (origin box)
-  const selectedTextClass = selected
-    ? `text-slate-900 font-medium whitespace-nowrap truncate ${
-        emphasis ? "text-[16px] sm:text-[18px]" : "text-[15px] sm:text-[16px]"
-      }`
-    : `text-slate-400 font-medium whitespace-nowrap truncate ${
-        emphasis ? "text-[16px] sm:text-[18px]" : "text-[15px] sm:text-[16px]"
-      }`;
-
   return (
     <div className="relative" ref={rootRef}>
       <button
@@ -164,12 +149,14 @@ export default function AirportSelect({
         onClick={() => !disabled && setOpen((o) => !o)}
         onKeyDown={handleTriggerKeyDown}
       >
-        {/* ✅ prevent wrap & reduce bold */}
-        <span className={"min-w-0 flex-1 " + selectedTextClass}>
+        <span className={selected ? "text-slate-900 font-semibold" : "text-slate-400"}>
           {selected ? selected.label : placeholder}
         </span>
 
-        <span aria-hidden className="ml-2 text-slate-500 text-base leading-none">
+        <span
+          aria-hidden
+          className="ml-2 text-slate-500 text-base leading-none"
+        >
           ▾
         </span>
       </button>
@@ -217,8 +204,7 @@ export default function AirportSelect({
                     className={[
                       "w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between",
                       isActive ? "bg-sky-50" : "bg-white",
-                      // ✅ reduce boldness in list too
-                      isSelected ? "font-semibold text-sky-700" : "text-slate-700",
+                      isSelected ? "font-bold text-sky-700" : "text-slate-700",
                     ].join(" ")}
                   >
                     <span className="truncate">{a.label}</span>

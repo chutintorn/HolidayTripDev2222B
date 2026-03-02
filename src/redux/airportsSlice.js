@@ -5,9 +5,8 @@ import { createSlice } from "@reduxjs/toolkit";
 const initialAirports = [
   { label: "กรุงเทพฯ - ดอนเมือง (DMK)", value: "DMK" },
   { label: "เชียงใหม่ (CNX)", value: "CNX" },
-  { label: "เชียงราย (CEI)", value: "CEI" },
   { label: "ภูเก็ต (HKT)", value: "HKT" },
-  { label: "สกลนคร (SNO)", value: "SNO" },
+  { label: "หาดใหญ่ (็็HDY)", value: "HDY" },
   { label: "ตรัง (TST)", value: "TST" },
 ];
 

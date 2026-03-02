@@ -440,23 +440,41 @@ const styles = {
     letterSpacing: ".2px",
     fontVariantNumeric: "tabular-nums",
   },
-  dayNum: { width: 22, textAlign: "right", fontSize: 10 },
-  monTxt: { width: 32, textAlign: "left", fontSize: 10 },
+dayNum: {
+  width: 26,
+  textAlign: "right",
+  fontSize: 16,                  // เด่นกว่า month
+  fontWeight: 800,
+  color: "rgba(15,23,42,0.88)",  // deep slate (premium)
+},
 
-  dowPill: {
-    fontSize: 10,
-    fontWeight: 700,
-    padding: "1px 6px",
-    borderRadius: 6,
-    border: "1px solid",
-    whiteSpace: "nowrap",
-    lineHeight: "1",
-    minWidth: 28,
-    textAlign: "center",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+monTxt: {
+  width: 40,
+  textAlign: "left",
+  fontSize: 13,                  // เล็กกว่า day ให้เห็น hierarchy
+  fontWeight: 800,
+  letterSpacing: "0.8px",
+  color: "rgba(14,165,233,0.95)", // SkyBlue (tailwind sky-500 느낌)
+  /* ถ้าอยากให้เดือน “เป็นธีม skyblue มากขึ้น” เปิด 3 บรรทัดนี้ */
+  // padding: "2px 6px",
+  // borderRadius: 8,
+  // background: "rgba(14,165,233,0.12)",
+},
+
+dowPill: {
+  fontSize: 13,
+  fontWeight: 800,
+  padding: "2px 8px",
+  borderRadius: 9,
+  border: "1px solid",
+  whiteSpace: "nowrap",
+  lineHeight: "1",
+  minWidth: 32,
+  textAlign: "center",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+},
 
   resetBtn: { background: SKY_BG, borderColor: SKY_BORDER },
   resetBullet: { color: SKY, fontSize: 22, lineHeight: "1", transform: "translateY(-1px)" },
