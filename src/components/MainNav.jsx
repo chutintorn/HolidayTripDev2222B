@@ -26,7 +26,7 @@ export default function MainNav() {
 
   return (
     <nav className="border-b bg-white">
-      <div className="mx-auto max-w-6xl px-4 py-2 flex items-center justify-between">
+      <div className="mx-auto max-w-6xl flex items-center justify-between">
 
         {/* Desktop Navigation */}
         <div className="hidden sm:flex items-center gap-2">
@@ -35,7 +35,7 @@ export default function MainNav() {
         </div>
 
         {/* Mobile 3-dot Toggle */}
-        <button
+        {/* <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-label="More"
@@ -62,11 +62,11 @@ export default function MainNav() {
             <circle cx="9" cy="2" r="2" />
             <circle cx="16" cy="2" r="2" />
           </svg>
-        </button>
+        </button> */}
       </div>
 
       {/* Mobile Dropdown */}
-      {open && (
+      {/* {open && (
         <div className="sm:hidden border-t bg-white">
           <div className="mx-auto max-w-6xl px-4 py-2 flex flex-col gap-2">
             <NavLink to="/landing" onClick={() => setOpen(false)}>
@@ -77,7 +77,7 @@ export default function MainNav() {
             </NavLink>
           </div>
         </div>
-      )}
+      )} */}
     </nav>
   );
 }
