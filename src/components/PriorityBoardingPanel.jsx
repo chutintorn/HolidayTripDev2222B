@@ -10,6 +10,10 @@ import {
   selectSavedPriorityBoarding,
 } from "../redux/priorityBoardingSelectionSlice";
 
+/* ========================= PNG icon (Vite-safe) ========================= */
+const priorityImg = new URL("../assets/anc_priority.png", import.meta.url).href;
+const ICON_CLASS_200 = "w-14 h-14 object-contain";
+
 /* ========================= helpers ========================= */
 function safeArray(v) {
   return Array.isArray(v) ? v : [];
@@ -18,10 +22,7 @@ function normalize(v) {
   return String(v || "").trim().replace(/\s+/g, "").toUpperCase();
 }
 function sanitizeFlightNumber(v) {
-  const s = String(v || "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "");
+  const s = String(v || "").trim().toUpperCase().replace(/\s+/g, "");
   const m = /^([A-Z]{2})(\d{2,4})/.exec(s);
   if (!m) return "";
   return `${m[1]}${m[2]}`;
@@ -36,7 +37,7 @@ function sumVat(vatArr) {
   return safeArray(vatArr).reduce((s, x) => s + (Number(x?.amount) || 0), 0);
 }
 
-/* rawDetail can be many shapes (same as MealPanel) */
+/* rawDetail can be many shapes (same pattern as MealPanel) */
 function pickAirlinesFromRawDetail(rawDetail) {
   if (!rawDetail) return [];
   if (Array.isArray(rawDetail?.airlines)) return rawDetail.airlines;
@@ -48,47 +49,25 @@ function pickAirlinesFromRawDetail(rawDetail) {
   return [];
 }
 
-function findPBODFromPricing(rawDetail, flightNumber) {
-  const airlines = pickAirlinesFromRawDetail(rawDetail);
-  const fn = sanitizeFlightNumber(flightNumber);
-
-  const all = [];
-  for (const a of airlines) {
-    const services = Array.isArray(a?.availableExtraServices) ? a.availableExtraServices : [];
-    for (const s of services) all.push(s);
-  }
-
-  const byFlight = fn ? all.filter((s) => sanitizeFlightNumber(s?.flightNumber) === fn) : all;
-
-  const hit =
-    byFlight.find((s) => normalize(s?.ssrCode) === "PBOD") ||
-    all.find((s) => normalize(s?.ssrCode) === "PBOD");
-
-  if (!hit) return null;
-
-  return {
-    ssrCode: "PBOD",
-    description: hit?.description || "PRIORITY BOARDING",
-    amount: hit?.amount ?? 0,
-    currency: hit?.currency || "THB",
-    departureDate: hit?.departureDate,
-    flightNumber: hit?.flightNumber || flightNumber,
-    paxTypeCode: hit?.paxTypeCode,
-    vat: safeArray(hit?.vat),
-  };
-}
-
-/* ========================= header helpers (like Meal) ========================= */
+/** JourneyKey -> {origin,destination, yyyymmdd} */
 function parseJourneyKey(journeyKey) {
-  const s = String(journeyKey || "").trim();
+  const s = String(journeyKey || "").trim().toUpperCase();
   const mRoute = /^([A-Z]{3})([A-Z]{3})/.exec(s);
   const origin = mRoute ? mRoute[1] : "";
   const destination = mRoute ? mRoute[2] : "";
 
-  const mDate = /([0-9]{8})/.exec(s);
+  const mDate = /(20\d{6})/.exec(s);
   const ymd = mDate ? mDate[1] : "";
-
   return { origin, destination, ymd };
+}
+
+/** JourneyKey -> flightNumber (fallback) */
+function extractFlightNoFromJourneyKey(journeyKey) {
+  const s = String(journeyKey || "").toUpperCase();
+  const m =
+    /_([A-Z]{2}\d{2,4})(?=20\d{6})/.exec(s) || // stop before date
+    /_([A-Z]{2}\d{2,4})/.exec(s);
+  return sanitizeFlightNumber(m ? m[1] : "");
 }
 
 function formatDate(ymd) {
@@ -99,7 +78,7 @@ function formatDate(ymd) {
   if (!y || !m || !d) return "";
   const dt = new Date(Date.UTC(y, m - 1, d));
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${d} ${months[m - 1]} ${y}`;
+  return `${String(d).padStart(2, "0")} ${months[m - 1]} ${y}`;
 }
 
 function weekdayShort(ymd) {
@@ -119,16 +98,61 @@ function findOfferByJourneyKey(selectedOffers, journeyKey) {
   return so.find((o) => String(o?.journeyKey || "") === jk) || null;
 }
 
-/* ========================= NEW helper: compare saved vs draft ========================= */
-function codeFromUI(ui) {
-  const ssr = normalize(ui?.pbod?.ssrCode);
-  return ssr === "PBOD" ? "PBOD" : "NONE";
+function findPBODFromPricing(rawDetail, flightNumber) {
+  const airlines = pickAirlinesFromRawDetail(rawDetail);
+  const fn = sanitizeFlightNumber(flightNumber);
+
+  const all = [];
+  for (const a of airlines) {
+    const services = Array.isArray(a?.availableExtraServices) ? a.availableExtraServices : [];
+    for (const s of services) all.push(s);
+  }
+
+  // prefer match flightNumber, fallback any PBOD
+  const byFlight = fn ? all.filter((s) => sanitizeFlightNumber(s?.flightNumber) === fn) : all;
+  const hit =
+    byFlight.find((s) => normalize(s?.ssrCode) === "PBOD") ||
+    all.find((s) => normalize(s?.ssrCode) === "PBOD");
+
+  if (!hit) return null;
+
+  return {
+    ssrCode: "PBOD",
+    description: hit?.description || "PRIORITY BOARDING",
+    amount: hit?.amount ?? 0,
+    currency: hit?.currency || "THB",
+    departureDate: hit?.departureDate,
+    flightNumber: hit?.flightNumber || flightNumber,
+    paxTypeCode: hit?.paxTypeCode,
+    vat: safeArray(hit?.vat),
+  };
+}
+
+function samePick(a, b) {
+  return normalize(a?.ssrCode) === normalize(b?.ssrCode);
+}
+
+function pickLabel(service, t) {
+  const code = normalize(service?.ssrCode);
+  if (code === "PBOD") return t?.priorityYes ?? "Priority Boarding";
+  return t?.priorityNo ?? "No priority";
 }
 
 /* ========================= Component ========================= */
-export default function PriorityBoardingPanel({ paxId, legs = [], rawDetail, selectedOffers = [] }) {
+export default function PriorityBoardingPanel({
+  paxId,
+  legs = [],
+  rawDetail,
+  selectedOffers = [],
+  t,
+}) {
   const dispatch = useDispatch();
-  const [activeIdx, setActiveIdx] = useState(0); // ✅ default Depart
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  // ✅ NEW: always default to Depart when passenger changes
+  useEffect(() => {
+    setActiveIdx(0);
+  }, [paxId]);
 
   useEffect(() => {
     if (!legs?.length) return;
@@ -136,77 +160,56 @@ export default function PriorityBoardingPanel({ paxId, legs = [], rawDetail, sel
   }, [legs?.length, activeIdx]);
 
   if (!legs?.length) {
-    return <div className="text-sm text-slate-600">No selectedOffers found.</div>;
+    return <div className="text-sm text-slate-600">{t?.noFlights ?? "No selectedOffers found."}</div>;
   }
 
   const activeLeg = legs[activeIdx] || null;
   const journeyKey = String(activeLeg?.journeyKey || "");
-  const flightNumber = String(activeLeg?.flightNumber || "");
-  const label = activeLeg?.label || (activeIdx === 0 ? "Depart" : "Return");
 
-  const offer = useMemo(() => findOfferByJourneyKey(selectedOffers, journeyKey), [selectedOffers, journeyKey]);
+  // ✅ FIX: return leg sometimes has no flightNumber -> fallback from journeyKey
+  const flightNumber =
+    String(activeLeg?.flightNumber || "") || extractFlightNoFromJourneyKey(journeyKey);
+
+  const label =
+    activeLeg?.label ||
+    (activeIdx === 0 ? (t?.depart ?? "Depart") : (t?.return ?? "Return"));
+
+  const offer = useMemo(
+    () => findOfferByJourneyKey(selectedOffers, journeyKey),
+    [selectedOffers, journeyKey]
+  );
   const parsed = useMemo(() => parseJourneyKey(journeyKey), [journeyKey]);
 
   const origin = offer?.origin || offer?.from || parsed.origin;
   const destination = offer?.destination || offer?.to || parsed.destination;
 
-  const ymd = (String(offer?.departureDate || offer?.departure || "").replaceAll("-", "")) || parsed.ymd;
+  const ymd =
+    (String(offer?.departureDate || offer?.departure || "").replaceAll("-", "")) ||
+    parsed.ymd;
 
   const dateText = formatDate(ymd);
   const dow = weekdayShort(ymd);
 
-  const pbodService = useMemo(() => {
-    return findPBODFromPricing(rawDetail, flightNumber);
-  }, [rawDetail, flightNumber]);
+  const pbodService = useMemo(
+    () => findPBODFromPricing(rawDetail, flightNumber),
+    [rawDetail, flightNumber]
+  );
 
   const draft = useSelector(selectDraftPriorityBoarding(paxId, journeyKey));
   const saved = useSelector(selectSavedPriorityBoarding(paxId, journeyKey));
 
-  // ui for radio selection display
+  // UI uses draft if exists, else saved
   const ui = draft != null ? draft : saved != null ? saved : { pbod: null };
-  const selected = ui?.pbod ?? null;
+  const uiPBOD = ui?.pbod ?? null;
+
+  const savedPBOD = saved?.pbod ?? null;
+
+  const changed = !(samePick(uiPBOD, savedPBOD));
+  const canConfirm = !!journeyKey && changed;
+  const canRelease = !!journeyKey && draft != null;
 
   const vatTotal = useMemo(() => sumVat(pbodService?.vat), [pbodService]);
   const total = Number(pbodService?.amount || 0) || 0;
-
-  // ✅ KEY FIX: Confirm should be active only if DRAFT exists and differs from SAVED
-  const savedCode = useMemo(() => codeFromUI(saved || { pbod: null }), [saved]);
-  const draftCode = useMemo(() => (draft == null ? null : codeFromUI(draft)), [draft]);
-
-  const canConfirm = useMemo(() => {
-    if (draft == null) return false; // user hasn't changed anything
-    return draftCode !== savedCode; // changed from saved
-  }, [draft, draftCode, savedCode]);
-
-  function onSelectNone() {
-    // ถ้า saved ก็ NONE อยู่แล้ว -> ไม่ต้องสร้าง draft (กัน Confirm กลายเป็นฟ้า)
-    if (savedCode === "NONE") {
-      dispatch(clearDraftPriorityBoarding({ paxId, journeyKey }));
-      return;
-    }
-    // saved เป็น PBOD แต่ user เลือก NONE -> สร้าง draft เพื่อให้ Confirm ได้
-    dispatch(setDraftPriorityBoarding({ paxId, journeyKey, service: null }));
-  }
-
-  function onSelectPBOD() {
-    if (!pbodService) return;
-    // ถ้า saved เป็น PBOD อยู่แล้ว -> ไม่ต้องสร้าง draft
-    if (savedCode === "PBOD") {
-      dispatch(clearDraftPriorityBoarding({ paxId, journeyKey }));
-      return;
-    }
-    // saved เป็น NONE แต่ user เลือก PBOD -> สร้าง draft
-    dispatch(setDraftPriorityBoarding({ paxId, journeyKey, service: pbodService }));
-  }
-
-  function onConfirm() {
-    if (!canConfirm) return; // ✅ safety
-    dispatch(savePriorityBoarding({ paxId, journeyKey }));
-  }
-
-  function onCancel() {
-    dispatch(clearDraftPriorityBoarding({ paxId, journeyKey }));
-  }
 
   const routeLine =
     origin && destination
@@ -214,9 +217,17 @@ export default function PriorityBoardingPanel({ paxId, legs = [], rawDetail, sel
       : `${sanitizeFlightNumber(flightNumber) || ""}`;
 
   return (
-    <div className="mt-3">
-      {/* ✅ Leg tabs (active = blue like Meal) */}
-      <div className="flex gap-3">
+    <div className="space-y-3">
+      {/* ✅ Icon + title (like others) */}
+      <div className="flex items-center gap-3">
+        <img src={priorityImg} alt="Priority" className={ICON_CLASS_200} />
+        <div className="font-extrabold text-slate-900">
+          {t?.priorityLabel ?? "Priority Boarding"}
+        </div>
+      </div>
+
+      {/* ✅ Leg tabs */}
+      <div className="flex gap-2 flex-wrap">
         {safeArray(legs).map((leg, idx) => {
           const active = idx === activeIdx;
           return (
@@ -225,116 +236,154 @@ export default function PriorityBoardingPanel({ paxId, legs = [], rawDetail, sel
               type="button"
               onClick={() => setActiveIdx(idx)}
               className={[
-                "px-6 py-2 rounded-full border text-[13px] font-semibold transition-colors",
-                active ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50",
+                "px-4 py-2 rounded-full border text-[13px] font-extrabold",
+                active
+                  ? "bg-sky-600 text-white border-sky-600"
+                  : "bg-white text-slate-700 border-slate-300 hover:border-sky-400",
               ].join(" ")}
             >
-              {leg?.label || (idx === 0 ? "Depart" : "Return")}
+              {leg?.label || (idx === 0 ? (t?.depart ?? "Depart") : (t?.return ?? "Return"))}
             </button>
           );
         })}
       </div>
 
-      {/* ✅ remove top title/description; keep only flight header + options */}
-      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
-        {/* Flight header like Meal */}
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="text-[14px] font-extrabold text-slate-900">{routeLine}</div>
-            {dow ? (
-              <span className="px-2 py-0.5 rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-700">
+      {/* ✅ Flight/date pill row */}
+      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="text-sm font-extrabold text-slate-900">{routeLine}</div>
+          {dow ? (
+            <>
+              <span className="text-slate-300">|</span>
+              <span className="inline-flex items-center text-xs font-extrabold px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-700">
                 {dow}
               </span>
-            ) : null}
-            {dateText ? <div className="text-[13px] font-semibold text-slate-700">{dateText}</div> : null}
+            </>
+          ) : null}
+          {dateText ? (
+            <div className="text-sm text-slate-700 font-semibold">{dateText}</div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* ✅ Summary row (Confirmed / Selecting) + Confirm/Release */}
+      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-[12px] text-slate-700 font-semibold">
+            <span className="text-slate-500">{t?.confirmed ?? "Confirmed"}:</span>{" "}
+            <span className="font-extrabold">{pickLabel(savedPBOD, t)}</span>
+            <span className="text-slate-300"> &nbsp;|&nbsp; </span>
+            <span className="text-slate-500">{t?.selecting ?? "Selecting"}:</span>{" "}
+            <span className="font-extrabold">{pickLabel(uiPBOD, t)}</span>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              disabled={!canConfirm}
+              onClick={() => {
+                if (!journeyKey) return;
+                dispatch(savePriorityBoarding({ paxId, journeyKey }));
+              }}
+              className={[
+                "px-4 py-2 rounded-lg font-bold",
+                canConfirm
+                  ? "bg-sky-600 text-white hover:bg-sky-700"
+                  : "bg-slate-200 text-slate-500 cursor-not-allowed",
+              ].join(" ")}
+            >
+              {t?.confirm ?? "Confirm"}
+            </button>
+
+            <button
+              type="button"
+              disabled={!canRelease}
+              onClick={() => {
+                if (!journeyKey) return;
+                dispatch(clearDraftPriorityBoarding({ paxId, journeyKey }));
+              }}
+              className={[
+                "px-4 py-2 rounded-lg font-bold border",
+                canRelease
+                  ? "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
+                  : "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed",
+              ].join(" ")}
+            >
+              {t?.release ?? "Release"}
+            </button>
           </div>
         </div>
-
-        {!pbodService ? (
-          <div className="mt-3 rounded-xl bg-slate-50 p-3 text-[13px] text-slate-700">
-            No Priority Boarding (PBOD) service available for this flight.
-          </div>
-        ) : (
-          <>
-            <div className="mt-3 space-y-2">
-              {/* None */}
-              <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 cursor-pointer bg-white">
-                <input
-                  type="radio"
-                  name={`pbod-${paxId}-${journeyKey}`}
-                  checked={!selected}
-                  onChange={onSelectNone}
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                  <div className="text-[13px] font-semibold text-slate-900">No Priority Boarding</div>
-                  <div className="text-[12px] text-slate-600">Do not add PBOD for this leg.</div>
-                </div>
-                <div className="text-[13px] font-bold text-slate-800">{money(0, pbodService?.currency)}</div>
-              </label>
-
-              {/* PBOD */}
-              <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 cursor-pointer bg-white">
-                <input
-                  type="radio"
-                  name={`pbod-${paxId}-${journeyKey}`}
-                  checked={normalize(selected?.ssrCode) === "PBOD"}
-                  onChange={onSelectPBOD}
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                  <div className="text-[13px] font-semibold text-slate-900">
-                    {pbodService?.description || "PRIORITY BOARDING"}{" "}
-                    <span className="ml-2 text-[12px] font-bold text-slate-500">(PBOD)</span>
-                  </div>
-
-                  <div className="mt-1 text-[12px] text-slate-600">
-                    Price: <span className="font-semibold">{money(pbodService?.amount, pbodService?.currency)}</span>
-                    {vatTotal > 0 ? (
-                      <>
-                        {" "}
-                        · VAT: <span className="font-semibold">{money(vatTotal, pbodService?.currency)}</span>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="text-[13px] font-bold text-slate-800">{money(total, pbodService?.currency)}</div>
-              </label>
-            </div>
-
-            {/* ✅ Confirm button behavior fix: gray if no change */}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-[13px] font-semibold"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={onConfirm}
-                disabled={!canConfirm}
-                className={[
-                  "px-4 py-2 rounded-xl border text-[13px] font-semibold",
-                  canConfirm
-                    ? "border-blue-600 bg-blue-600 text-white"
-                    : "border-slate-200 bg-slate-200 text-slate-500 cursor-not-allowed",
-                ].join(" ")}
-              >
-                Confirm
-              </button>
-            </div>
-
-            {/* (optional) tiny hint - you can remove later */}
-            {/* <div className="mt-2 text-[11px] text-slate-500">
-              saved={savedCode} draft={draftCode ?? "-"} canConfirm={String(canConfirm)}
-            </div> */}
-          </>
-        )}
       </div>
+
+      {/* Options */}
+      {!pbodService ? (
+        <div className="text-[12px] text-slate-600 bg-white border border-slate-200 rounded-lg p-3">
+          {t?.noPriorityForFlight ?? "No Priority Boarding (PBOD) service available for this flight."}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+          {/* None */}
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 cursor-pointer hover:border-sky-300">
+            <input
+              type="radio"
+              name={`pbod-${paxId}-${journeyKey}`}
+              className="mt-1 h-4 w-4 accent-sky-600"
+              checked={!uiPBOD}
+              onChange={() =>
+                dispatch(setDraftPriorityBoarding({ paxId, journeyKey, service: null }))
+              }
+            />
+            <div className="min-w-0 flex-1">
+              <div className="font-extrabold text-slate-900 text-[13px]">
+                {t?.priorityNo ?? "No priority"}
+              </div>
+              <div className="text-[12px] text-slate-600">
+                {t?.priorityNoHint ?? "Do not add Priority Boarding for this leg."}
+              </div>
+            </div>
+            <div className="text-[12px] font-bold text-slate-700">
+              {money(0, pbodService?.currency)}
+            </div>
+          </label>
+
+          {/* PBOD */}
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 cursor-pointer hover:border-sky-300">
+            <input
+              type="radio"
+              name={`pbod-${paxId}-${journeyKey}`}
+              className="mt-1 h-4 w-4 accent-sky-600"
+              checked={normalize(uiPBOD?.ssrCode) === "PBOD"}
+              onChange={() =>
+                dispatch(setDraftPriorityBoarding({ paxId, journeyKey, service: pbodService }))
+              }
+            />
+            <div className="min-w-0 flex-1">
+              <div className="font-extrabold text-slate-900 text-[13px]">
+                {pbodService?.description || (t?.priorityYes ?? "Priority Boarding")}
+              </div>
+              <div className="mt-1 text-[12px] text-slate-600">
+                {t?.price ?? "Price"}:{" "}
+                <span className="font-semibold">
+                  {money(pbodService?.amount, pbodService?.currency)}
+                </span>
+                {vatTotal > 0 ? (
+                  <>
+                    {" "}
+                    · {t?.vat ?? "VAT"}:{" "}
+                    <span className="font-semibold">
+                      {money(vatTotal, pbodService?.currency)}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="text-[12px] font-bold text-slate-700">
+              {money(total, pbodService?.currency)}
+            </div>
+          </label>
+        </div>
+      )}
     </div>
   );
 }

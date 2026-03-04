@@ -10,11 +10,6 @@ import {
   selectSavedMealSelection,
 } from "../redux/mealSelectionSlice";
 
-/* ========================= PNG icons (Vite-safe) ========================= */
-const mealImg = new URL("../assets/anc_meal.png", import.meta.url).href;
-const drinkImg = new URL("../assets/anc_drinks.png", import.meta.url).href;
-const ICON_CLASS = "w-20 h-20 object-contain"; // small & clean
-
 /* ========================= Helpers ========================= */
 function normalize(v) {
   return String(v || "").trim().replace(/\s+/g, "").toUpperCase();
@@ -256,6 +251,7 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="font-extrabold text-slate-900">{t?.mealLabel ?? "Meal"}</div>
+            
           </div>
         </div>
 
@@ -362,13 +358,7 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
 
         {/* Group 1: MEAL (MH/MS) */}
         <div className="mt-4 space-y-2">
-          {/* ✅ add icon only */}
-          <div className="flex items-center gap-2">
-            <img src={mealImg} alt="Meal" className={ICON_CLASS} />
-            <div className="text-[11px] font-bold text-slate-600">
-              {t?.mealGroup ?? "Meal (MH/MS)"}
-            </div>
-          </div>
+          <div className="text-[11px] font-bold text-slate-600">{t?.mealGroup ?? "Meal (MH/MS)"}</div>
 
           {/* None meal */}
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2 cursor-pointer hover:border-sky-300">
@@ -403,13 +393,7 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
 
         {/* Group 2: BEV */}
         <div className="mt-5 space-y-2">
-          {/* ✅ add icon only */}
-          <div className="flex items-center gap-2">
-            <img src={drinkImg} alt="Drink" className={ICON_CLASS} />
-            <div className="text-[11px] font-bold text-slate-600">
-              {t?.bevGroup ?? "Beverage (BEV)"}
-            </div>
-          </div>
+          <div className="text-[11px] font-bold text-slate-600">{t?.bevGroup ?? "Beverage (BEV)"}</div>
 
           {/* None bev */}
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2 cursor-pointer hover:border-sky-300">

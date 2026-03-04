@@ -19,10 +19,6 @@ import {
   selectSeatMapStatus,
 } from "../redux/seatMapSlice";
 
-/* ========================= PNG icon (Vite-safe) ========================= */
-const seatImg = new URL("../assets/anc_seat.png", import.meta.url).href;
-const ICON_CLASS = "w-14 h-14 object-contain"; // ~200%
-
 /* ========================= Helpers ========================= */
 function normalize(v) {
   return String(v || "").trim().replace(/\s+/g, "").toUpperCase();
@@ -387,14 +383,6 @@ export default function SeatMapPanel({ paxId, selectedOffers = [], t }) {
 
   return (
     <div className="space-y-3">
-      {/* ✅ Seat icon + title (icon only, no logic change) */}
-      <div className="flex items-center gap-3">
-        <img src={seatImg} alt="Seat" className={ICON_CLASS} />
-        <div className="font-extrabold text-slate-900">
-          {t?.seatLabel ?? "Seat"}
-        </div>
-      </div>
-
       {/* Leg toggle */}
       <div className="flex gap-2 flex-wrap">
         {legs.map((l) => {

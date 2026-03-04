@@ -349,10 +349,7 @@ function calcGapDays(depart, ret) {
   const d = startOfDay(depart);
   const r = startOfDay(ret);
   const diff = Math.round((r.getTime() - d.getTime()) / 86400000);
-
-  // ✅ allow same-day return (gap 0). Do NOT force +1 day.
-  // if ret is before depart (negative), clamp to 0 for navigator stability
-  return diff >= 0 ? diff : 0;
+  return diff >= 1 ? diff : 1;
 }
 function fmtDayNum(d) {
   return String(d.getDate()).padStart(2, "0");

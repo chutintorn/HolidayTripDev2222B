@@ -3,7 +3,7 @@ import { createSlice } from "@reduxjs/toolkit";
 
 // Your original list centralized in Redux
 const initialAirports = [
-  { label: "กรุงเทพฯ - ดอนเมือง (DMK)", value: "DMK" },
+  { label: "กรุงเทพฯ (DMK)", value: "DMK" },
   { label: "เชียงใหม่ (CNX)", value: "CNX" },
   { label: "ภูเก็ต (HKT)", value: "HKT" },
   { label: "หาดใหญ่ (็็HDY)", value: "HDY" },
