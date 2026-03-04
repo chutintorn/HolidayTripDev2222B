@@ -10,25 +10,9 @@ import {
   selectSavedBaggage,
 } from "../redux/baggageSelectionSlice";
 
-/* ========================= PNG icons (Vite-safe) ========================= */
-const baggageImg = new URL("../assets/anc_baggage.png", import.meta.url).href;
-const specialBaggageImg = new URL(
-  "../assets/anc_special_baggage.png",
-  import.meta.url
-).href;
-
-// ✅ icon size ~250% (32px -> 80px)
-const ICON_CLASS_250 = "w-20 h-20 object-contain";
-
-// ✅ make PNG “stronger” WITHOUT shadow (shadow makes gray background look stronger)
-const ICON_FILTER = "brightness-90 contrast-150 saturate-150";
-
 /* ========================= Helpers (match SeatMapPanel style) ========================= */
 function normalize(v) {
-  return String(v || "")
-    .trim()
-    .replace(/\s+/g, "")
-    .toUpperCase();
+  return String(v || "").trim().replace(/\s+/g, "").toUpperCase();
 }
 
 function extractIsoFromJourneyKey(journeyKey) {
@@ -47,10 +31,7 @@ function parseRouteFromJourneyKey(journeyKey) {
 }
 
 function sanitizeFlightNumber(v) {
-  const s = String(v || "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "");
+  const s = String(v || "").trim().toUpperCase().replace(/\s+/g, "");
   const m = /^([A-Z]{2})(\d{2,4})/.exec(s);
   if (!m) return "";
   return `${m[1]}${m[2]}`;
@@ -111,12 +92,9 @@ function pickAirlinesFromRawDetail(rawDetail) {
   if (!rawDetail) return [];
   if (Array.isArray(rawDetail?.airlines)) return rawDetail.airlines;
   if (Array.isArray(rawDetail?.data?.airlines)) return rawDetail.data.airlines;
-  if (Array.isArray(rawDetail?.data?.data?.airlines))
-    return rawDetail.data.data.airlines;
-  if (Array.isArray(rawDetail?.detail?.data?.airlines))
-    return rawDetail.detail.data.airlines;
-  if (Array.isArray(rawDetail?.detail?.data?.data?.airlines))
-    return rawDetail.detail.data.data.airlines;
+  if (Array.isArray(rawDetail?.data?.data?.airlines)) return rawDetail.data.data.airlines;
+  if (Array.isArray(rawDetail?.detail?.data?.airlines)) return rawDetail.detail.data.airlines;
+  if (Array.isArray(rawDetail?.detail?.data?.data?.airlines)) return rawDetail.detail.data.data.airlines;
   if (Array.isArray(rawDetail?.detail?.airlines)) return rawDetail.detail.airlines;
 
   const legs = rawDetail?.legs;
@@ -164,19 +142,24 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
   const journeyKey = activeLeg?.journeyKey || "";
   const flightNo = useMemo(() => extractFlightNoFromJourneyKey(journeyKey), [journeyKey]);
 
-  // ✅ hooks safe
+  // ✅ hooks safe: only call selectors once per render (NOT inside loops)
   const draft = useSelector(selectDraftBaggage(paxId, journeyKey));
   const saved = useSelector(selectSavedBaggage(paxId, journeyKey));
 
   const currentDraft = draft || { bg: null, sb: null };
   const currentSaved = saved || { bg: null, sb: null };
 
-  // ✅ show saved when user never touched draft
+  /**
+   * ✅ IMPORTANT FIX:
+   * - UI should show "saved" when user never touched draft (draft == null/undefined)
+   * - This prevents SB/BG radio from snapping back to None after Confirm (or if draft is cleared)
+   */
   const uiBG = draft == null ? currentSaved?.bg : currentDraft?.bg;
   const uiSB = draft == null ? currentSaved?.sb : currentDraft?.sb;
 
   const hasDraft =
     hasAnySelection(currentDraft) ||
+    // also treat "explicit none" as draft if saved had something and draft cleared it
     (!hasAnySelection(currentDraft) &&
       hasAnySelection(currentSaved) &&
       draft !== undefined &&
@@ -222,73 +205,54 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
     const selectingBG = uiBG?.ssrCode ? normalize(uiBG.ssrCode) : "-";
     const selectingSB = uiSB?.ssrCode ? normalize(uiSB.ssrCode) : "-";
 
-    // ✅ NEW: line-by-line summary rows (Confirmed / Selecting)
-    const Row = ({ label, value, tone }) => (
-      <div className="flex items-center gap-2 text-[13px] leading-snug">
-        <span className="text-slate-600 font-semibold w-[86px]">{label}</span>
-        <span
-          className={[
-            "font-extrabold",
-            value !== "-" ? tone : "text-slate-500 font-semibold",
-          ].join(" ")}
-        >
-          {value}
-        </span>
-      </div>
-    );
-
     return (
-      <div className="flex items-start justify-between gap-2 flex-wrap rounded-xl border border-slate-200 bg-white px-3 py-2">
-        {/* LEFT: Summary (line-by-line) */}
-        <div className="min-w-[240px]">
-          <div className="space-y-2">
-            {/* Confirmed */}
-            <div>
-              <div className="text-[12px] font-extrabold text-slate-700">
-                {t?.confirmed ?? "Confirmed"}:
-              </div>
-              <div className="mt-1 pl-2 space-y-1">
-                <Row
-                  label={t?.checkedBaggageShort ?? (t?.checkedBaggage ?? "Baggage")}
-                  value={confirmedBG}
-                  tone="text-emerald-700"
-                />
-                <Row
-                  label={t?.specialBaggageShort ?? (t?.specialBaggage ?? "Special")}
-                  value={confirmedSB}
-                  tone="text-emerald-700"
-                />
-              </div>
-            </div>
+      <div className="flex items-center justify-between gap-2 flex-wrap rounded-xl border border-slate-200 bg-white px-3 py-2">
+        <div className="text-sm text-slate-700">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-semibold">{t?.confirmed ?? "Confirmed"}:</span>
 
-            <div className="h-px bg-slate-200" />
+            <span className="text-slate-600">
+              BG{" "}
+              <span className={confirmedBG !== "-" ? "font-extrabold text-emerald-700" : "text-slate-500"}>
+                {confirmedBG}
+              </span>
+            </span>
 
-            {/* Selecting */}
-            <div>
-              <div className="text-[12px] font-extrabold text-slate-700">
-                {t?.selecting ?? "Selecting"}:
-              </div>
-              <div className="mt-1 pl-2 space-y-1">
-                <Row
-                  label={t?.checkedBaggageShort ?? (t?.checkedBaggage ?? "Baggage")}
-                  value={selectingBG}
-                  tone="text-sky-700"
-                />
-                <Row
-                  label={t?.specialBaggageShort ?? (t?.specialBaggage ?? "Special")}
-                  value={selectingSB}
-                  tone="text-sky-700"
-                />
-              </div>
-            </div>
+            <span className="text-slate-600">
+              SB{" "}
+              <span className={confirmedSB !== "-" ? "font-extrabold text-emerald-700" : "text-slate-500"}>
+                {confirmedSB}
+              </span>
+            </span>
+
+            <span className="text-slate-300">|</span>
+
+            <span className="font-semibold">{t?.selecting ?? "Selecting"}:</span>
+
+            <span className="text-slate-600">
+              BG{" "}
+              <span className={selectingBG !== "-" ? "font-extrabold text-sky-700" : "text-slate-500"}>
+                {selectingBG}
+              </span>
+            </span>
+
+            <span className="text-slate-600">
+              SB{" "}
+              <span className={selectingSB !== "-" ? "font-extrabold text-sky-700" : "text-slate-500"}>
+                {selectingSB}
+              </span>
+            </span>
           </div>
         </div>
 
-        {/* RIGHT: Buttons */}
-        <div className="flex items-center gap-2 self-center">
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => dispatch(saveBaggage({ paxId, journeyKey }))}
+            onClick={() => {
+              // ✅ Do NOT clearDraft here. Clearing draft may make UI look "none" (snap),
+              // and you still want UI to reflect saved selection when draft is untouched.
+              dispatch(saveBaggage({ paxId, journeyKey }));
+            }}
             disabled={!canConfirm}
             className={[
               "px-4 py-2 rounded-lg font-bold",
@@ -333,7 +297,7 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
 
   return (
     <div className="space-y-3">
-      {/* Leg toggle */}
+      {/* Leg toggle (Depart/Return) */}
       <div className="flex gap-2 flex-wrap">
         {legs.map((l) => {
           const active = l.idx === legIndex;
@@ -355,7 +319,7 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
         })}
       </div>
 
-      {/* Flight header */}
+      {/* Flight header (match Seat look) */}
       <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
@@ -381,26 +345,12 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
         </div>
       </div>
 
+      {/* Confirmed / Selecting + Confirm / Release */}
       <ActionBar />
 
       {/* BG options */}
       <div className="rounded-xl border border-slate-200 bg-white p-3">
-        {/* ✅ NO gray wrapper around icon */}
-        <div className="flex items-center gap-3 mb-2">
-          <img
-            src={baggageImg}
-            alt="Baggage"
-            className={`${ICON_CLASS_250} ${ICON_FILTER} bg-transparent p-0 shadow-none rounded-none`}
-          />
-          <div className="min-w-0">
-            <div className="font-extrabold text-slate-900">
-              {t?.bagCheckedTitle ?? (t?.isTH ? "สัมภาระโหลดใต้ท้องเครื่อง" : "Checked baggage")}
-            </div>
-            <div className="text-xs text-slate-500">
-              {t?.bagHint ?? (t?.isTH ? "เลือกน้ำหนักสัมภาระที่ต้องการ" : "Choose your baggage weight")}
-            </div>
-          </div>
-        </div>
+        <div className="font-extrabold text-slate-900 mb-2">{t?.bagChecked ?? "Baggage (BGxx)"}</div>
 
         <div className="space-y-1">
           {/* None */}
@@ -421,9 +371,7 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
                   )
                 }
               />
-              <span className="text-slate-700 font-semibold">
-                {t?.noBaggage ?? (t?.isTH ? "ไม่เพิ่มสัมภาระ" : "No baggage")}
-              </span>
+              <span className="text-slate-700 font-semibold">{t?.none ?? "No baggage"}</span>
             </div>
             <span className="text-slate-400 text-sm">—</span>
           </label>
@@ -464,13 +412,13 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
 
                   <div className="min-w-0">
                     <div className="font-semibold text-slate-900">
-                      {s?.description || (t?.checkedBaggage ?? "Baggage")}
-                      {/* ✅ keep code small grey (not in title) */}
-                      <span className="ml-2 text-xs text-slate-400 font-bold">{code}</span>
+                      {code}{" "}
+                      <span className="font-normal text-slate-600">{s?.description || ""}</span>
                     </div>
                   </div>
                 </div>
 
+                {/* price right side on SAME LINE */}
                 <div className="text-sky-700 font-extrabold whitespace-nowrap">
                   {formatMoney(s?.amount, s?.currency || "THB")}
                 </div>
@@ -479,36 +427,15 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
           })}
 
           {(servicesForFlight?.bg || []).length === 0 ? (
-            <div className="text-xs text-slate-500">
-              {t?.noBgOptions ??
-                (t?.isTH ? "เที่ยวบินนี้ไม่มีตัวเลือกสัมภาระ" : "No baggage options for this flight.")}
-            </div>
+            <div className="text-xs text-slate-500">{t?.noBgOptions ?? "No BG options for this flight."}</div>
           ) : null}
         </div>
       </div>
 
-      {/* SB options */}
+      {/* SB options (optional) */}
       {showSB ? (
         <div className="rounded-xl border border-slate-200 bg-white p-3">
-          {/* ✅ NO gray wrapper around icon */}
-          <div className="flex items-center gap-3 mb-2">
-            <img
-              src={specialBaggageImg}
-              alt="Special baggage"
-              className={`${ICON_CLASS_250} ${ICON_FILTER} bg-transparent p-0 shadow-none rounded-none`}
-            />
-            <div className="min-w-0">
-              <div className="font-extrabold text-slate-900">
-                {t?.bagSpecialTitle ?? (t?.isTH ? "สัมภาระพิเศษ" : "Special baggage")}
-              </div>
-              <div className="text-xs text-slate-500">
-                {t?.specialBagHint ??
-                  (t?.isTH
-                    ? "เช่น อุปกรณ์กีฬา จักรยาน กระดานโต้คลื่น"
-                    : "e.g. sports equipment, bike, surfboard")}
-              </div>
-            </div>
-          </div>
+          <div className="font-extrabold text-slate-900 mb-2">{t?.bagSpecial ?? "Special Bag (SBxx)"}</div>
 
           <div className="space-y-1">
             <label className="flex items-center justify-between gap-3 py-2 px-2 rounded-lg hover:bg-sky-50">
@@ -528,9 +455,7 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
                     )
                   }
                 />
-                <span className="text-slate-700 font-semibold">
-                  {t?.none ?? (t?.isTH ? "ไม่เลือก" : "None")}
-                </span>
+                <span className="text-slate-700 font-semibold">{t?.none ?? "None"}</span>
               </div>
               <span className="text-slate-400 text-sm">—</span>
             </label>
@@ -571,8 +496,8 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
 
                     <div className="min-w-0">
                       <div className="font-semibold text-slate-900">
-                        {s?.description || (t?.bagSpecial ?? "Special baggage")}
-                        <span className="ml-2 text-xs text-slate-400 font-bold">{code}</span>
+                        {code}{" "}
+                        <span className="font-normal text-slate-600">{s?.description || ""}</span>
                       </div>
                     </div>
                   </div>
@@ -585,10 +510,7 @@ export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t 
             })}
 
             {(servicesForFlight?.sb || []).length === 0 ? (
-              <div className="text-xs text-slate-500">
-                {t?.noSbOptions ??
-                  (t?.isTH ? "เที่ยวบินนี้ไม่มีตัวเลือกสัมภาระพิเศษ" : "No special baggage options for this flight.")}
-              </div>
+              <div className="text-xs text-slate-500">{t?.noSbOptions ?? "No SB options for this flight."}</div>
             ) : null}
           </div>
         </div>
