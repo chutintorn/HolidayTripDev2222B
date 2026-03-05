@@ -55,12 +55,7 @@ export default function PriceHeader({
             className="group flex items-center gap-2 min-w-0"
             aria-label="Go to homepage"
           >
-            <img
-              src={NokAirLogo}
-              alt="Nok Air"
-              className="h-9 w-9 sm:h-10 sm:w-10 rounded-full border border-slate-200 bg-white object-contain flex-none"
-              draggable="false"
-            />
+
 
             <div className="min-w-0 leading-tight">
               <div className="font-extrabold text-[16px] sm:text-[20px] text-blue-600 tracking-tight truncate">

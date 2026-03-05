@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { setLanguage } from "../redux/languageSlice";
 
 // ✅ IMPORTANT: make sure file exists at: src/assets/NokAirLogo.png
-
+import NokAirLogo from "../assets/NokAirLogo.png";
 
 export default function SiteHeader() {
   const dispatch = useDispatch();
@@ -14,7 +14,12 @@ export default function SiteHeader() {
       <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
         {/* Left: logo + Demo text */}
         <div className="flex items-center gap-3 min-w-0">
-
+          <img
+            src={NokAirLogo}
+            alt="Nok Air"
+            className="h-10 w-10 rounded-full border border-slate-200 bg-white object-contain"
+            draggable="false"
+          />
 
           <div className="min-w-0 leading-tight">
             <div className="font-extrabold text-[22px] sm:text-[24px] text-blue-600 tracking-tight truncate">

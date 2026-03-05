@@ -1,4 +1,3 @@
-/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,7 +6,8 @@
    RSuite DatePicker / DateRangePicker polish
    ------------------------------------------- */
 @layer components {
-  /* Ensure the popup floats above other UI */
+  /* Ensure the popup floats above other UI
+     ✅ FIX: Tailwind may not have z-60; use plain CSS */
   .rs-picker-popup {
     z-index: 9999;
   }
@@ -27,12 +27,9 @@
     }
   }
 
-  /* ✅ Remove extra right padding/gap so 2nd month aligns with frame */
-  .rs-picker-daterange-menu {
-    padding-right: 0 !important;
-  }
-
-  /* ✅ Input (toggle) inside our picker wrapper */
+  /* ✅ Input (toggle) inside our picker wrapper
+     - Compact ONLY on mobile (Power App feel)
+     - Desktop unchanged */
   .ibe-datepicker .rs-picker-toggle {
     @apply h-12 sm:h-14
       w-full
@@ -97,22 +94,26 @@
 }
 
 /* =========================================================
-   ✅ Mobile: ALWAYS stack 2 months vertically (NO cut-off)
-   Key fix: RSuite wrapper class varies by version.
-   We target multiple possible wrappers + remove min-width forcing row layout.
+   ✅ Mobile-first: Popup below inputs + 75% height
+   - Lower popup under depart/return fields
+   - Reduce height from 100% to ~75%
+   - Keep OK/Clean always visible (sticky)
    ========================================================= */
-@media (max-width: 520px) {
-  /* popup placement (your current approach kept) */
+@media (max-width: 767px) {
+  /* ✅ daterange popup: below inputs, not full screen */
   .rs-picker-popup.rs-picker-popup-daterange {
     position: fixed !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    top: clamp(160px, 26vh, 240px) !important;
-    height: 80vh !important;
-    width: 95vw !important;
-    max-width: 95vw !important;
-    right: auto !important;
+    left: 10px !important;
+    right: 10px !important;
+
+    /* ✅ move popup down under your depart/return boxes */
+    top: 220px !important; /* adjust 200-260 if needed */
+
+    /* ✅ 75% height feel */
+    height: 75vh !important;
     bottom: auto !important;
+
+    max-width: none !important;
     max-height: none !important;
   }
 
@@ -120,47 +121,20 @@
   .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-menu {
     width: 100% !important;
     height: 100% !important;
+
     display: flex !important;
     flex-direction: column !important;
-    overflow: hidden !important; /* scroll inside panels */
+
+    overflow: hidden !important; /* ✅ scroll happens inside panels */
     -webkit-overflow-scrolling: touch;
-    padding-right: 0 !important;
   }
 
-  /* ✅ FORCE: stack the calendars vertically (broad selectors) */
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panels,
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-calendars,
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-content,
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-calendar-group,
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panel-group,
-  .rs-picker-popup.rs-picker-popup-daterange [class*="calendar-group"],
-  .rs-picker-popup.rs-picker-popup-daterange [class*="calendarGroup"],
-  .rs-picker-popup.rs-picker-popup-daterange [class*="calendars"],
-  .rs-picker-popup.rs-picker-popup-daterange [class*="panels"] {
-    display: flex !important;
-    flex-direction: column !important; /* ✅ WRAP DOWN */
-    flex-wrap: nowrap !important;
-    gap: 12px !important;
-
-    flex: 1 1 auto !important;
-    overflow-y: auto !important; /* ✅ scroll inside calendar area */
-    overflow-x: hidden !important;
-    -webkit-overflow-scrolling: touch;
-
-    padding-right: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  /* ✅ Remove min-width that forces horizontal layout */
+  /* calendar panels scroll inside */
   .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panel,
-  .rs-picker-popup.rs-picker-popup-daterange .rs-calendar,
-  .rs-picker-popup.rs-picker-popup-daterange [class*="calendar"],
-  .rs-picker-popup.rs-picker-popup-daterange [class*="panel"] {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important; /* ✅ critical */
-    flex: 0 0 auto !important;
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panels {
+    flex: 1 1 auto !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* toolbar stays visible */
@@ -178,11 +152,5 @@
     width: 40px !important;
     height: 40px !important;
     line-height: 40px !important;
-  }
-
-  /* ✅ OK button bigger (~130%) */
-  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-toolbar .rs-btn-primary {
-    transform: scale(1.3);
-    transform-origin: center;
   }
 }

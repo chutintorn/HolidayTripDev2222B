@@ -1277,10 +1277,77 @@ export default function FareSidebar({
           </div>
 
           {/* Raw */}
-
+          <details className="mt-3">
+            <summary className="cursor-pointer text-slate-600">{t.raw}</summary>
+            <pre className="bg-slate-100 border border-slate-200 rounded p-2 overflow-x-auto text-xs mt-2 max-h-[320px]">
+              {JSON.stringify(detail?.raw ?? rawDetail, null, 2)}
+            </pre>
+          </details>
 
           {/* Seat map debug */}
+          <details className="mt-3">
+            <summary className="cursor-pointer text-slate-600">
+              Seat map API response
+              <span className="ml-2 text-[11px] text-slate-500">
+                ({seatMapStatus || "idle"})
+                {seatMapError ? " • error" : ""}
+              </span>
+            </summary>
 
+            {!legs.length ? (
+              <div className="mt-2 text-sm text-rose-700">
+                No selectedOffers / fareKey found → cannot locate seat map response in store.
+              </div>
+            ) : (
+              <>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="text-[11px] text-slate-600 font-semibold">Leg</div>
+                  <select
+                    value={String(debugLegIndex)}
+                    onChange={(e) => setDebugLegIndex(Number(e.target.value))}
+                    className="text-sm border border-slate-300 rounded-lg px-2 py-1 bg-white"
+                  >
+                    {legs.map((lg, idx) => (
+                      <option key={`${lg.fareKey}-${idx}`} value={idx}>
+                        {lg.label} — {String(lg.fareKey).slice(0, 18)}…
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => copyText(seatMapJson)}
+                    className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-extrabold hover:border-blue-400 hover:text-blue-700 disabled:opacity-50"
+                    disabled={!seatMapData}
+                  >
+                    Copy all response
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => copyText(String(seatMapKey))}
+                    className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                  >
+                    Copy key
+                  </button>
+
+                  <div className="text-[11px] text-slate-500 break-all">key: {String(seatMapKey)}</div>
+                </div>
+
+                {seatMapError ? (
+                  <div className="mt-2 p-2 text-sm bg-rose-50 border border-rose-200 rounded text-rose-800">
+                    {String(seatMapError)}
+                  </div>
+                ) : null}
+
+                <pre className="bg-slate-100 border border-slate-200 rounded p-2 overflow-x-auto text-xs mt-2 max-h-[420px]">
+                  {seatMapJson}
+                </pre>
+              </>
+            )}
+          </details>
 
           {normalizedSelectedOffers.length >= 2 ? (
             <div className="mt-3 text-[11px] text-slate-600">✅ Round-trip selectedOffers detected (2 legs).</div>
