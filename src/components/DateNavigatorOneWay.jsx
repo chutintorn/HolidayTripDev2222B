@@ -376,8 +376,8 @@ const styles = {
 
   /* ✅ Date reduced to ~60% (size + boldness) */
   bigDate: { display: "flex", gap: 5, alignItems: "baseline" },
-  dayNum: { fontWeight: 600, fontSize: 12, color: "#0F172A" },
-  monTxt: { fontWeight: 600, fontSize: 12, color: "#0F172A" },
+  dayNum: { fontWeight: 600, fontSize: 18, color: "#0F172A" },
+  monTxt: { fontWeight: 600, fontSize: 16, color: "#0F172A" },
 
   /* ✅ DOW rectangle, tiny corner */
   dowPill: {

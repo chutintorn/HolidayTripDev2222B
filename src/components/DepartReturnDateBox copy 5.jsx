@@ -50,7 +50,6 @@ export default function DepartReturnDateBox({
   }, [openTick]);
 
   useEffect(() => {
-    // when popup closes, restore draft from committed values
     if (!open) {
       setDraft({
         depart: depart || null,
@@ -92,7 +91,6 @@ export default function DepartReturnDateBox({
       return;
     }
 
-    // Roundtrip: pick depart first, then return
     if (activeField === "depart") {
       setDraft({ depart: d0, ret: null });
       setActiveField("return");
@@ -160,10 +158,9 @@ export default function DepartReturnDateBox({
   // Label small
   const labelClass = "text-[11px] text-slate-500 font-medium leading-tight";
 
-  // ✅ DATE value bigger (match airport select feel)
-  // (เพิ่มให้เด่นขึ้นจากเดิม)
+  // ✅ DATE value lighter (no bold) to match airport feel
   const valueClass =
-    "text-[15px] sm:text-[16px] text-slate-800 font-normal leading-tight whitespace-nowrap truncate";
+    "text-[14px] sm:text-[15px] text-slate-800 font-normal leading-tight whitespace-nowrap truncate";
 
   return (
     <div className={"w-full " + className}>
@@ -204,11 +201,7 @@ export default function DepartReturnDateBox({
             onClean={handleClean}
             isoWeek
             oneTap={false}
-            /* ✅ IMPORTANT:
-               We do NOT allow 1-calendar mode.
-               Mobile will show 2 calendars stacked vertically via CSS (index.css)
-            */
-            showOneCalendar={false}
+            showOneCalendar={isMobile}
             size={isMobile ? "md" : "lg"}
             placement={placement}
             locale={locale}

@@ -1028,12 +1028,7 @@ export default function ConfirmationPage() {
       <div className="bg-sky-100 border-b border-sky-200">
         <div className="max-w-[1180px] mx-auto px-3 sm:px-4 py-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <img
-              src={NokAirLogo}
-              alt="Nok Air"
-              className="h-10 w-10 rounded-full border border-slate-200 bg-white object-contain"
-              draggable="false"
-            />
+
             <div className="min-w-0 leading-tight">
               <div className="font-extrabold text-sky-600 text-xl whitespace-nowrap">Demo</div>
               <div className="font-bold text-sky-600 truncate">{t.title}</div>

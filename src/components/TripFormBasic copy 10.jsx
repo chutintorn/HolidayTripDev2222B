@@ -72,9 +72,6 @@ const toYMDLocal = (d) => {
   return `${y}-${m}-${day}`;
 };
 
-/** normalize airport code for comparison */
-const normAirport = (v) => String(v || "").trim().toUpperCase();
-
 /* ---------------------------------------------
  * Responsive single-date picker (one-way)
  * -------------------------------------------*/
@@ -191,20 +188,6 @@ export default function TripFormBasic({ onSubmit }) {
   const clampInt = (val, min, max = Infinity) =>
     Math.max(min, Math.min(max, Number.parseInt(val ?? 0, 10) || 0));
 
-  /** show message */
-  const sameAirportMsg = () =>
-    t?.form?.sameAirport ??
-    (isTH
-      ? "สนามบินต้นทางและปลายทางต้องไม่เหมือนกัน"
-      : "Departure and arrival airports cannot be the same.");
-
-  /** validate current origin/destination */
-  const isSameAirport = (o, d) => {
-    const oc = normAirport(o);
-    const dc = normAirport(d);
-    return !!oc && !!dc && oc === dc;
-  };
-
   const switchTripType = (type) => {
     setTripType(type);
     if (type === "oneway") setRet(null);
@@ -292,20 +275,14 @@ export default function TripFormBasic({ onSubmit }) {
       return;
     }
 
-    // ✅ NEW: origin/destination cannot be the same
-    if (isSameAirport(origin, destination)) {
-      alert(sameAirportMsg());
-      return;
-    }
-
     if (tripType === "roundtrip" && !ret) {
       alert(isTH ? "กรุณาเลือกวันกลับ" : "Please select return date.");
       return;
     }
 
     const payload = {
-      origin: normAirport(origin),
-      destination: normAirport(destination),
+      origin: origin.trim().toUpperCase(),
+      destination: destination.trim().toUpperCase(),
       depart: toYMDLocal(depart),
       ret: tripType === "roundtrip" ? toYMDLocal(ret) : null,
       adult: clampInt(adult, 1),
@@ -384,9 +361,11 @@ export default function TripFormBasic({ onSubmit }) {
 
   // ✅ FORCE From/To to be full width on mobile (different line)
   const fromSpan =
-    "col-span-12 " + (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
+    "col-span-12 " +
+    (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
   const toSpan =
-    "col-span-12 " + (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
+    "col-span-12 " +
+    (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
   const departSpan = "col-span-12 md:col-span-3";
 
   const showNavigator = tripType === "oneway" && !!anchorYMD;
@@ -397,33 +376,12 @@ export default function TripFormBasic({ onSubmit }) {
     if (!results) return null;
     return getMinPriceSummary(results, {
       tripType,
-      origin: normAirport(origin),
-      destination: normAirport(destination),
+      origin: origin.trim().toUpperCase(),
+      destination: destination.trim().toUpperCase(),
     });
   }, [results, tripType, origin, destination]);
 
   const canUseSelectionActions = !!results && status !== "loading";
-
-  // ✅ NEW: safe onChange wrappers (UX: block same-airport selection immediately)
-  const handleOriginChange = (next) => {
-    const nextO = normAirport(next);
-    const curD = normAirport(destination);
-    if (nextO && curD && nextO === curD) {
-      alert(sameAirportMsg());
-      return;
-    }
-    setOrigin(next);
-  };
-
-  const handleDestinationChange = (next) => {
-    const curO = normAirport(origin);
-    const nextD = normAirport(next);
-    if (curO && nextD && curO === nextD) {
-      alert(sameAirportMsg());
-      return;
-    }
-    setDestination(next);
-  };
 
   return (
     <CustomProvider locale={calendarLocale}>
@@ -478,7 +436,7 @@ export default function TripFormBasic({ onSubmit }) {
             <div className={fromSpan}>
               <AirportSelect
                 value={origin}
-                onChange={handleOriginChange} /* ✅ changed */
+                onChange={setOrigin}
                 placeholder={t.placeholders?.from ?? (isTH ? "ต้นทาง" : "From")}
               />
             </div>
@@ -486,7 +444,7 @@ export default function TripFormBasic({ onSubmit }) {
             <div className={toSpan}>
               <AirportSelect
                 value={destination}
-                onChange={handleDestinationChange} /* ✅ changed */
+                onChange={setDestination}
                 placeholder={t.placeholders?.to ?? (isTH ? "ปลายทาง" : "To")}
               />
             </div>
@@ -529,7 +487,7 @@ export default function TripFormBasic({ onSubmit }) {
                     placement="bottomEnd"
                   />
                 </div>
-              </div>
+              </div>  
             )}
           </div>
 
@@ -651,48 +609,48 @@ export default function TripFormBasic({ onSubmit }) {
             </div>
 
             {/* actions (Clear/Search) - full width like top tabs */}
-            <div className="md:col-span-6 lg:col-span-7 mt-2 md:mt-5 lg:mt-4">
-              <div className="w-full rounded-[999px] bg-slate-200 p-[4px] overflow-hidden">
-                <div className="flex w-full h-10">
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    className="
-                      w-1/2
-                      h-10 md:h-[44px]
-                      rounded-l-[999px]
-                      bg-transparent
-                      text-slate-700
-                      font-medium
-                      hover:bg-white/60
-                      transition
-                    "
-                  >
-                    {isTH ? "ล้าง" : "Clear"}
-                  </button>
+<div className="md:col-span-6 lg:col-span-7 mt-2 md:mt-5 lg:mt-4">
+  <div className="w-full rounded-[999px] bg-slate-200 p-[4px] overflow-hidden">
+    <div className="flex w-full h-10">
+      <button
+        type="button"
+        onClick={handleClearSearch}
+        className="
+          w-1/2
+          h-10 md:h-[44px]
+          rounded-l-[999px]
+          bg-transparent
+          text-slate-700
+          font-medium
+          hover:bg-white/60
+          transition
+        "
+      >
+        {isTH ? "ล้าง" : "Clear"}
+      </button>
 
-                  <button
-                    type="submit"
-                    disabled={status === "loading"}
-                    className="
-                      w-1/2
-                      h-10 md:h-[44px]
-                      rounded-r-[999px]
-                      bg-sky-600
-                      text-white
-                      font-semibold
-                      hover:bg-sky-700
-                      transition
-                      disabled:opacity-60
-                    "
-                  >
-                    {status === "loading"
-                      ? t.form?.searching ?? (isTH ? "กำลังค้นหา..." : "Searching...")
-                      : t.form?.search ?? (isTH ? "ค้นหา" : "Search Flights")}
-                  </button>
-                </div>
-              </div>
-            </div>
+      <button
+        type="submit"
+        disabled={status === "loading"}
+        className="
+          w-1/2
+          h-10 md:h-[44px]
+          rounded-r-[999px]
+          bg-sky-600
+          text-white
+          font-semibold
+          hover:bg-sky-700
+          transition
+          disabled:opacity-60
+        "
+      >
+        {status === "loading"
+          ? t.form?.searching ?? (isTH ? "กำลังค้นหา..." : "Searching...")
+          : t.form?.search ?? (isTH ? "ค้นหา" : "Search Flights")}
+      </button>
+    </div>
+  </div>
+</div>
           </div>
 
           {error && <div className="text-sm text-red-600">{error}</div>}
