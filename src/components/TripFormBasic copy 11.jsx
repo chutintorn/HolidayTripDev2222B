@@ -432,55 +432,55 @@ export default function TripFormBasic({ onSubmit }) {
           onSubmit={handleSubmit}
           className="
             bg-white/90 rounded-2xl shadow-lg
-            px-4 py-2 sm:px-3 md:px-8 md:py-4
+            px-4 py-3 sm:px-6 md:px-8 md:py-4
             space-y-3
             text-[13px] sm:text-sm
           "
         >
           {/* ✅ Round-trip / One-way capsule: +30% height on md+ */}
-<div className="w-full flex justify-start">
-  <div className="w-full md:w-1/2 lg:w-[58.333333%] rounded-[999px] bg-slate-200 p-[4px] overflow-hidden">
-    <div className="flex w-full h-9 md:h-[44px]">
-      <button
-        type="button"
-        onClick={() => switchTripType("roundtrip")}
-        className={
-          "w-1/2 h-10 md:h-[44px] rounded-l-[999px] text-[13px] sm:text-sm font-medium transition-all " +
-          (tripType === "roundtrip"
-            ? "bg-sky-600 text-white shadow-md"
-            : "bg-transparent text-slate-700")
-        }
-      >
-        {t.form?.roundtrip ?? (isTH ? "ไป-กลับ" : "Round-trip")}
-      </button>
+          <div className="w-full">
+            <div className="w-full rounded-[999px] bg-slate-200 p-[3px] overflow-hidden">
+              <div className="flex w-full">
+                <button
+                  type="button"
+                  onClick={() => switchTripType("roundtrip")}
+                  className={
+                    "w-1/2 h-10 md:h-[52px] rounded-l-[999px] text-[13px] sm:text-sm font-medium transition-all " +
+                    (tripType === "roundtrip"
+                      ? "bg-sky-600 text-white shadow-md"
+                      : "bg-transparent text-slate-700")
+                  }
+                >
+                  {t.form?.roundtrip ?? (isTH ? "ไป-กลับ" : "Round-trip")}
+                </button>
 
-      <button
-        type="button"
-        onClick={() => switchTripType("oneway")}
-        className={
-          "w-1/2 h-10 md:h-[44px] rounded-r-[999px] text-[13px] sm:text-sm font-medium transition-all " +
-          (tripType === "oneway"
-            ? "bg-sky-600 text-white shadow-md"
-            : "bg-transparent text-slate-700")
-        }
-      >
-        {t.form?.oneway ?? (isTH ? "เที่ยวเดียว" : "One-way")}
-      </button>
-    </div>
-  </div>
-</div>
+                <button
+                  type="button"
+                  onClick={() => switchTripType("oneway")}
+                  className={
+                    "w-1/2 h-10 md:h-[52px] rounded-r-[999px] text-[13px] sm:text-sm font-medium transition-all " +
+                    (tripType === "oneway"
+                      ? "bg-sky-600 text-white shadow-md"
+                      : "bg-transparent text-slate-700")
+                  }
+                >
+                  {t.form?.oneway ?? (isTH ? "เที่ยวเดียว" : "One-way")}
+                </button>
+              </div>
+            </div>
+          </div>
 
           {/* ✅ MORE vertical space under the tabs */}
-          <div className="h-0 md:h-1" />
+          <div className="h-3 md:h-5" />
 
           {/* ✅ MAIN ROWS */}
-         <div className="grid grid-cols-1 md:grid-cols-12 gap-y-1 md:gap-y-2 gap-x-2 md:gap-x-4 lg:gap-x-6 xl:gap-x-8 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 lg:gap-6 xl:gap-8 items-center">
             <div className={fromSpan}>
               <AirportSelect
                 value={origin}
                 onChange={handleOriginChange} /* ✅ changed */
                 placeholder={t.placeholders?.from ?? (isTH ? "ต้นทาง" : "From")}
-             />
+              />
             </div>
 
             <div className={toSpan}>
@@ -534,7 +534,7 @@ export default function TripFormBasic({ onSubmit }) {
           </div>
 
           {/* ✅ pax + actions: make actions take full width on desktop too */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-y-1 md:gap-y-2 gap-x-3 md:gap-x-4 !items-end">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 !items-end">
             {/* pax */}
             <div className="md:col-span-6 lg:col-span-5 relative" ref={paxRef}>
               <button
@@ -699,7 +699,7 @@ export default function TripFormBasic({ onSubmit }) {
         </form>
 
         {showNavigator && (
-          <div className="mt-1 md:mt-2">
+          <div className="mt-2">
             <DateNavigatorOneWay
               anchorDate={anchorYMD}
               minDate={toYMDLocal(today)}
@@ -721,7 +721,7 @@ export default function TripFormBasic({ onSubmit }) {
         )}
 
         {showRTNavigator && (
-          <div className="mt-1 md:mt-2">
+          <div className="mt-2">
             <DateNavigatorRoundTrip
               anchorDepart={rtAnchor.departYMD}
               anchorReturn={rtAnchor.returnYMD}

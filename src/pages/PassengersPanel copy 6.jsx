@@ -206,6 +206,7 @@ export default function PassengersPanel({
     const rect = el.getBoundingClientRect();
     const currentY = window.scrollY || 0;
 
+    // ✅ Mobile: offset a bit more (avoid header overlap)
     const OFFSET = isMobile ? 92 : 80;
     const targetY = Math.max(0, currentY + rect.top - OFFSET);
     window.scrollTo({ top: targetY, behavior: "smooth" });
@@ -220,6 +221,7 @@ export default function PassengersPanel({
     [travellers]
   );
 
+  // ✅ Ensure we never end with all closed
   const ensureSomePassengerOpen = useCallback(
     (nextShowForm) => {
       const anyOpen = travellers.some((p) => !!nextShowForm[p.id]);
@@ -229,6 +231,7 @@ export default function PassengersPanel({
     [travellers]
   );
 
+  // ✅ On first mount / when travellers change: ensure first pax open
   useEffect(() => {
     if (!travellers?.length) return;
     setShowForm((prev) => {
@@ -255,6 +258,9 @@ export default function PassengersPanel({
 
         return ensureSomePassengerOpen(next);
       });
+
+      // ✅ IMPORTANT: remove scrollToPassengerTop to avoid "jerking"
+      // (Old code used requestAnimationFrame(scrollToPassengerTop))
     },
     [
       deepCopy,
@@ -342,6 +348,7 @@ export default function PassengersPanel({
 
     if (nextType !== "INF" && desiredTab) lastAncRef.current = desiredTab;
 
+    // ✅ no "scroll restore" (yBefore) → avoids double-jump
     requestAnimationFrame(() => {
       flashCard(nextId);
       requestAnimationFrame(() => smoothScrollToPax(nextId));
@@ -379,6 +386,7 @@ export default function PassengersPanel({
     }));
   }, [legs]);
 
+  // ========================= Small UI blocks for preview rows =========================
   const Row = ({ title, value, status, right }) => (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
       <div className="min-w-0">
@@ -484,6 +492,7 @@ export default function PassengersPanel({
 
                       <div className="px-3 sm:px-4 pb-4">
                         <div className="pt-3 border-t border-slate-200 flex flex-col gap-4">
+                          {/* ✅ 2 buttons per line on mobile, same as before on desktop */}
                           <div
                             className={
                               showAncillaryForThisPax
@@ -493,7 +502,7 @@ export default function PassengersPanel({
                           >
                             {showAncillaryForThisPax
                               ? ANCILLARY_TABS
-                                  .filter((tab) => tab.key !== "assist")
+                                  .filter((tab) => tab.key !== "assist") // ❌ remove Assist button
                                   .map((tab) => {
                                     const active = activeForThisPax === tab.key;
                                     return (
@@ -572,17 +581,7 @@ export default function PassengersPanel({
                                   <div className="font-bold text-slate-900 mb-1">
                                     {t.ancSeat}
                                   </div>
-                                  <SeatMapPanel
-                                    paxId={p.id}
-                                    selectedOffers={selectedOffers}
-                                    t={t}
-                                    onClose={() =>
-                                      setActiveAncByPax?.((prev) => ({
-                                        ...prev,
-                                        [p.id]: null,
-                                      }))
-                                    }
-                                  />
+                                  <SeatMapPanel paxId={p.id} selectedOffers={selectedOffers} t={t} />
                                 </div>
                               ) : activeForThisPax === "bag" ? (
                                 <div>
@@ -617,6 +616,7 @@ export default function PassengersPanel({
                                   />
                                 </div>
                               ) : (
+                                // ✅ no Assist anymore (fallback only)
                                 <div className="text-slate-600">{t.ancPickOne}</div>
                               )}
                             </div>
@@ -656,9 +656,7 @@ export default function PassengersPanel({
               onClick={() => setPreviewOpen((s) => !s)}
               className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-slate-50"
             >
-              {previewOpen
-                ? t?.hideSummary || "Hide summary"
-                : t?.previewSummaryBtn || "Preview summary"}
+              {previewOpen ? t?.hideSummary || "Hide summary" : t?.previewSummaryBtn || "Preview summary"}
             </button>
             <div className="text-xs text-slate-500">
               {t?.previewSummaryBelowHint ||

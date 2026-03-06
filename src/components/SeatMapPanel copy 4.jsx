@@ -57,11 +57,8 @@ function weekdayShort(d) {
 
 function fmtDateLong(d) {
   if (!d) return "";
-  return d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  // "14 Feb 2026"
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 /** JourneyKey -> YYYY-MM-DD */
@@ -85,7 +82,7 @@ function parseRouteFromJourneyKey(journeyKey) {
 function extractFlightNoFromJourneyKey(journeyKey) {
   const s = String(journeyKey || "").toUpperCase();
   const m =
-    /_([A-Z]{2}\d{2,4})(?=20\d{6})/.exec(s) ||
+    /_([A-Z]{2}\d{2,4})(?=20\d{6})/.exec(s) || // stop before date
     /_([A-Z]{2}\d{2,4})/.exec(s);
   return sanitizeFlightNumber(m ? m[1] : "");
 }
@@ -131,9 +128,7 @@ function extractSeatChargesForJourney(seatMapData, journeyKey, fareKey) {
   if (!seatMapData) return [];
 
   if (Array.isArray(seatMapData?.seatCharges)) return seatMapData.seatCharges;
-  if (Array.isArray(seatMapData?.data?.seatCharges)) {
-    return seatMapData.data.seatCharges;
-  }
+  if (Array.isArray(seatMapData?.data?.seatCharges)) return seatMapData.data.seatCharges;
 
   const matchedItem = findMatchedItem(seatMapData, fareKey);
   if (!matchedItem) return [];
@@ -141,8 +136,7 @@ function extractSeatChargesForJourney(seatMapData, journeyKey, fareKey) {
   const segment = findMatchedSegmentFromItem(matchedItem, journeyKey);
   if (!segment) return [];
 
-  const seatCharges =
-    segment?.seatCharges || segment?.seatCharge || segment?.seats || [];
+  const seatCharges = segment?.seatCharges || segment?.seatCharge || segment?.seats || [];
   return Array.isArray(seatCharges) ? seatCharges : [];
 }
 
@@ -160,10 +154,7 @@ function groupByRow(seatCharges = []) {
     const available = c?.available !== false;
 
     const vatArr = Array.isArray(c?.vat) ? c.vat : [];
-    const vat = vatArr.reduce(
-      (sum, v) => sum + (Number(v?.amount || 0) || 0),
-      0
-    );
+    const vat = vatArr.reduce((sum, v) => sum + (Number(v?.amount || 0) || 0), 0);
 
     const seatObj = {
       seatCode,
@@ -182,9 +173,7 @@ function groupByRow(seatCharges = []) {
   }
 
   for (const [row, arr] of map.entries()) {
-    arr.sort((a, b) =>
-      String(a.seatLetter).localeCompare(String(b.seatLetter))
-    );
+    arr.sort((a, b) => String(a.seatLetter).localeCompare(String(b.seatLetter)));
     map.set(row, arr);
   }
 
@@ -192,12 +181,7 @@ function groupByRow(seatCharges = []) {
 }
 
 /* ========================= Component ========================= */
-export default function SeatMapPanel({
-  paxId,
-  selectedOffers = [],
-  t,
-  onClose,
-}) {
+export default function SeatMapPanel({ paxId, selectedOffers = [], t }) {
   const dispatch = useDispatch();
   const [legIndex, setLegIndex] = useState(0);
 
@@ -220,9 +204,7 @@ export default function SeatMapPanel({
 
   const seatMapStatusPrimary = useSelector(selectSeatMapStatus(requestKey));
   const seatMapDataPrimary = useSelector(selectSeatMapFor(requestKey));
-  const seatMapErrorPrimary = useSelector(
-    (s) => s?.seatMap?.error?.[requestKey] || null
-  );
+  const seatMapErrorPrimary = useSelector((s) => s?.seatMap?.error?.[requestKey] || null);
 
   // fallback read
   const seatMapDataFallback = useSelector((state) => {
@@ -276,7 +258,6 @@ export default function SeatMapPanel({
   const hasSaved = Boolean(saved?.seatCode);
   const canSave = hasDraft && draft?.seatCode !== saved?.seatCode;
   const canCancel = hasDraft || hasSaved;
-  const canClose = typeof onClose === "function";
 
   useEffect(() => {
     if (!activeLeg) return;
@@ -335,19 +316,12 @@ export default function SeatMapPanel({
   };
 
   if (!legs.length) {
-    return (
-      <div className="text-sm text-slate-600">
-        No selectedOffers found (cannot show seat map yet).
-      </div>
-    );
+    return <div className="text-sm text-slate-600">No selectedOffers found (cannot show seat map yet).</div>;
   }
 
   /* ===== Header (NO time) ===== */
   const route = useMemo(() => parseRouteFromJourneyKey(journeyKey), [journeyKey]);
-  const flightNo = useMemo(
-    () => extractFlightNoFromJourneyKey(journeyKey),
-    [journeyKey]
-  );
+  const flightNo = useMemo(() => extractFlightNoFromJourneyKey(journeyKey), [journeyKey]);
 
   const departDate = useMemo(() => {
     const iso = extractIsoFromJourneyKey(journeyKey);
@@ -370,26 +344,14 @@ export default function SeatMapPanel({
       >
         <div className="text-sm text-slate-700">
           <span className="font-semibold">{t?.confirmed ?? "Confirmed"}:</span>{" "}
-          <span
-            className={
-              saved?.seatCode
-                ? "font-extrabold text-emerald-700"
-                : "text-slate-500"
-            }
-          >
+          <span className={saved?.seatCode ? "font-extrabold text-emerald-700" : "text-slate-500"}>
             {saved?.seatCode || "-"}
           </span>
 
           <span className="mx-2 text-slate-300">|</span>
 
           <span className="font-semibold">{t?.selecting ?? "Selecting"}:</span>{" "}
-          <span
-            className={
-              draft?.seatCode
-                ? "font-extrabold text-sky-700"
-                : "text-slate-500"
-            }
-          >
+          <span className={draft?.seatCode ? "font-extrabold text-sky-700" : "text-slate-500"}>
             {draft?.seatCode || "-"}
           </span>
         </div>
@@ -401,9 +363,7 @@ export default function SeatMapPanel({
             disabled={!canSave}
             className={[
               "px-4 py-2 rounded-lg font-bold",
-              canSave
-                ? "bg-sky-600 text-white hover:bg-sky-700"
-                : "bg-slate-200 text-slate-500 cursor-not-allowed",
+              canSave ? "bg-sky-600 text-white hover:bg-sky-700" : "bg-slate-200 text-slate-500 cursor-not-allowed",
             ].join(" ")}
           >
             {t?.confirm ?? "Confirm"}
@@ -415,14 +375,10 @@ export default function SeatMapPanel({
             disabled={!canCancel}
             className={[
               "px-4 py-2 rounded-lg font-bold border",
-              canCancel
-                ? "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
-                : "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed",
+              canCancel ? "border-slate-300 bg-white text-slate-700 hover:border-slate-400" : "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed",
             ].join(" ")}
           >
-            {hasDraft
-              ? t?.cancelSelecting ?? t?.cancel ?? "Cancel"
-              : t?.release ?? "Release"}
+            {hasDraft ? (t?.cancelSelecting ?? t?.cancel ?? "Cancel") : (t?.release ?? "Release")}
           </button>
         </div>
       </div>
@@ -431,24 +387,12 @@ export default function SeatMapPanel({
 
   return (
     <div className="space-y-3">
-      {/* ✅ Seat icon + title + Close button */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <img src={seatImg} alt="Seat" className={ICON_CLASS} />
-          <div className="font-extrabold text-slate-900">
-            {t?.seatLabel ?? "Seat"}
-          </div>
+      {/* ✅ Seat icon + title (icon only, no logic change) */}
+      <div className="flex items-center gap-3">
+        <img src={seatImg} alt="Seat" className={ICON_CLASS} />
+        <div className="font-extrabold text-slate-900">
+          {t?.seatLabel ?? "Seat"}
         </div>
-
-        {canClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg font-bold border border-slate-300 bg-white text-slate-700 hover:border-slate-400"
-          >
-            {t?.close ?? "Close"}
-          </button>
-        )}
       </div>
 
       {/* Leg toggle */}
@@ -462,9 +406,7 @@ export default function SeatMapPanel({
               onClick={() => setLegIndex(l.idx)}
               className={[
                 "px-3 py-1.5 rounded-full border text-sm font-semibold",
-                active
-                  ? "bg-sky-600 text-white border-sky-600"
-                  : "bg-white text-slate-700 border-slate-300 hover:border-sky-400",
+                active ? "bg-sky-600 text-white border-sky-600" : "bg-white text-slate-700 border-slate-300 hover:border-sky-400",
               ].join(" ")}
             >
               {l.label}
@@ -495,17 +437,12 @@ export default function SeatMapPanel({
               {dayText || "—"}
             </span>
 
-            <div className="text-sm font-bold text-slate-800">
-              {dateText || "—"}
-            </div>
+            <div className="text-sm font-bold text-slate-800">{dateText || "—"}</div>
           </div>
 
+          {/* Keep it clean on right side (no debug line) */}
           <div className="text-xs text-slate-500">
-            {seatMapStatus === "loading"
-              ? "Loading seat map…"
-              : seatMapStatus === "failed"
-              ? "Seat map failed"
-              : ""}
+            {seatMapStatus === "loading" ? "Loading seat map…" : seatMapStatus === "failed" ? "Seat map failed" : ""}
           </div>
         </div>
       </div>
@@ -531,15 +468,10 @@ export default function SeatMapPanel({
       {rows.length > 0 ? (
         <div className="space-y-2 overflow-x-auto">
           {rows.map(([rowNo, seats]) => {
-            const byLetter = new Map(
-              seats.map((s) => [String(s.seatLetter || "").trim(), s])
-            );
+            const byLetter = new Map(seats.map((s) => [String(s.seatLetter || "").trim(), s]));
 
             return (
-              <div
-                key={rowNo}
-                className="flex items-center gap-1 sm:gap-2 min-w-max"
-              >
+              <div key={rowNo} className="flex items-center gap-1 sm:gap-2 min-w-max">
                 <div className="hidden sm:flex w-10 text-xs font-bold text-slate-500 justify-end pr-1">
                   {rowNo}
                 </div>
@@ -547,11 +479,7 @@ export default function SeatMapPanel({
                 <div className="w-4/5 sm:w-auto">
                   <div className="flex items-center gap-1 sm:gap-2">
                     {SEAT_COLUMNS.map((col) => {
-                      if (col === "_AISLE_") {
-                        return (
-                          <div key={`${rowNo}-aisle`} className="w-2 sm:w-4" />
-                        );
-                      }
+                      if (col === "_AISLE_") return <div key={`${rowNo}-aisle`} className="w-2 sm:w-4" />;
 
                       const s = byLetter.get(col) || null;
                       const seatCode = s?.seatCode || `${rowNo}${col}`;
@@ -560,8 +488,7 @@ export default function SeatMapPanel({
                       const isDraft = draft?.seatCode === seatCode;
                       const isSaved = saved?.seatCode === seatCode;
 
-                      const takenByOther =
-                        occupiedByOther.has(seatCode) && !isDraft && !isSaved;
+                      const takenByOther = occupiedByOther.has(seatCode) && !isDraft && !isSaved;
                       const disabledFinal = apiDisabled || takenByOther;
 
                       return (
