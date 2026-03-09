@@ -473,7 +473,7 @@ export default function ConfirmationPage() {
 
   const tripTotal = Number(priceSummary?.tripTotal ?? priceSummary?.total ?? 0) || 0;
   const airTotal = Number(priceSummary?.airTotal ?? 0) || 0;
-  const seatTotal = Number(priceSummary?.addonsTotal ?? 0) || 0;
+  const seatTotal = Number(priceSummary?.seatTotal ?? priceSummary?.addonsTotal ?? 0) || 0;
 
   const baseTotal = Number(priceSummary?.baseTotal ?? 0) || 0;
   const taxTotalExVat = Number(priceSummary?.taxTotalExVat ?? 0) || 0;
@@ -513,10 +513,6 @@ export default function ConfirmationPage() {
   const qrAmountOnly = useMemo(() => String(Number(tripTotal || 0).toFixed(2)), [tripTotal]);
 
   const [showFareDetails, setShowFareDetails] = useState(false);
-
-  const printRootRef = useRef(null);
-  const restoreDetailsRef = useRef([]);
-  const restoreFareDetailsRef = useRef(false);
 
   const t = useMemo(
     () => ({
@@ -573,59 +569,9 @@ export default function ConfirmationPage() {
       services: lang === "th" ? "รายละเอียดการซื้อ" : "Purchased services",
       viewServices: lang === "th" ? "ดูรายละเอียด" : "View details",
       hideServices: lang === "th" ? "ซ่อนรายละเอียด" : "Hide details",
-      savePdf: lang === "th" ? "บันทึกเป็น PDF" : "Save as PDF",
     }),
     [lang]
   );
-
-  const preparePrint = React.useCallback(() => {
-    restoreFareDetailsRef.current = showFareDetails;
-    setShowFareDetails(true);
-
-    const root = printRootRef.current || document;
-    const detailsEls = Array.from(root.querySelectorAll("details"));
-
-    restoreDetailsRef.current = detailsEls.map((el) => ({
-      el,
-      wasOpen: el.hasAttribute("open"),
-    }));
-
-    detailsEls.forEach((el) => el.setAttribute("open", ""));
-  }, [showFareDetails]);
-
-  const restorePrint = React.useCallback(() => {
-    for (const item of restoreDetailsRef.current) {
-      if (!item?.el) continue;
-      if (item.wasOpen) item.el.setAttribute("open", "");
-      else item.el.removeAttribute("open");
-    }
-
-    setShowFareDetails(restoreFareDetailsRef.current);
-  }, []);
-
-  const handleSavePdf = React.useCallback(() => {
-    preparePrint();
-    setTimeout(() => {
-      try {
-        window.print();
-      } catch {
-        restorePrint();
-      }
-    }, 80);
-  }, [preparePrint, restorePrint]);
-
-  useEffect(() => {
-    const onBeforePrint = () => preparePrint();
-    const onAfterPrint = () => restorePrint();
-
-    window.addEventListener("beforeprint", onBeforePrint);
-    window.addEventListener("afterprint", onAfterPrint);
-
-    return () => {
-      window.removeEventListener("beforeprint", onBeforePrint);
-      window.removeEventListener("afterprint", onAfterPrint);
-    };
-  }, [preparePrint, restorePrint]);
 
   const genderLabel = (g) => {
     const s = String(g || "").toLowerCase();
@@ -651,7 +597,7 @@ export default function ConfirmationPage() {
   /* ========================= Small UI blocks ========================= */
   function InfoBox({ title, children }) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 print-break-avoid">
+      <div className="rounded-2xl border border-slate-200 bg-white p-3">
         <div className="text-[12px] font-extrabold tracking-wide text-slate-700 uppercase">{title}</div>
         <div className="mt-2">{children}</div>
       </div>
@@ -861,7 +807,7 @@ export default function ConfirmationPage() {
     if (!legs.length) return null;
 
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 print-break-avoid">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4">
         <div className="font-extrabold text-slate-800">{t.tripSummary}</div>
 
         <div className="mt-3 space-y-2">
@@ -870,7 +816,7 @@ export default function ConfirmationPage() {
             return (
               <div
                 key={`${L.journeyKey || idx}`}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-3 print-break-avoid"
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -917,7 +863,7 @@ export default function ConfirmationPage() {
     const legsCount = legs.length || seatByLeg.length || (selectedOffers?.length || 0);
 
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 print-break-avoid">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4">
         <div className="font-extrabold text-slate-800">{t.fareSummary}</div>
 
         <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
@@ -951,7 +897,7 @@ export default function ConfirmationPage() {
           </div>
         </div>
 
-        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 flex justify-end no-print">
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 flex justify-end">
           <button
             type="button"
             onClick={() => setShowFareDetails((v) => !v)}
@@ -1006,7 +952,7 @@ export default function ConfirmationPage() {
                     return (
                       <div
                         key={`${String(lg?.fareKey || "")}-${String(lg?.journeyKey || "")}-${idx}`}
-                        className="rounded-xl border border-slate-200 bg-slate-50 p-2 print-break-avoid"
+                        className="rounded-xl border border-slate-200 bg-slate-50 p-2"
                       >
                         <div className="flex items-center justify-between">
                           <div className="text-[11px] font-extrabold text-slate-800">
@@ -1057,14 +1003,16 @@ export default function ConfirmationPage() {
     );
   }
 
-  /* ========================= top scroll ========================= */
+  /* ========================= ✅ NEW: force show Thank-you on page load ========================= */
   const topRef = useRef(null);
 
   useEffect(() => {
+    // Ensure browser at top first (helps on mobile restore-scroll cases)
     try {
       window.scrollTo(0, 0);
     } catch {}
 
+    // Then scroll to the thank-you card specifically
     const id = setTimeout(() => {
       try {
         topRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
@@ -1076,77 +1024,18 @@ export default function ConfirmationPage() {
 
   return (
     <div className="font-sans bg-gray-50 min-h-screen">
-      <style>{`
-        @media print {
-          @page {
-            size: A4;
-            margin: 12mm;
-          }
-
-          body {
-            background: #ffffff !important;
-          }
-
-          .no-print {
-            display: none !important;
-          }
-
-          .print-break-avoid {
-            break-inside: avoid;
-            page-break-inside: avoid;
-          }
-
-          .print-full-width {
-            max-width: 100% !important;
-            width: 100% !important;
-          }
-
-          details {
-            display: block !important;
-          }
-
-          details > summary {
-            list-style: none;
-            cursor: default;
-          }
-
-          details > summary::-webkit-details-marker {
-            display: none;
-          }
-
-          .shadow,
-          .shadow-sm,
-          .shadow-md,
-          .shadow-lg {
-            box-shadow: none !important;
-          }
-
-          .bg-gray-50,
-          .bg-slate-50,
-          .bg-sky-100 {
-            background: #ffffff !important;
-          }
-        }
-      `}</style>
-
       {/* Top header */}
-      <div className="bg-sky-100 border-b border-sky-200 no-print">
+      <div className="bg-sky-100 border-b border-sky-200">
         <div className="max-w-[1180px] mx-auto px-3 sm:px-4 py-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
+
             <div className="min-w-0 leading-tight">
               <div className="font-extrabold text-sky-600 text-xl whitespace-nowrap">Demo</div>
               <div className="font-bold text-sky-600 truncate">{t.title}</div>
             </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={handleSavePdf}
-              className="px-4 py-2 rounded-lg border border-sky-500 bg-white text-sky-800 text-sm font-extrabold hover:bg-sky-50"
-            >
-              {t.savePdf}
-            </button>
-
+          <div className="flex gap-2">
             <button
               onClick={() => setLang("th")}
               className={
@@ -1169,24 +1058,21 @@ export default function ConfirmationPage() {
         </div>
       </div>
 
-      <div
-        id="confirmation-print-root"
-        ref={printRootRef}
-        className="max-w-[1180px] mx-auto px-3 sm:px-4 py-5 print-full-width"
-      >
+      <div className="max-w-[1180px] mx-auto px-3 sm:px-4 py-5">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,60%)_minmax(0,40%)] gap-4">
           {/* LEFT */}
           <div className="space-y-4">
-            {/* Top: Thank you + Reservation code */}
-            <div ref={topRef} className="bg-white border border-slate-200 rounded-2xl p-4 print-break-avoid">
-              <div className="text-slate-800 leading-tight">
-                <div className="text-xl sm:text-2xl font-bold">{t.thanks}</div>
+            {/* ✅ Top: Thank you + Reservation code */}
+            <div ref={topRef} className="bg-white border border-slate-200 rounded-2xl p-4">
+<div className="text-slate-800 leading-tight">
+  <div className="text-xl sm:text-2xl font-bold">
+    {t.thanks}
+  </div>
 
-                <div className="mt-2 text-base sm:text-xl font-semibold whitespace-nowrap overflow-hidden text-ellipsis">
-                  {greetingName}
-                </div>
-              </div>
-
+  <div className="mt-2 text-base sm:text-xl font-semibold whitespace-nowrap overflow-hidden text-ellipsis">
+    {greetingName}
+  </div>
+</div>
               <div className="mt-4">
                 <div className="text-xs font-bold text-slate-600 tracking-wide uppercase">{t.reservation}</div>
                 <div className="mt-1 font-mono font-extrabold text-slate-900 text-4xl tracking-tight break-all">
@@ -1212,7 +1098,7 @@ export default function ConfirmationPage() {
 
                 <button
                   onClick={() => copy(reservationCode)}
-                  className="no-print px-3 py-1.5 rounded-full border border-slate-300 bg-white text-sm font-extrabold hover:border-sky-400 hover:text-sky-800"
+                  className="px-3 py-1.5 rounded-full border border-slate-300 bg-white text-sm font-extrabold hover:border-sky-400 hover:text-sky-800"
                 >
                   {t.copy}
                 </button>
@@ -1242,7 +1128,7 @@ export default function ConfirmationPage() {
                     const g = genderLabel(p?.gender) || genderLabel(p?.sex) || genderLabel(p?.genderCode) || "";
 
                     return (
-                      <div key={String(paxId)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 print-break-avoid">
+                      <div key={String(paxId)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="font-extrabold text-slate-900 truncate">
@@ -1286,11 +1172,11 @@ export default function ConfirmationPage() {
 
           {/* RIGHT: payment */}
           <div className="space-y-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 print-break-avoid">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
               <div className="font-extrabold text-slate-800">{t.payment}</div>
               <div className="mt-2 text-sm font-bold text-slate-700">{t.choosePayment}</div>
 
-              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 no-print">
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   onClick={() => setPayMethod("counter")}
                   className={
@@ -1323,7 +1209,7 @@ export default function ConfirmationPage() {
               </div>
 
               {payMethod === "counter" ? (
-                <div className="mt-4 border border-slate-200 rounded-2xl p-3 bg-white print-break-avoid">
+                <div className="mt-4 border border-slate-200 rounded-2xl p-3 bg-white">
                   <div className="text-sm font-extrabold text-slate-800">{t.qrTitle}</div>
 
                   <div className="mt-3 flex flex-col sm:flex-row items-start gap-3">
@@ -1337,7 +1223,7 @@ export default function ConfirmationPage() {
 
                       <button
                         onClick={() => copy(qrAmountOnly)}
-                        className="mt-2 px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm font-extrabold hover:border-sky-400 hover:text-sky-800 no-print"
+                        className="mt-2 px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm font-extrabold hover:border-sky-400 hover:text-sky-800"
                       >
                         {t.copy}
                       </button>
@@ -1349,7 +1235,7 @@ export default function ConfirmationPage() {
               ) : null}
 
               {payMethod === "card" ? (
-                <div className="mt-4 border border-slate-200 rounded-2xl p-3 no-print">
+                <div className="mt-4 border border-slate-200 rounded-2xl p-3">
                   <div className="text-sm font-extrabold text-slate-800">{lang === "th" ? "กรอกรายละเอียดบัตร" : "Enter card details"}</div>
                   <div className="mt-3 space-y-2">
                     <input className="w-full border rounded-xl p-2" placeholder={lang === "th" ? "ชื่อบนบัตร" : "Name on card"} />
@@ -1364,7 +1250,7 @@ export default function ConfirmationPage() {
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 border border-slate-200 rounded-2xl p-3 no-print">
+                <div className="mt-4 border border-slate-200 rounded-2xl p-3">
                   <div className="text-sm font-extrabold text-slate-800">{lang === "th" ? "สแกน QR สำหรับชำระเงิน" : "Scan QR for payment"}</div>
                   <div className="mt-3 text-xs text-slate-600">
                     {lang === "th" ? "เดโม: QR แสดงเฉพาะตอนเลือกเคาน์เตอร์/QR" : "Demo: QR shows only when Counter/QR is selected."}

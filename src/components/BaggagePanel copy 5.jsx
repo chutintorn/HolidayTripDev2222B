@@ -20,7 +20,7 @@ const specialBaggageImg = new URL(
 // ✅ icon size ~250% (32px -> 80px)
 const ICON_CLASS_250 = "w-20 h-20 object-contain";
 
-// ✅ make PNG “stronger” WITHOUT shadow
+// ✅ make PNG “stronger” WITHOUT shadow (shadow makes gray background look stronger)
 const ICON_FILTER = "brightness-90 contrast-150 saturate-150";
 
 /* ========================= Helpers (match SeatMapPanel style) ========================= */
@@ -59,7 +59,7 @@ function sanitizeFlightNumber(v) {
 function extractFlightNoFromJourneyKey(journeyKey) {
   const s = String(journeyKey || "").toUpperCase();
   const m =
-    /_([A-Z]{2}\d{2,4})(?=20\d{6})/.exec(s) ||
+    /_([A-Z]{2}\d{2,4})(?=20\d{6})/.exec(s) || // stop before date
     /_([A-Z]{2}\d{2,4})/.exec(s);
   return sanitizeFlightNumber(m ? m[1] : "");
 }
@@ -106,7 +106,7 @@ function formatMoney(x, currency = "THB") {
   }
 }
 
-/* rawDetail can be many shapes */
+/* rawDetail can be many shapes (same robustness as your existing) */
 function pickAirlinesFromRawDetail(rawDetail) {
   if (!rawDetail) return [];
   if (Array.isArray(rawDetail?.airlines)) return rawDetail.airlines;
@@ -142,17 +142,9 @@ function hasAnySelection(x) {
 }
 
 /* ========================= Component ========================= */
-export default function BaggagePanel({
-  paxId,
-  selectedOffers = [],
-  rawDetail,
-  t,
-  onClose,
-}) {
+export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t }) {
   const dispatch = useDispatch();
   const [legIndex, setLegIndex] = useState(0);
-
-  const canClose = typeof onClose === "function";
 
   const airlines = useMemo(() => pickAirlinesFromRawDetail(rawDetail), [rawDetail]);
 
@@ -172,12 +164,14 @@ export default function BaggagePanel({
   const journeyKey = activeLeg?.journeyKey || "";
   const flightNo = useMemo(() => extractFlightNoFromJourneyKey(journeyKey), [journeyKey]);
 
+  // ✅ hooks safe
   const draft = useSelector(selectDraftBaggage(paxId, journeyKey));
   const saved = useSelector(selectSavedBaggage(paxId, journeyKey));
 
   const currentDraft = draft || { bg: null, sb: null };
   const currentSaved = saved || { bg: null, sb: null };
 
+  // ✅ show saved when user never touched draft
   const uiBG = draft == null ? currentSaved?.bg : currentDraft?.bg;
   const uiSB = draft == null ? currentSaved?.sb : currentDraft?.sb;
 
@@ -228,6 +222,7 @@ export default function BaggagePanel({
     const selectingBG = uiBG?.ssrCode ? normalize(uiBG.ssrCode) : "-";
     const selectingSB = uiSB?.ssrCode ? normalize(uiSB.ssrCode) : "-";
 
+    // ✅ NEW: line-by-line summary rows (Confirmed / Selecting)
     const Row = ({ label, value, tone }) => (
       <div className="flex items-center gap-2 text-[13px] leading-snug">
         <span className="text-slate-600 font-semibold w-[86px]">{label}</span>
@@ -244,8 +239,10 @@ export default function BaggagePanel({
 
     return (
       <div className="flex items-start justify-between gap-2 flex-wrap rounded-xl border border-slate-200 bg-white px-3 py-2">
+        {/* LEFT: Summary (line-by-line) */}
         <div className="min-w-[240px]">
           <div className="space-y-2">
+            {/* Confirmed */}
             <div>
               <div className="text-[12px] font-extrabold text-slate-700">
                 {t?.confirmed ?? "Confirmed"}:
@@ -266,6 +263,7 @@ export default function BaggagePanel({
 
             <div className="h-px bg-slate-200" />
 
+            {/* Selecting */}
             <div>
               <div className="text-[12px] font-extrabold text-slate-700">
                 {t?.selecting ?? "Selecting"}:
@@ -286,6 +284,7 @@ export default function BaggagePanel({
           </div>
         </div>
 
+        {/* RIGHT: Buttons */}
         <div className="flex items-center gap-2 self-center">
           <button
             type="button"
@@ -334,35 +333,6 @@ export default function BaggagePanel({
 
   return (
     <div className="space-y-3">
-      {/* Panel header with Close button */}
-      <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl border border-slate-200 bg-white px-3 py-2">
-        <div className="flex items-center gap-3 min-w-0">
-          <img
-            src={baggageImg}
-            alt="Baggage"
-            className={`${ICON_CLASS_250} ${ICON_FILTER} bg-transparent p-0 shadow-none rounded-none`}
-          />
-          <div className="min-w-0">
-            <div className="text-base font-extrabold text-slate-900">
-              {t?.baggage ?? (t?.isTH ? "สัมภาระ" : "Baggage")}
-            </div>
-            <div className="text-xs text-slate-500">
-              {t?.bagHint ?? (t?.isTH ? "เลือกน้ำหนักสัมภาระที่ต้องการ" : "Choose your baggage weight")}
-            </div>
-          </div>
-        </div>
-
-        {canClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg font-bold border border-slate-300 bg-white text-slate-700 hover:border-slate-400"
-          >
-            {t?.close ?? (t?.isTH ? "ปิด" : "Close")}
-          </button>
-        ) : null}
-      </div>
-
       {/* Leg toggle */}
       <div className="flex gap-2 flex-wrap">
         {legs.map((l) => {
@@ -415,6 +385,7 @@ export default function BaggagePanel({
 
       {/* BG options */}
       <div className="rounded-xl border border-slate-200 bg-white p-3">
+        {/* ✅ NO gray wrapper around icon */}
         <div className="flex items-center gap-3 mb-2">
           <img
             src={baggageImg}
@@ -432,6 +403,7 @@ export default function BaggagePanel({
         </div>
 
         <div className="space-y-1">
+          {/* None */}
           <label className="flex items-center justify-between gap-3 py-2 px-2 rounded-lg hover:bg-sky-50">
             <div className="flex items-center gap-2 min-w-0">
               <input
@@ -493,6 +465,7 @@ export default function BaggagePanel({
                   <div className="min-w-0">
                     <div className="font-semibold text-slate-900">
                       {s?.description || (t?.checkedBaggage ?? "Baggage")}
+                      {/* ✅ keep code small grey (not in title) */}
                       <span className="ml-2 text-xs text-slate-400 font-bold">{code}</span>
                     </div>
                   </div>
@@ -517,6 +490,7 @@ export default function BaggagePanel({
       {/* SB options */}
       {showSB ? (
         <div className="rounded-xl border border-slate-200 bg-white p-3">
+          {/* ✅ NO gray wrapper around icon */}
           <div className="flex items-center gap-3 mb-2">
             <img
               src={specialBaggageImg}
@@ -613,9 +587,7 @@ export default function BaggagePanel({
             {(servicesForFlight?.sb || []).length === 0 ? (
               <div className="text-xs text-slate-500">
                 {t?.noSbOptions ??
-                  (t?.isTH
-                    ? "เที่ยวบินนี้ไม่มีตัวเลือกสัมภาระพิเศษ"
-                    : "No special baggage options for this flight.")}
+                  (t?.isTH ? "เที่ยวบินนี้ไม่มีตัวเลือกสัมภาระพิเศษ" : "No special baggage options for this flight.")}
               </div>
             ) : null}
           </div>

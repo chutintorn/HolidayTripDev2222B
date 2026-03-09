@@ -79,6 +79,15 @@ function fmtDateLong(d) {
   });
 }
 
+function fmtDateShort(d) {
+  if (!d) return "";
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function formatMoney(x, currency = "THB") {
   const n = Number(x);
   if (!Number.isFinite(n)) return "";
@@ -102,6 +111,7 @@ function pickAirlinesFromRawDetail(rawDetail) {
   if (Array.isArray(rawDetail?.detail?.data?.data?.airlines)) return rawDetail.detail.data.data.airlines;
   if (Array.isArray(rawDetail?.detail?.airlines)) return rawDetail.detail.airlines;
 
+  // ✅ support split-leg response shape too
   const legs = rawDetail?.legs;
   if (Array.isArray(legs)) {
     const merged = [];
@@ -134,17 +144,9 @@ function samePick(a, b) {
 }
 
 /* ========================= Component ========================= */
-export default function MealPanel({
-  paxId,
-  selectedOffers = [],
-  rawDetail,
-  t,
-  onClose,
-}) {
+export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) {
   const dispatch = useDispatch();
   const [legIndex, setLegIndex] = useState(0);
-
-  const canClose = typeof onClose === "function";
 
   const airlines = useMemo(() => pickAirlinesFromRawDetail(rawDetail), [rawDetail]);
 
@@ -186,24 +188,30 @@ export default function MealPanel({
 
   const dayText = useMemo(() => weekdayShort(departDate), [departDate]);
   const dateText = useMemo(() => fmtDateLong(departDate), [departDate]);
+  const dateShort = useMemo(() => fmtDateShort(departDate), [departDate]);
 
+  // Redux (draft/saved per paxId + journeyKey)
   const draft = useSelector(selectDraftMealSelection(paxId, journeyKey));
   const saved = useSelector(selectSavedMealSelection(paxId, journeyKey));
 
+  // Like baggage: if draft exists -> show draft, else show saved
   const ui = draft != null ? draft : saved != null ? saved : { meal: null, bev: null };
   const uiMeal = ui?.meal ?? null;
   const uiBev = ui?.bev ?? null;
 
+  // Confirm/Release enable
   const savedMeal = saved?.meal ?? null;
   const savedBev = saved?.bev ?? null;
   const changed = !(samePick(uiMeal, savedMeal) && samePick(uiBev, savedBev));
   const canConfirm = !!journeyKey && changed;
   const canRelease = !!journeyKey && draft != null;
 
+  // ✅ robust service lookup
   const servicesForFlight = useMemo(() => {
     const normFlight = normalize(flightNo);
     if (!normFlight) return { meals: [], bevs: [] };
 
+    // 1) best match: airline owning this flight in travelInfos
     const activeAirline = airlines.find((a) => {
       const infos = Array.isArray(a?.travelInfos) ? a.travelInfos : [];
       return infos.some((ti) => normalize(ti?.flightNumber) === normFlight);
@@ -213,6 +221,7 @@ export default function MealPanel({
       ? activeAirline.availableExtraServices
       : [];
 
+    // 2) fallback: match from all services by service.flightNumber
     const allServices = airlines.flatMap((a) =>
       Array.isArray(a?.availableExtraServices) ? a.availableExtraServices : []
     );
@@ -221,6 +230,7 @@ export default function MealPanel({
       (s) => normalize(s?.flightNumber) === normFlight
     );
 
+    // 3) final fallback: use all services if API omitted flightNumber
     const source =
       airlineServices.length > 0
         ? airlineServices
@@ -273,30 +283,9 @@ export default function MealPanel({
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        {/* Panel header with Close button */}
-        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3 min-w-0">
-              <img src={mealImg} alt="Meal" className={ICON_CLASS} />
-              <div className="min-w-0">
-                <div className="font-extrabold text-slate-900">
-                  {t?.mealLabel ?? "Meal"}
-                </div>
-                <div className="text-xs text-slate-500">
-                  {t?.mealDrinkLabel ?? (t?.isTH ? "อาหารและเครื่องดื่ม" : "Meal and beverage")}
-                </div>
-              </div>
-            </div>
-
-            {canClose ? (
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-lg font-bold border border-slate-300 bg-white text-slate-700 hover:border-slate-400"
-              >
-                {t?.close ?? (t?.isTH ? "ปิด" : "Close")}
-              </button>
-            ) : null}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-extrabold text-slate-900">{t?.mealLabel ?? "Meal"}</div>
           </div>
         </div>
 

@@ -620,12 +620,7 @@ export default function PriceDetailSkyBlue() {
   /* ==== Contact information ==== */
   const [contact, setContact] = useState({ dialCode: "+66", phone: "", email: "", optIn: false });
   const [showContactErrors, setShowContactErrors] = useState(false);
-
-  // ✅ Email is optional, phone is required
-  const contactValid = useMemo(
-    () => String(contact.phone || "").trim().length > 0,
-    [contact.phone]
-  );
+  const contactValid = useMemo(() => contact.phone.trim() && contact.email.trim(), [contact.phone, contact.email]);
 
   const canContinue = useMemo(() => travellers.every((p) => isComplete(forms[p.id])) && contactValid, [
     travellers,
@@ -737,7 +732,7 @@ export default function PriceDetailSkyBlue() {
               setContact={setContact}
               showContactErrors={showContactErrors}
               selectedOffers={selectedOffers}
-              rawDetail={rawDetail}
+              rawDetail={rawDetail} // ✅ IMPORTANT for BaggagePanel
             />
           </div>
 
