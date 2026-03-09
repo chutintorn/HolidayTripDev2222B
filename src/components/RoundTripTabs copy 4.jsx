@@ -8,34 +8,22 @@ export default function RoundTripTabs({
   hasInbound,
   onReset,
 }) {
-  const hasAnySelection = hasOutbound || hasInbound;
-
-  const TabBtn = ({ id, label, active, disabled = false, customClass = "" }) => (
+  const TabBtn = ({ id, label, active, disabled = false }) => (
     <button
       type="button"
-      onClick={() => {
-        if (!disabled) setTab(id);
-      }}
+      onClick={() => setTab(id)}
       disabled={disabled}
       className={
         "px-3 py-2 rounded-lg text-sm font-semibold border transition-colors " +
-        (customClass ||
-          (active
-            ? "bg-blue-600 text-white border-blue-600"
-            : "bg-white text-slate-700 border-slate-200 hover:border-blue-400")) +
+        (active
+          ? "bg-blue-600 text-white border-blue-600"
+          : "bg-white text-slate-700 border-slate-200 hover:border-blue-400") +
         (disabled ? " opacity-50 cursor-not-allowed hover:border-slate-200" : "")
       }
     >
       {label}
     </button>
   );
-
-  const viewBtnClass =
-    tab === "view"
-      ? "bg-blue-600 text-white border-blue-600"
-      : hasAnySelection
-      ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
-      : "bg-white text-blue-700 border-blue-200 hover:bg-blue-50 hover:border-blue-300";
 
   return (
     <div className="w-full rounded-2xl border bg-white shadow-sm p-3 flex flex-wrap items-center gap-2">
@@ -44,15 +32,14 @@ export default function RoundTripTabs({
         label={hasOutbound ? "Depart ✓" : "Depart"}
         active={tab === "depart"}
       />
-
       <TabBtn
         id="return"
         label={hasInbound ? "Return ✓" : "Return"}
         active={tab === "return"}
-        disabled={false}
+        disabled={false} // ✅ allow Return first
       />
 
-      <div className="flex items-center gap-2 sm:ml-auto">
+    <div className="flex items-center gap-2 sm:ml-auto">
         <button
           type="button"
           onClick={onReset}
@@ -65,8 +52,7 @@ export default function RoundTripTabs({
           id="view"
           label="View Selection"
           active={tab === "view"}
-          disabled={false}
-          customClass={viewBtnClass}
+          disabled={!hasOutbound && !hasInbound}
         />
       </div>
     </div>

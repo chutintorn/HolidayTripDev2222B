@@ -787,9 +787,39 @@ export default function RoundTripResultsLite() {
         />
       )}
 
-            <div className="rounded-2xl border bg-white shadow p-3">
+      <div className="rounded-2xl border bg-white shadow p-3">
         <div className="flex flex-col gap-2">
+          <div className="text-xs text-gray-700">
+            <span className={selectedOutbound ? "text-emerald-700 font-semibold" : "text-gray-500"}>
+              {selectedOutbound ? "✓ Depart selected" : "• Depart not selected"}
+            </span>
+            <span className="mx-2 text-gray-300">|</span>
+            <span className={selectedInbound ? "text-emerald-700 font-semibold" : "text-gray-500"}>
+              {selectedInbound ? "✓ Return selected" : "• Return not selected"}
+            </span>
+            {pricingStatus === "loading" && (
+              <span className="ml-3 text-blue-600">Getting offers…</span>
+            )}
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-end">
+            <button
+              type="button"
+              className="w-full sm:w-auto px-3 py-2 rounded-md bg-white text-slate-700 text-xs font-semibold border border-slate-200"
+              onClick={onReset}
+            >
+              Clear selection
+            </button>
+
+            <button
+              type="button"
+              className="w-full sm:w-auto px-3 py-2 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200 hover:bg-blue-100"
+              onClick={() => setTab("view")}
+              disabled={!selectedOutbound && !selectedInbound}
+            >
+              View Selection
+            </button>
+
             <button
               className={`w-full sm:w-auto px-3 py-2 rounded-md font-semibold text-xs transition-colors ${
                 canProceed && pricingStatus !== "loading" && !submitting

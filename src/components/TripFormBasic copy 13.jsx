@@ -99,9 +99,8 @@ function TwoMonthSingleDatePicker({
       setIsMobile(typeof window !== "undefined" ? window.innerWidth < 768 : false);
     if (typeof window !== "undefined") window.addEventListener("resize", onResize);
     return () => {
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined")
         window.removeEventListener("resize", onResize);
-      }
     };
   }, []);
 
@@ -187,7 +186,6 @@ export default function TripFormBasic({ onSubmit }) {
   // ✅ bridge control for JourneyTable (one-way only)
   const [owTab, setOwTab] = useState("list");
   const [owClearTick, setOwClearTick] = useState(0);
-  const [owHasSelection, setOwHasSelection] = useState(false);
 
   // ---- helpers ----
   const clampInt = (val, min, max = Infinity) =>
@@ -220,7 +218,6 @@ export default function TripFormBasic({ onSubmit }) {
 
     setOwTab("list");
     setOwClearTick(0);
-    setOwHasSelection(false);
 
     dispatch(clearSelectedOfferLegs());
   };
@@ -247,10 +244,9 @@ export default function TripFormBasic({ onSubmit }) {
 
     setOwTab("list");
     setOwClearTick((x) => x + 1);
-    setOwHasSelection(false);
 
     dispatch(clearSelectedOfferLegs());
-    dispatch(clearResults());
+    dispatch(clearResults()); // ✅ removes flight list
   };
 
   // infants ≤ adults
@@ -296,6 +292,7 @@ export default function TripFormBasic({ onSubmit }) {
       return;
     }
 
+    // ✅ NEW: origin/destination cannot be the same
     if (isSameAirport(origin, destination)) {
       alert(sameAirportMsg());
       return;
@@ -329,7 +326,6 @@ export default function TripFormBasic({ onSubmit }) {
       setRtActiveTab("depart");
 
       setOwTab("list");
-      setOwHasSelection(false);
     } else {
       lastPayloadRTRef.current = payload;
       setRtAnchor({ departYMD: payload.depart, returnYMD: payload.ret });
@@ -340,7 +336,6 @@ export default function TripFormBasic({ onSubmit }) {
 
       setOwTab("list");
       setOwClearTick(0);
-      setOwHasSelection(false);
     }
 
     dispatch(clearSelectedOfferLegs());
@@ -362,7 +357,6 @@ export default function TripFormBasic({ onSubmit }) {
 
     dispatch(clearSelectedOfferLegs());
     setOwTab("list");
-    setOwHasSelection(false);
     dispatch(fetchSearchResults(payload2));
   };
 
@@ -410,6 +404,7 @@ export default function TripFormBasic({ onSubmit }) {
 
   const canUseSelectionActions = !!results && status !== "loading";
 
+  // ✅ NEW: safe onChange wrappers (UX: block same-airport selection immediately)
   const handleOriginChange = (next) => {
     const nextO = normAirport(next);
     const curD = normAirport(destination);
@@ -442,53 +437,56 @@ export default function TripFormBasic({ onSubmit }) {
             text-[13px] sm:text-sm
           "
         >
-          <div className="w-full flex justify-start">
-            <div className="w-full md:w-1/2 lg:w-[58.333333%] rounded-[999px] bg-slate-200 p-[4px] overflow-hidden">
-              <div className="flex w-full h-9 md:h-[44px]">
-                <button
-                  type="button"
-                  onClick={() => switchTripType("roundtrip")}
-                  className={
-                    "w-1/2 h-10 md:h-[44px] rounded-l-[999px] text-[13px] sm:text-sm font-medium transition-all " +
-                    (tripType === "roundtrip"
-                      ? "bg-sky-600 text-white shadow-md"
-                      : "bg-transparent text-slate-700")
-                  }
-                >
-                  {t.form?.roundtrip ?? (isTH ? "ไป-กลับ" : "Round-trip")}
-                </button>
+          {/* ✅ Round-trip / One-way capsule: +30% height on md+ */}
+<div className="w-full flex justify-start">
+  <div className="w-full md:w-1/2 lg:w-[58.333333%] rounded-[999px] bg-slate-200 p-[4px] overflow-hidden">
+    <div className="flex w-full h-9 md:h-[44px]">
+      <button
+        type="button"
+        onClick={() => switchTripType("roundtrip")}
+        className={
+          "w-1/2 h-10 md:h-[44px] rounded-l-[999px] text-[13px] sm:text-sm font-medium transition-all " +
+          (tripType === "roundtrip"
+            ? "bg-sky-600 text-white shadow-md"
+            : "bg-transparent text-slate-700")
+        }
+      >
+        {t.form?.roundtrip ?? (isTH ? "ไป-กลับ" : "Round-trip")}
+      </button>
 
-                <button
-                  type="button"
-                  onClick={() => switchTripType("oneway")}
-                  className={
-                    "w-1/2 h-10 md:h-[44px] rounded-r-[999px] text-[13px] sm:text-sm font-medium transition-all " +
-                    (tripType === "oneway"
-                      ? "bg-sky-600 text-white shadow-md"
-                      : "bg-transparent text-slate-700")
-                  }
-                >
-                  {t.form?.oneway ?? (isTH ? "เที่ยวเดียว" : "One-way")}
-                </button>
-              </div>
-            </div>
-          </div>
+      <button
+        type="button"
+        onClick={() => switchTripType("oneway")}
+        className={
+          "w-1/2 h-10 md:h-[44px] rounded-r-[999px] text-[13px] sm:text-sm font-medium transition-all " +
+          (tripType === "oneway"
+            ? "bg-sky-600 text-white shadow-md"
+            : "bg-transparent text-slate-700")
+        }
+      >
+        {t.form?.oneway ?? (isTH ? "เที่ยวเดียว" : "One-way")}
+      </button>
+    </div>
+  </div>
+</div>
 
+          {/* ✅ MORE vertical space under the tabs */}
           <div className="h-0 md:h-1" />
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-y-1 md:gap-y-2 gap-x-2 md:gap-x-4 lg:gap-x-6 xl:gap-x-8 items-center">
+          {/* ✅ MAIN ROWS */}
+         <div className="grid grid-cols-1 md:grid-cols-12 gap-y-1 md:gap-y-2 gap-x-2 md:gap-x-4 lg:gap-x-6 xl:gap-x-8 items-center">
             <div className={fromSpan}>
               <AirportSelect
                 value={origin}
-                onChange={handleOriginChange}
+                onChange={handleOriginChange} /* ✅ changed */
                 placeholder={t.placeholders?.from ?? (isTH ? "ต้นทาง" : "From")}
-              />
+             />
             </div>
 
             <div className={toSpan}>
               <AirportSelect
                 value={destination}
-                onChange={handleDestinationChange}
+                onChange={handleDestinationChange} /* ✅ changed */
                 placeholder={t.placeholders?.to ?? (isTH ? "ปลายทาง" : "To")}
               />
             </div>
@@ -535,7 +533,9 @@ export default function TripFormBasic({ onSubmit }) {
             )}
           </div>
 
+          {/* ✅ pax + actions: make actions take full width on desktop too */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-y-1 md:gap-y-2 gap-x-3 md:gap-x-4 !items-end">
+            {/* pax */}
             <div className="md:col-span-6 lg:col-span-5 relative" ref={paxRef}>
               <button
                 type="button"
@@ -650,6 +650,7 @@ export default function TripFormBasic({ onSubmit }) {
               )}
             </div>
 
+            {/* actions (Clear/Search) - full width like top tabs */}
             <div className="md:col-span-6 lg:col-span-7 mt-2 md:mt-5 lg:mt-4">
               <div className="w-full rounded-[999px] bg-slate-200 p-[4px] overflow-hidden">
                 <div className="flex w-full h-10">
@@ -711,13 +712,10 @@ export default function TripFormBasic({ onSubmit }) {
                 dispatch(clearSelectedOfferLegs());
                 setOwClearTick((x) => x + 1);
                 setOwTab("list");
-                setOwHasSelection(false);
               }}
               onViewSelection={() => setOwTab("view")}
               clearDisabled={!canUseSelectionActions}
               viewDisabled={!canUseSelectionActions}
-              hasSelection={owHasSelection}
-              isViewActive={owTab === "view"}
             />
           </div>
         )}
@@ -749,7 +747,6 @@ export default function TripFormBasic({ onSubmit }) {
               externalTab={owTab}
               onExternalTabChange={setOwTab}
               externalClearSignal={owClearTick}
-              onSelectionChange={(flag) => setOwHasSelection(!!flag)}
             />
           ))}
       </div>

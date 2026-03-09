@@ -519,7 +519,23 @@ export default function PassengersPanel({
 
                           <div className="w-full">
                             <div className="flex items-center w-full gap-3">
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSave(p.id)}
+                                  className="shrink-0 rounded-lg px-3 py-1.5 bg-sky-600 text-white font-extrabold hover:bg-sky-700 text-[13px]"
+                                >
+                                  {t.save}
+                                </button>
 
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancel(p.id)}
+                                  className="shrink-0 rounded-lg px-3 py-1.5 border border-slate-300 bg-white text-slate-700 font-extrabold hover:border-slate-400 text-[13px]"
+                                >
+                                  {t.cancel}
+                                </button>
+                              </div>
 
                               <div className="ml-auto shrink-0">
                                 <button

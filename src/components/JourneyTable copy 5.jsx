@@ -129,9 +129,6 @@ export default function JourneyTable({
   externalTab, // "list" | "view"
   onExternalTabChange, // (nextTab) => void
   externalClearSignal = 0, // change number => clear selection
-
-  // ✅ NEW: notify parent when selection exists / cleared
-  onSelectionChange,
 }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -207,7 +204,6 @@ export default function JourneyTable({
       setOpenId(null);
       setTabSafe("list");
       setViewOpen(false);
-      if (typeof onSelectionChange === "function") onSelectionChange(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search?.status]);
@@ -235,7 +231,6 @@ export default function JourneyTable({
     setOpenId(null);
     setTabSafe("list");
     setViewOpen(false);
-    if (typeof onSelectionChange === "function") onSelectionChange(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchKey]);
 
@@ -250,7 +245,6 @@ export default function JourneyTable({
     setViewOpen(false);
 
     dispatch(setSelectedOfferLegs([]));
-    if (typeof onSelectionChange === "function") onSelectionChange(false);
     if (typeof onSelectRow === "function") onSelectRow(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalClearSignal]);
@@ -283,7 +277,6 @@ export default function JourneyTable({
 
     setSelectedRow(row);
     setSelectedFare(selection);
-    if (typeof onSelectionChange === "function") onSelectionChange(true);
 
     dispatch(
       setSelectedOfferLegs([
@@ -307,6 +300,7 @@ export default function JourneyTable({
     setViewOpen(false);
 
     // ✅ Nice UX: after selecting, auto switch to view if user already pressed View
+    // (or you can force to view always by uncommenting next line)
     // setTabSafe("view");
 
     if (typeof onSelectRow === "function") onSelectRow(selection);
@@ -729,25 +723,25 @@ export default function JourneyTable({
           <div className="mb-2 text-xs text-red-600">Failed to load seat map.</div>
         )}
 
-        {showNextButton && (
-          <div className="sm:flex sm:justify-end">
-            <button
-              onClick={handleInternalNext}
-              disabled={!canNext}
-              className={
-                "w-full rounded-xl font-bold transition-colors " +
-                "py-3 text-sm " +
-                "sm:w-auto sm:py-2 sm:px-4 sm:text-xs sm:rounded-md " +
-                (canNext
-                  ? "bg-blue-600 text-white hover:bg-[var(--dow)]"
-                  : "bg-gray-300 text-gray-600 cursor-not-allowed")
-              }
-            >
-              {nextLoading ? "Please wait…" : "NEXT"}
-            </button>
-          </div>
-        )}
+{showNextButton && (
+  <div className="sm:flex sm:justify-end">
+    <button
+      onClick={handleInternalNext}
+      disabled={!canNext}
+      className={
+        "w-full rounded-xl font-bold transition-colors " +
+        "py-3 text-sm " +
+        "sm:w-auto sm:py-2 sm:px-4 sm:text-xs sm:rounded-md " +
+        (canNext
+          ? "bg-blue-600 text-white hover:bg-[var(--dow)]"
+          : "bg-gray-300 text-gray-600 cursor-not-allowed")
+      }
+    >
+      {nextLoading ? "Please wait…" : "NEXT"}
+    </button>
+  </div>
+)}
       </div>
     </div>
   );
-}
+} 

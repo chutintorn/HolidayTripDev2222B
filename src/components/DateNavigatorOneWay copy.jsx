@@ -13,8 +13,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
  *  - onViewSelection
  *  - clearDisabled
  *  - viewDisabled
- *  - hasSelection
- *  - isViewActive
  */
 export default function DateNavigatorOneWay({
   anchorDate,
@@ -29,10 +27,6 @@ export default function DateNavigatorOneWay({
   onViewSelection,
   clearDisabled = false,
   viewDisabled = false,
-
-  // ✅ new props
-  hasSelection = false,
-  isViewActive = false,
 }) {
   const [activeDate, setActiveDate] = useState(
     () => toDate(anchorDate) || startOfToday()
@@ -73,6 +67,7 @@ export default function DateNavigatorOneWay({
   const dow = getDow(activeDate, lang);
   const dowStyle = getDowStyleByRuleVivid(activeDate);
 
+  // ✅ Sun -> S U N (English only)
   const dowDisplay =
     lang === "th" ? dow : String(dow).toUpperCase().split("").join(" ");
 
@@ -82,16 +77,9 @@ export default function DateNavigatorOneWay({
     return getLightFromVivid(getDowStyleByRuleVivid(activeDate));
   }, [activeDate]);
 
-  // ✅ 3-state button style
-  const viewBtnStyle = isViewActive
-    ? styles.viewBtnActive
-    : hasSelection
-    ? styles.viewBtnHighlight
-    : styles.viewBtnIdle;
-
   return (
     <section style={styles.wrap} aria-label="Date navigator">
-      {/* ACTION BUTTONS */}
+      {/* ✅ ACTION BUTTONS ON TOP */}
       <div style={styles.actionRowTop}>
         <button
           type="button"
@@ -108,11 +96,11 @@ export default function DateNavigatorOneWay({
         <button
           type="button"
           onClick={() => onViewSelection && onViewSelection()}
-          disabled={isLoading}
+          disabled={isLoading || viewDisabled}
           style={{
             ...styles.actionBtn,
-            ...viewBtnStyle,
-            ...(isLoading ? styles.btnDisabled : null),
+            ...styles.viewBtn,
+            ...(isLoading || viewDisabled ? styles.btnDisabled : null),
           }}
         >
           {lang === "th" ? "ดูที่เลือก" : "View selection"}
@@ -121,6 +109,7 @@ export default function DateNavigatorOneWay({
 
       {/* NAVIGATION ROW */}
       <div style={styles.navRow}>
+        {/* -7 days */}
         <button
           type="button"
           style={{
@@ -136,6 +125,7 @@ export default function DateNavigatorOneWay({
           «
         </button>
 
+        {/* -1 day */}
         <button
           type="button"
           style={{
@@ -152,14 +142,17 @@ export default function DateNavigatorOneWay({
         </button>
 
         <div style={styles.center}>
+          {/* ✅ Date reduced size + reduced boldness (~60%) */}
           <div style={styles.bigDate}>
             <span style={styles.dayNum}>{dDay}</span>
             <span style={styles.monTxt}>{dMon}</span>
           </div>
 
+          {/* ✅ DOW rectangle with tiny rounded corner */}
           <div style={{ ...styles.dowPill, ...dowStyle }}>{dowDisplay}</div>
         </div>
 
+        {/* +1 day */}
         <button
           type="button"
           style={{
@@ -175,6 +168,7 @@ export default function DateNavigatorOneWay({
           ›
         </button>
 
+        {/* +7 days */}
         <button
           type="button"
           style={{
@@ -190,6 +184,7 @@ export default function DateNavigatorOneWay({
           »
         </button>
 
+        {/* reset to anchor */}
         <button
           type="button"
           style={{
@@ -232,7 +227,7 @@ export default function DateNavigatorOneWay({
   );
 }
 
-/* helpers */
+/* ------------------ helpers ------------------ */
 
 function startOfToday() {
   const d = new Date();
@@ -261,14 +256,11 @@ function fmtDayMon(d) {
     "JAN","FEB","MAR","APR","MAY","JUN",
     "JUL","AUG","SEP","OCT","NOV","DEC"
   ];
-  return {
-    day: String(d.getDate()).padStart(2, "0"),
-    mon: months[d.getMonth()],
-  };
+  return { day: String(d.getDate()).padStart(2, "0"), mon: months[d.getMonth()] };
 }
 function getDow(d, lang) {
-  const en = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const th = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+  const en = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const th = ["อา.","จ.","อ.","พ.","พฤ.","ศ.","ส."];
   return lang === "th" ? th[d.getDay()] : en[d.getDay()];
 }
 function fmtMoney(n) {
@@ -287,22 +279,17 @@ function getDowStyleByRuleVivid(d) {
   return { background: "#e2d0f5", borderColor: "#8b5cf6", color: "#752cf4" };
 }
 function getLightFromVivid(vivid) {
-  return {
-    background: vivid.background + "55",
-    borderColor: vivid.borderColor + "88",
-  };
+  return { background: vivid.background + "55", borderColor: vivid.borderColor + "88" };
 }
 function toast(msg) {
   const el = document.getElementById("dn_toast");
   if (!el) return;
   el.textContent = msg;
   el.style.opacity = "1";
-  setTimeout(() => {
-    el.style.opacity = "0";
-  }, 1200);
+  setTimeout(() => (el.style.opacity = "0"), 1200);
 }
 
-/* styles */
+/* ------------------ styles ------------------ */
 
 const styles = {
   wrap: {
@@ -313,12 +300,14 @@ const styles = {
     padding: "10px 12px 14px",
   },
 
+  /* ✅ ACTION BUTTONS ON TOP */
   actionRowTop: {
     display: "flex",
     gap: 10,
     marginBottom: 10,
   },
 
+  /* ✅ Professional buttons */
   actionBtn: {
     flex: 1,
     height: 36,
@@ -332,23 +321,10 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.15s ease",
   },
-
-  viewBtnIdle: {
-    background: "#FFFFFF",
-    border: "1px solid #C7D9FF",
-    color: "#1E40AF",
-  },
-
-  viewBtnHighlight: {
+  viewBtn: {
     background: "#EAF2FF",
     border: "1px solid #C7D9FF",
     color: "#1E40AF",
-  },
-
-  viewBtnActive: {
-    background: "#2563EB",
-    border: "1px solid #2563EB",
-    color: "#FFFFFF",
   },
 
   navRow: {
@@ -359,6 +335,7 @@ const styles = {
     padding: "6px 0",
   },
 
+  /* ✅ Light arrow buttons (compact) */
   btn: {
     width: 36,
     height: 32,
@@ -397,10 +374,12 @@ const styles = {
     gap: 10,
   },
 
+  /* ✅ Date reduced to ~60% (size + boldness) */
   bigDate: { display: "flex", gap: 5, alignItems: "baseline" },
   dayNum: { fontWeight: 600, fontSize: 18, color: "#0F172A" },
   monTxt: { fontWeight: 600, fontSize: 16, color: "#0F172A" },
 
+  /* ✅ DOW rectangle, tiny corner */
   dowPill: {
     padding: "2px 8px",
     borderRadius: 3,

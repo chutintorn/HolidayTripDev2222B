@@ -13,7 +13,7 @@ import {
 /* ========================= PNG icons (Vite-safe) ========================= */
 const mealImg = new URL("../assets/anc_meal.png", import.meta.url).href;
 const drinkImg = new URL("../assets/anc_drinks.png", import.meta.url).href;
-const ICON_CLASS = "w-20 h-20 object-contain";
+const ICON_CLASS = "w-20 h-20 object-contain"; // small & clean
 
 /* ========================= Helpers ========================= */
 function normalize(v) {
@@ -110,26 +110,15 @@ function pickAirlinesFromRawDetail(rawDetail) {
   if (Array.isArray(rawDetail?.detail?.data?.airlines)) return rawDetail.detail.data.airlines;
   if (Array.isArray(rawDetail?.detail?.data?.data?.airlines)) return rawDetail.detail.data.data.airlines;
   if (Array.isArray(rawDetail?.detail?.airlines)) return rawDetail.detail.airlines;
-
-  // ✅ support split-leg response shape too
-  const legs = rawDetail?.legs;
-  if (Array.isArray(legs)) {
-    const merged = [];
-    for (const leg of legs) {
-      const al = leg?.data?.airlines;
-      if (Array.isArray(al)) merged.push(...al);
-    }
-    return merged;
-  }
-
   return [];
 }
 
 function isMealCode(code) {
   const c = normalize(code);
-  return /^MH\d{1,2}$/.test(c) || /^MS\d{1,2}$/.test(c);
+  return /^MH\d{2}$/.test(c) || /^MS\d{2}$/.test(c);
 }
 
+// ✅ support BEV1/BEV2 and BEV10..BEV99
 function isBeverageCode(code) {
   const c = normalize(code);
   return /^BEV\d{1,2}$/.test(c);
@@ -206,43 +195,23 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
   const canConfirm = !!journeyKey && changed;
   const canRelease = !!journeyKey && draft != null;
 
-  // ✅ robust service lookup
+  // ✅ robust services filter: use service.flightNumber
   const servicesForFlight = useMemo(() => {
-    const normFlight = normalize(flightNo);
-    if (!normFlight) return { meals: [], bevs: [] };
+    if (!flightNo) return { meals: [], bevs: [] };
 
-    // 1) best match: airline owning this flight in travelInfos
-    const activeAirline = airlines.find((a) => {
-      const infos = Array.isArray(a?.travelInfos) ? a.travelInfos : [];
-      return infos.some((ti) => normalize(ti?.flightNumber) === normFlight);
-    });
+    const all = [];
+    for (const a of airlines) {
+      const services = Array.isArray(a?.availableExtraServices) ? a.availableExtraServices : [];
+      for (const s of services) all.push(s);
+    }
 
-    const airlineServices = Array.isArray(activeAirline?.availableExtraServices)
-      ? activeAirline.availableExtraServices
-      : [];
-
-    // 2) fallback: match from all services by service.flightNumber
-    const allServices = airlines.flatMap((a) =>
-      Array.isArray(a?.availableExtraServices) ? a.availableExtraServices : []
-    );
-
-    const matchedByServiceFlight = allServices.filter(
-      (s) => normalize(s?.flightNumber) === normFlight
-    );
-
-    // 3) final fallback: use all services if API omitted flightNumber
-    const source =
-      airlineServices.length > 0
-        ? airlineServices
-        : matchedByServiceFlight.length > 0
-        ? matchedByServiceFlight
-        : allServices;
-
-    const meals = source.filter((s) => isMealCode(s?.ssrCode));
-    const bevs = source.filter((s) => isBeverageCode(s?.ssrCode));
-
+    const byFlight = all.filter((s) => normalize(s?.flightNumber) === normalize(flightNo));
+    const meals = byFlight.filter((s) => isMealCode(s?.ssrCode));
+    const bevs = byFlight.filter((s) => isBeverageCode(s?.ssrCode));
     return { meals, bevs };
   }, [airlines, flightNo]);
+
+  const routeLine = `${route.origin || "—"}-${route.destination || "—"} · ${flightNo || "—"} · ${dateShort || ""}`;
 
   function RadioRow({ svc, group, checked, onPick }) {
     const ssr = normalize(svc?.ssrCode);
@@ -283,12 +252,14 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        {/* ✅ Header: title only (no duplicate Meal/Hint) */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="font-extrabold text-slate-900">{t?.mealLabel ?? "Meal"}</div>
           </div>
         </div>
 
+        {/* ✅ Depart/Return tabs: SAME STYLE as baggage (left, under header) */}
         {legs.length <= 1 ? null : (
           <div className="mt-2 flex gap-2">
             {legs.map((l) => {
@@ -312,6 +283,7 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
           </div>
         )}
 
+        {/* Flight/date pill row */}
         <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="text-sm font-extrabold text-slate-900">
@@ -335,6 +307,7 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
           </div>
         </div>
 
+        {/* ✅ Confirmed/Selecting row + buttons on SAME LINE (like baggage) */}
         <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="text-[12px] text-slate-700 font-semibold">
@@ -387,8 +360,9 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
           </div>
         </div>
 
-        {/* Group 1: MEAL */}
+        {/* Group 1: MEAL (MH/MS) */}
         <div className="mt-4 space-y-2">
+          {/* ✅ add icon only */}
           <div className="flex items-center gap-2">
             <img src={mealImg} alt="Meal" className={ICON_CLASS} />
             <div className="text-[11px] font-bold text-slate-600">
@@ -396,6 +370,7 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
             </div>
           </div>
 
+          {/* None meal */}
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2 cursor-pointer hover:border-sky-300">
             <input
               type="radio"
@@ -405,17 +380,15 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
               onChange={() => dispatch(setDraftMealRadio({ paxId, journeyKey, service: null }))}
             />
             <div className="min-w-0 flex-1">
-              <div className="font-extrabold text-slate-900 text-[13px]">
-                {t?.noMeal ?? "No meal"}
-              </div>
+              <div className="font-extrabold text-slate-900 text-[13px]">{t?.noMeal ?? "No meal"}</div>
             </div>
           </label>
 
           {servicesForFlight.meals.length ? (
             <div className="space-y-2">
-              {servicesForFlight.meals.map((svc, idx) => (
+              {servicesForFlight.meals.map((svc) => (
                 <RadioRow
-                  key={`${serviceKey(svc)}-${idx}`}
+                  key={serviceKey(svc) || `${svc?.ssrCode}-${svc?.amount}-${svc?.currency}`}
                   svc={svc}
                   group="MEAL"
                   checked={normalize(uiMeal?.ssrCode) === normalize(svc?.ssrCode)}
@@ -430,6 +403,7 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
 
         {/* Group 2: BEV */}
         <div className="mt-5 space-y-2">
+          {/* ✅ add icon only */}
           <div className="flex items-center gap-2">
             <img src={drinkImg} alt="Drink" className={ICON_CLASS} />
             <div className="text-[11px] font-bold text-slate-600">
@@ -437,6 +411,7 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
             </div>
           </div>
 
+          {/* None bev */}
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2 cursor-pointer hover:border-sky-300">
             <input
               type="radio"
@@ -446,23 +421,19 @@ export default function MealPanel({ paxId, selectedOffers = [], rawDetail, t }) 
               onChange={() => dispatch(setDraftBeverageRadio({ paxId, journeyKey, service: null }))}
             />
             <div className="min-w-0 flex-1">
-              <div className="font-extrabold text-slate-900 text-[13px]">
-                {t?.noBev ?? "No beverage"}
-              </div>
+              <div className="font-extrabold text-slate-900 text-[13px]">{t?.noBev ?? "No beverage"}</div>
             </div>
           </label>
 
           {servicesForFlight.bevs.length ? (
             <div className="space-y-2">
-              {servicesForFlight.bevs.map((svc, idx) => (
+              {servicesForFlight.bevs.map((svc) => (
                 <RadioRow
-                  key={`${serviceKey(svc)}-${idx}`}
+                  key={serviceKey(svc) || `${svc?.ssrCode}-${svc?.amount}-${svc?.currency}`}
                   svc={svc}
                   group="BEV"
                   checked={normalize(uiBev?.ssrCode) === normalize(svc?.ssrCode)}
-                  onPick={() =>
-                    dispatch(setDraftBeverageRadio({ paxId, journeyKey, service: svc }))
-                  }
+                  onPick={() => dispatch(setDraftBeverageRadio({ paxId, journeyKey, service: svc }))}
                 />
               ))}
             </div>
