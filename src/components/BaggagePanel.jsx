@@ -20,7 +20,7 @@ const specialBaggageImg = new URL(
 // ✅ icon size ~250% (32px -> 80px)
 const ICON_CLASS_250 = "w-20 h-20 object-contain";
 
-// ✅ make PNG “stronger” WITHOUT shadow (shadow makes gray background look stronger)
+// ✅ make PNG “stronger” WITHOUT shadow
 const ICON_FILTER = "brightness-90 contrast-150 saturate-150";
 
 /* ========================= Helpers (match SeatMapPanel style) ========================= */
@@ -59,7 +59,7 @@ function sanitizeFlightNumber(v) {
 function extractFlightNoFromJourneyKey(journeyKey) {
   const s = String(journeyKey || "").toUpperCase();
   const m =
-    /_([A-Z]{2}\d{2,4})(?=20\d{6})/.exec(s) || // stop before date
+    /_([A-Z]{2}\d{2,4})(?=20\d{6})/.exec(s) ||
     /_([A-Z]{2}\d{2,4})/.exec(s);
   return sanitizeFlightNumber(m ? m[1] : "");
 }
@@ -106,7 +106,7 @@ function formatMoney(x, currency = "THB") {
   }
 }
 
-/* rawDetail can be many shapes (same robustness as your existing) */
+/* rawDetail can be many shapes */
 function pickAirlinesFromRawDetail(rawDetail) {
   if (!rawDetail) return [];
   if (Array.isArray(rawDetail?.airlines)) return rawDetail.airlines;
@@ -152,6 +152,8 @@ export default function BaggagePanel({
   const dispatch = useDispatch();
   const [legIndex, setLegIndex] = useState(0);
 
+  const canClose = typeof onClose === "function";
+
   const airlines = useMemo(() => pickAirlinesFromRawDetail(rawDetail), [rawDetail]);
 
   const legs = useMemo(() => {
@@ -170,14 +172,12 @@ export default function BaggagePanel({
   const journeyKey = activeLeg?.journeyKey || "";
   const flightNo = useMemo(() => extractFlightNoFromJourneyKey(journeyKey), [journeyKey]);
 
-  // ✅ hooks safe
   const draft = useSelector(selectDraftBaggage(paxId, journeyKey));
   const saved = useSelector(selectSavedBaggage(paxId, journeyKey));
 
   const currentDraft = draft || { bg: null, sb: null };
   const currentSaved = saved || { bg: null, sb: null };
 
-  // ✅ show saved when user never touched draft
   const uiBG = draft == null ? currentSaved?.bg : currentDraft?.bg;
   const uiSB = draft == null ? currentSaved?.sb : currentDraft?.sb;
 
@@ -244,7 +244,6 @@ export default function BaggagePanel({
 
     return (
       <div className="flex items-start justify-between gap-2 flex-wrap rounded-xl border border-slate-200 bg-white px-3 py-2">
-        {/* LEFT: Summary */}
         <div className="min-w-[240px]">
           <div className="space-y-2">
             <div>
@@ -287,8 +286,7 @@ export default function BaggagePanel({
           </div>
         </div>
 
-        {/* RIGHT: Buttons */}
-        <div className="flex items-center gap-2 self-center flex-wrap justify-end">
+        <div className="flex items-center gap-2 self-center">
           <button
             type="button"
             onClick={() => dispatch(saveBaggage({ paxId, journeyKey }))}
@@ -346,6 +344,35 @@ export default function BaggagePanel({
 
   return (
     <div className="space-y-3">
+      {/* Panel header with Close button */}
+      <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl border border-slate-200 bg-white px-3 py-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <img
+            src={baggageImg}
+            alt="Baggage"
+            className={`${ICON_CLASS_250} ${ICON_FILTER} bg-transparent p-0 shadow-none rounded-none`}
+          />
+          <div className="min-w-0">
+            <div className="text-base font-extrabold text-slate-900">
+              {t?.baggage ?? (t?.isTH ? "สัมภาระ" : "Baggage")}
+            </div>
+            <div className="text-xs text-slate-500">
+              {t?.bagHint ?? (t?.isTH ? "เลือกน้ำหนักสัมภาระที่ต้องการ" : "Choose your baggage weight")}
+            </div>
+          </div>
+        </div>
+
+        {canClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg font-bold border border-slate-300 bg-white text-slate-700 hover:border-slate-400"
+          >
+            {t?.close ?? (t?.isTH ? "ปิด" : "Close")}
+          </button>
+        ) : null}
+      </div>
+
       {/* Leg toggle */}
       <div className="flex gap-2 flex-wrap">
         {legs.map((l) => {

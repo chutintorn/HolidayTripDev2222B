@@ -46,61 +46,45 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
     [local, onChange]
   );
 
-  const phoneValue = String(local.phone || "").trim();
-  const phoneRequiredErr = !!(showErrors && !phoneValue);
-  const phoneFormatErr =
-    !!(showErrors && phoneValue && !isValidPhone(phoneValue));
-
-  const emailValue = String(local.email || "").trim();
-  const emailRequiredErr = !!(showErrors && !emailValue);
-  const emailFormatErr =
-    !!(showErrors && emailValue && !isValidEmail(emailValue));
-
-  const label = (text) => (
-    <span>
-      {text} <span className="text-red-500">*</span>
-    </span>
-  );
+  const phoneErr = !!(showErrors && !String(local.phone || "").trim());
 
   return (
     <div className="mt-3 bg-slate-100 rounded-xl p-4 border border-slate-300">
       <h3 className="mt-0 text-base font-semibold">
-        {t?.contact || "Contact Information"}
+        {t?.contact || "Contact Information / ข้อมูลติดต่อ"}
       </h3>
 
-      {/* ================= EMAIL FIRST ================= */}
+      {/* ================= EMAIL FIRST : OPTIONAL ================= */}
       <div>
-        <div className="text-xs text-slate-600 mb-1">
-          {label(t?.emailAddress || "E-mail")}
+        <div className="text-xs text-slate-600 mb-1 font-medium">
+          {t?.emailAddress || "E-mail / อีเมล"}{" "}
+          <span className="text-slate-500 font-normal">
+            ({t?.optionalLabel || "Optional / ไม่บังคับ"})
+          </span>
         </div>
+
         <input
           value={local.email}
           onChange={(e) => set("email", e.target.value)}
           placeholder="name@example.com"
-          className={`w-full rounded-lg border px-3 py-2 bg-white ${
-            emailRequiredErr || emailFormatErr
-              ? "border-red-400"
-              : "border-slate-300"
-          }`}
+          className="w-full rounded-lg border px-3 py-2 bg-white border-slate-300"
           inputMode="email"
           autoComplete="email"
         />
-        {emailRequiredErr && (
-          <div className="text-red-600 text-xs mt-1">
-            {t?.required || "Required"}
-          </div>
-        )}
-        {!emailRequiredErr && emailFormatErr && (
-          <div className="text-red-600 text-xs mt-1">
-            {t?.invalidEmail || "Please enter a valid email address"}
-          </div>
-        )}
+
+        <div className="text-[11px] text-slate-500 mt-1">
+          {t?.emailOptionalHint || "Optional / ไม่บังคับ"}
+        </div>
       </div>
 
-      {/* ================= CODE + PHONE SAME LINE ================= */}
+      {/* ================= CODE + PHONE SAME LINE : REQUIRED ================= */}
       <div className="mt-3">
-        <div className="text-xs text-slate-600 mb-1">
-          {label(t?.mobilePhone || "Mobile Phone")}
+        <div className="text-xs text-slate-600 mb-1 font-medium">
+          {t?.mobilePhone || "Mobile Phone / เบอร์โทรศัพท์"}{" "}
+          <span className="text-red-500">*</span>{" "}
+          <span className="text-red-600 font-normal">
+            ({t?.requiredLabel || "Required / จำเป็น"})
+          </span>
         </div>
 
         <div className="flex gap-2">
@@ -119,7 +103,7 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
           <input
             value={local.phone}
             onChange={(e) => set("phone", e.target.value)}
-            placeholder="812345678"
+            placeholder={t?.phonePlaceholder || "8x-xxxxxxx"}
             className={`flex-1 rounded-lg border px-3 py-2 bg-white ${
               phoneRequiredErr || phoneFormatErr
                 ? "border-red-400"
@@ -131,9 +115,10 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
           />
         </div>
 
-        {phoneRequiredErr && (
-          <div className="text-red-600 text-xs mt-1">
-            {t?.required || "Required"}
+        {phoneErr && (
+          <div className="text-red-600 text-xs mt-1 font-medium">
+            {t?.pleaseEnterPhoneInline ||
+              "Please enter phone number / กรุณากรอกหมายเลขโทรศัพท์"}
           </div>
         )}
         {!phoneRequiredErr && phoneFormatErr && (
@@ -150,7 +135,8 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
           checked={!!local.optIn}
           onChange={(e) => set("optIn", e.target.checked)}
         />
-        {t?.acceptPrivacyPolicy || "I accept Privacy Policy"}
+        {t?.acceptPrivacyPolicy ||
+          "I accept Privacy Policy / ฉันยอมรับนโยบายความเป็นส่วนตัว"}
       </label>
     </div>
   );

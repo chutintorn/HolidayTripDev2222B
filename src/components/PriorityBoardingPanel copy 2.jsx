@@ -65,7 +65,7 @@ function parseJourneyKey(journeyKey) {
 function extractFlightNoFromJourneyKey(journeyKey) {
   const s = String(journeyKey || "").toUpperCase();
   const m =
-    /_([A-Z]{2}\d{2,4})(?=20\d{6})/.exec(s) ||
+    /_([A-Z]{2}\d{2,4})(?=20\d{6})/.exec(s) || // stop before date
     /_([A-Z]{2}\d{2,4})/.exec(s);
   return sanitizeFlightNumber(m ? m[1] : "");
 }
@@ -108,6 +108,7 @@ function findPBODFromPricing(rawDetail, flightNumber) {
     for (const s of services) all.push(s);
   }
 
+  // prefer match flightNumber, fallback any PBOD
   const byFlight = fn ? all.filter((s) => sanitizeFlightNumber(s?.flightNumber) === fn) : all;
   const hit =
     byFlight.find((s) => normalize(s?.ssrCode) === "PBOD") ||
@@ -144,13 +145,11 @@ export default function PriorityBoardingPanel({
   rawDetail,
   selectedOffers = [],
   t,
-  onClose,
 }) {
   const dispatch = useDispatch();
   const [activeIdx, setActiveIdx] = useState(0);
 
-  const canClose = typeof onClose === "function";
-
+  // ✅ NEW: always default to Depart when passenger changes
   useEffect(() => {
     setActiveIdx(0);
   }, [paxId]);
@@ -167,8 +166,13 @@ export default function PriorityBoardingPanel({
   const activeLeg = legs[activeIdx] || null;
   const journeyKey = String(activeLeg?.journeyKey || "");
 
+  // ✅ FIX: return leg sometimes has no flightNumber -> fallback from journeyKey
   const flightNumber =
     String(activeLeg?.flightNumber || "") || extractFlightNoFromJourneyKey(journeyKey);
+
+  const label =
+    activeLeg?.label ||
+    (activeIdx === 0 ? (t?.depart ?? "Depart") : (t?.return ?? "Return"));
 
   const offer = useMemo(
     () => findOfferByJourneyKey(selectedOffers, journeyKey),
@@ -194,6 +198,7 @@ export default function PriorityBoardingPanel({
   const draft = useSelector(selectDraftPriorityBoarding(paxId, journeyKey));
   const saved = useSelector(selectSavedPriorityBoarding(paxId, journeyKey));
 
+  // UI uses draft if exists, else saved
   const ui = draft != null ? draft : saved != null ? saved : { pbod: null };
   const uiPBOD = ui?.pbod ?? null;
 
@@ -213,29 +218,15 @@ export default function PriorityBoardingPanel({
 
   return (
     <div className="space-y-3">
-      {/* Header with Close button */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            <img src={priorityImg} alt="Priority" className={ICON_CLASS_200} />
-            <div className="font-extrabold text-slate-900">
-              {t?.priorityLabel ?? "Priority Boarding"}
-            </div>
-          </div>
-
-          {canClose ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg font-bold border border-slate-300 bg-white text-slate-700 hover:border-slate-400"
-            >
-              {t?.close ?? (t?.isTH ? "ปิด" : "Close")}
-            </button>
-          ) : null}
+      {/* ✅ Icon + title (like others) */}
+      <div className="flex items-center gap-3">
+        <img src={priorityImg} alt="Priority" className={ICON_CLASS_200} />
+        <div className="font-extrabold text-slate-900">
+          {t?.priorityLabel ?? "Priority Boarding"}
         </div>
       </div>
 
-      {/* Leg tabs */}
+      {/* ✅ Leg tabs */}
       <div className="flex gap-2 flex-wrap">
         {safeArray(legs).map((leg, idx) => {
           const active = idx === activeIdx;
@@ -257,7 +248,7 @@ export default function PriorityBoardingPanel({
         })}
       </div>
 
-      {/* Flight/date row */}
+      {/* ✅ Flight/date pill row */}
       <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-sm font-extrabold text-slate-900">{routeLine}</div>
@@ -275,7 +266,7 @@ export default function PriorityBoardingPanel({
         </div>
       </div>
 
-      {/* Summary + buttons */}
+      {/* ✅ Summary row (Confirmed / Selecting) + Confirm/Release */}
       <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="text-[12px] text-slate-700 font-semibold">

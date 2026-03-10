@@ -519,8 +519,6 @@ export default function PassengersPanel({
 
                           <div className="w-full">
                             <div className="flex items-center w-full gap-3">
-
-
                               <div className="ml-auto shrink-0">
                                 <button
                                   type="button"
@@ -578,6 +576,12 @@ export default function PassengersPanel({
                                     selectedOffers={selectedOffers}
                                     rawDetail={rawDetail}
                                     t={t}
+                                    onClose={() =>
+                                      setActiveAncByPax?.((prev) => ({
+                                        ...prev,
+                                        [p.id]: null,
+                                      }))
+                                    }
                                   />
                                 </div>
                               ) : activeForThisPax === "meal" ? (
@@ -587,6 +591,12 @@ export default function PassengersPanel({
                                     selectedOffers={selectedOffers}
                                     rawDetail={rawDetail}
                                     t={t}
+                                    onClose={() =>
+                                      setActiveAncByPax?.((prev) => ({
+                                        ...prev,
+                                        [p.id]: null,
+                                      }))
+                                    }
                                   />
                                 </div>
                               ) : activeForThisPax === "pb" ? (
@@ -598,6 +608,13 @@ export default function PassengersPanel({
                                     paxId={p.id}
                                     legs={legsForPB}
                                     rawDetail={rawDetail}
+                                    t={t}
+                                    onClose={() =>
+                                      setActiveAncByPax?.((prev) => ({
+                                        ...prev,
+                                        [p.id]: null,
+                                      }))
+                                    }
                                   />
                                 </div>
                               ) : (
