@@ -48,40 +48,36 @@ function weekdayInfo(dateObj, lang) {
 
   const label = lang === "th" ? namesTH[day] : namesEN[day];
 
-  // Soft colors you requested
   const clsByDay = {
-    1: "bg-yellow-100 text-yellow-900", // Mon
-    2: "bg-pink-100 text-pink-900", // Tue
-    3: "bg-green-100 text-green-900", // Wed
-    4: "bg-orange-100 text-orange-900", // Thu
-    5: "bg-blue-100 text-blue-900", // Fri
-    6: "bg-purple-100 text-purple-900", // Sat
-    0: "bg-red-100 text-red-900", // Sun
+    1: "bg-yellow-100 text-yellow-900",
+    2: "bg-pink-100 text-pink-900",
+    3: "bg-green-100 text-green-900",
+    4: "bg-orange-100 text-orange-900",
+    5: "bg-blue-100 text-blue-900",
+    6: "bg-purple-100 text-purple-900",
+    0: "bg-red-100 text-red-900",
   };
 
   return { label, className: clsByDay[day] || "bg-slate-100 text-slate-900" };
 }
 
-/* ✅ A-Z only, auto uppercase, remove spaces, Thai, numbers, special chars */
-function sanitizeName(value = "") {
-  return String(value)
+/* ========================= Name helpers ========================= */
+function sanitizeEnglishName(value = "") {
+  return String(value || "")
     .toUpperCase()
-    .replace(/\s+/g, "")
     .replace(/[^A-Z]/g, "")
     .slice(0, 30);
+}
+
+function isValidEnglishCapitalName(value = "") {
+  return /^[A-Z]+$/.test(String(value || "").trim());
 }
 
 /**
  * TravellerForm
  * - Validates firstName, lastName, dob (required + real date)
  * - DOB uses 3 dropdowns: DD / MMM / YYYY
- *
- * FIX:
- * - DD shows 01..31 ALWAYS (no filtering by month)
- * - DD selection works even before month/year
- * - Don't reset dd/mm/yyyy from local.dob when local.dob is "" (partial selection)
- * - Validate later (when all 3 selected)
- * - first/last name auto sanitize to A-Z only
+ * - firstName / lastName = A-Z only, uppercase only, max 30 chars
  */
 function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
   const [local, setLocal] = useState(value || {});
@@ -94,7 +90,13 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
 
   const set = useCallback(
     (k, v) => {
-      const next = { ...local, [k]: v };
+      let nextValue = v;
+
+      if (k === "firstName" || k === "lastName") {
+        nextValue = sanitizeEnglishName(v);
+      }
+
+      const next = { ...local, [k]: nextValue };
       setLocal(next);
       onChange?.(next);
     },
@@ -106,7 +108,6 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
     [local]
   );
 
-  // Detect language from t (your page passes STR[lang] as t)
   const lang = useMemo(
     () => (t?.title === "รายละเอียดผู้โดยสาร" ? "th" : "en"),
     [t?.title]
@@ -118,14 +119,8 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
   const [mm, setMm] = useState(dobParts.mm);
   const [yyyy, setYyyy] = useState(dobParts.yyyy);
 
-  /**
-   * ✅ FIX #1: Don't reset dropdowns when local.dob becomes "" due to partial selection.
-   * Only sync from local.dob if it actually has something parseable.
-   */
   useEffect(() => {
     const p = parseDob(local.dob);
-
-    // if local.dob is empty, parseDob returns empty => DON'T override user's dropdown selection
     if (!p.dd && !p.mm && !p.yyyy) return;
 
     setDd(p.dd);
@@ -133,7 +128,6 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
     setYyyy(p.yyyy);
   }, [local.dob]);
 
-  // Month labels
   const months = useMemo(() => {
     const en = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const th = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
@@ -141,10 +135,8 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
     return labels.map((label, idx) => ({ value: pad2(idx + 1), label }));
   }, [lang]);
 
-  // Days list: 01..31 (ALWAYS)
   const days = useMemo(() => Array.from({ length: 31 }, (_, i) => pad2(i + 1)), []);
 
-  // Years (AD stored; Thai shows BE)
   const years = useMemo(() => {
     const now = new Date().getFullYear();
     const start = now - 100;
@@ -157,11 +149,6 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
     return list;
   }, [lang]);
 
-  /**
-   * When dropdown changes, update local.dob as "DD/MM/YYYY"
-   * - If not all selected yet => dobStr = "" (keep same behavior)
-   * - But we prevent the effect above from wiping dropdowns when dobStr is ""
-   */
   const commitDob = useCallback(
     (nextDd, nextMm, nextYyyy) => {
       const all = nextDd && nextMm && nextYyyy;
@@ -171,11 +158,8 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
     [set]
   );
 
-  // Validate DOB immediately when all 3 selected
   useEffect(() => {
-    // Only validate when all selected
     if (!dd || !mm || !yyyy) {
-      // remove invalid date error while selecting
       setErrors((prev) => {
         const next = { ...prev };
         if (next.dob && next.dob !== (t?.required || "Required")) delete next.dob;
@@ -199,7 +183,6 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
     }
   }, [dd, mm, yyyy, t, lang]);
 
-  // Weekday pill (only if valid date)
   const weekdayPill = useMemo(() => {
     if (!isValidDateParts(dd, mm, yyyy)) return null;
     const dt = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
@@ -208,28 +191,43 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
 
   const validate = useCallback(() => {
     const e = {};
+
     ["firstName", "lastName", "dob"].forEach((k) => {
       if (!requiredOk(k)) e[k] = t?.required || "Required";
     });
 
-    // keep invalid date error if it exists
+    const firstName = String(local.firstName || "").trim();
+    const lastName = String(local.lastName || "").trim();
+
+    if (firstName && !isValidEnglishCapitalName(firstName)) {
+      e.firstName = t?.nameEnglishOnly || "Use A-Z only";
+    }
+
+    if (lastName && !isValidEnglishCapitalName(lastName)) {
+      e.lastName = t?.nameEnglishOnly || "Use A-Z only";
+    }
+
+    if (firstName && firstName.length > 30) {
+      e.firstName = t?.max30Chars || "Maximum 30 characters";
+    }
+
+    if (lastName && lastName.length > 30) {
+      e.lastName = t?.max30Chars || "Maximum 30 characters";
+    }
+
     if (errors.dob && errors.dob !== (t?.required || "Required")) {
       e.dob = errors.dob;
     }
 
     setErrors(e);
     return Object.keys(e).length === 0;
-  }, [requiredOk, t?.required, errors.dob]);
+  }, [requiredOk, t?.required, t?.nameEnglishOnly, t?.max30Chars, errors.dob, local.firstName, local.lastName]);
 
   const save = useCallback(() => {
     if (!validate()) return;
     onSave?.(local);
   }, [local, onSave, validate]);
 
-  /**
-   * ✅ FIX #2: DD dropdown must show 01..31 ALWAYS (no filter by month/year)
-   * So we DO NOT use maxDaysInMonth to filter dropdown options.
-   */
   const daysForDropdown = days;
 
   return (
@@ -267,7 +265,8 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
           <input
             placeholder={t?.firstName || "First/Given name"}
             value={local.firstName || ""}
-            onChange={(e) => set("firstName", sanitizeName(e.target.value))}
+            onChange={(e) => set("firstName", e.target.value)}
+            maxLength={30}
             className={`w-full rounded-lg border px-3 py-2 text-sm ${
               errors.firstName ? "border-red-400" : "border-slate-300"
             }`}
@@ -281,7 +280,8 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
           <input
             placeholder={t?.lastName || "Family name/Surname"}
             value={local.lastName || ""}
-            onChange={(e) => set("lastName", sanitizeName(e.target.value))}
+            onChange={(e) => set("lastName", e.target.value)}
+            maxLength={30}
             className={`w-full rounded-lg border px-3 py-2 text-sm ${
               errors.lastName ? "border-red-400" : "border-slate-300"
             }`}
@@ -337,8 +337,6 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
               onChange={(e) => {
                 const v = e.target.value;
                 setMm(v);
-
-                // ✅ Don't clear dd. Just validate later.
                 commitDob(dd, v, yyyy);
               }}
               className={`rounded-lg border px-3 py-2 text-sm bg-white ${
@@ -359,8 +357,6 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
               onChange={(e) => {
                 const v = e.target.value;
                 setYyyy(v);
-
-                // ✅ Don't clear dd. Just validate later.
                 commitDob(dd, mm, v);
               }}
               className={`rounded-lg border px-3 py-2 text-sm bg-white flex-1 ${

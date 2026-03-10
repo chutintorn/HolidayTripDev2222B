@@ -317,6 +317,16 @@ export default function BaggagePanel({
           >
             {hasDraft ? (t?.cancelSelecting ?? t?.cancel ?? "Cancel") : t?.release ?? "Release"}
           </button>
+
+          {onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg font-bold border border-slate-300 bg-white text-slate-700 hover:border-slate-400"
+            >
+              {t?.close ?? "Close"}
+            </button>
+          ) : null}
         </div>
       </div>
     );

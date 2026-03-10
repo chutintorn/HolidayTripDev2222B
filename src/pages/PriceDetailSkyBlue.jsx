@@ -219,6 +219,20 @@ function weekdayTheme(dayIdx) {
   }
 }
 
+/* ========================= Contact validators ========================= */
+function sanitizePhoneDigits(value = "") {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function isValidPhoneNumber(value = "") {
+  const digits = sanitizePhoneDigits(value);
+  return digits.length >= 7 && digits.length <= 15;
+}
+
+function isValidEmailAddress(value = "") {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
 /**
  * Build booking payload supports ROUND-TRIP via selectedOffers[]
  * includes selectedSeat from Redux savedSeats
@@ -635,6 +649,7 @@ export default function PriceDetailSkyBlue() {
   });
   const [showContactErrors, setShowContactErrors] = useState(false);
 
+<<<<<<< HEAD
   const emailTrimmed = useMemo(() => String(contact.email || "").trim(), [contact.email]);
   const phoneTrimmed = useMemo(() => String(contact.phone || "").trim(), [contact.phone]);
 
@@ -649,6 +664,17 @@ export default function PriceDetailSkyBlue() {
     () => travellers.every((p) => isComplete(forms[p.id])) && contactValid,
     [travellers, forms, isComplete, contactValid]
   );
+=======
+  const contactValid = useMemo(() => {
+    const phoneOk = isValidPhoneNumber(contact.phone || "");
+    const emailOk = isValidEmailAddress(contact.email || "");
+    return phoneOk && emailOk;
+  }, [contact.phone, contact.email]);
+
+  const canContinue = useMemo(() => {
+    return travellers.every((p) => isComplete(forms[p.id])) && contactValid;
+  }, [travellers, forms, isComplete, contactValid]);
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
 
   // Add-ons still zero
   const currency = fareSummary?.currency || detail?.currency || "THB";

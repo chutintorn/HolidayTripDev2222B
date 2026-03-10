@@ -2,12 +2,18 @@ import React, { memo, useEffect, useState, useCallback } from "react";
 
 /* phone numeric only */
 function sanitizePhone(value = "") {
-  return String(value).replace(/\D/g, "");
+  return String(value).replace(/\D/g, "").slice(0, 15);
+}
+
+/* phone length validator */
+function isValidPhone(v = "") {
+  const digits = sanitizePhone(v);
+  return digits.length >= 7 && digits.length <= 15;
 }
 
 /* simple email validator */
 function isValidEmail(v = "") {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim());
 }
 
 function ContactInformationBase({ t, value, onChange, showErrors }) {
@@ -20,11 +26,24 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
     setLocal(value || { dialCode: "+66", phone: "", email: "", optIn: false });
   }, [value]);
 
-  const set = useCallback((k, v) => {
-    const next = { ...local, [k]: v };
-    setLocal(next);
-    onChange?.(next);
-  }, [local, onChange]);
+  const set = useCallback(
+    (k, v) => {
+      let nextValue = v;
+
+      if (k === "phone") {
+        nextValue = sanitizePhone(v);
+      }
+
+      if (k === "email") {
+        nextValue = String(v || "").trim();
+      }
+
+      const next = { ...local, [k]: nextValue };
+      setLocal(next);
+      onChange?.(next);
+    },
+    [local, onChange]
+  );
 
   const phoneErr = !!(showErrors && !String(local.phone || "").trim());
 
@@ -102,10 +121,13 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
             onChange={(e) => set("phone", sanitizePhone(e.target.value))}
             placeholder={t?.phonePlaceholder || "8xxxxxxxx"}
             className={`flex-1 rounded-lg border px-3 py-2 bg-white ${
-              phoneErr ? "border-red-400" : "border-slate-300"
+              phoneRequiredErr || phoneFormatErr
+                ? "border-red-400"
+                : "border-slate-300"
             }`}
-            inputMode="tel"
+            inputMode="numeric"
             autoComplete="tel"
+            maxLength={15}
           />
 
         </div>
@@ -116,7 +138,11 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
               "Please enter phone number / กรุณากรอกหมายเลขโทรศัพท์"}
           </div>
         )}
-
+        {!phoneRequiredErr && phoneFormatErr && (
+          <div className="text-red-600 text-xs mt-1">
+            {t?.invalidPhone || "Please enter 7 to 15 digits only"}
+          </div>
+        )}
       </div>
 
       {/* ================= PRIVACY ================= */}

@@ -63,18 +63,15 @@ function seatCodeFromSeatObj(seatObj) {
   if (typeof seatObj === "string") return seatObj;
   const s = seatObj.seatCode || seatObj.seat || seatObj.seatNumber;
   if (s) return String(s);
-  if (seatObj.rowNumber && seatObj.column) {
+  if (seatObj.rowNumber && seatObj.column)
     return `${seatObj.rowNumber}${seatObj.column}`;
-  }
   return "";
 }
 function pillClass(status) {
-  if (status === "confirmed") {
+  if (status === "confirmed")
     return "bg-emerald-100 text-emerald-800 border-emerald-200";
-  }
-  if (status === "selecting") {
+  if (status === "selecting")
     return "bg-amber-100 text-amber-800 border-amber-200";
-  }
   return "bg-slate-100 text-slate-600 border-slate-200";
 }
 function resolveSeatStatus(savedSeat, draftSeat) {
@@ -114,6 +111,11 @@ function resolveMealStatus(savedLeg, draftLeg) {
     status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
   };
 }
+<<<<<<< HEAD
+=======
+
+/* ✅ resolve Priority Boarding (PBOD) */
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
 function resolvePbStatus(savedLeg, draftLeg) {
   const s = normUpper(savedLeg?.pbod?.ssrCode);
   const d = normUpper(draftLeg?.pbod?.ssrCode);
@@ -126,6 +128,11 @@ function resolvePbStatus(savedLeg, draftLeg) {
     status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
   };
 }
+<<<<<<< HEAD
+=======
+
+// ✅ Effective status for leg: confirmed if ANY confirmed, else selecting if ANY selecting, else none
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
 function overallStatusFor(...statuses) {
   const hasConfirmed = statuses.some((s) => s === "confirmed");
   const hasSelecting = statuses.some((s) => s === "selecting");
@@ -197,6 +204,7 @@ export default function PassengersPanel({
     []
   );
 
+<<<<<<< HEAD
   const smoothScrollToPax = useCallback(
     (paxId) => {
       if (typeof window === "undefined") return;
@@ -212,6 +220,20 @@ export default function PassengersPanel({
     },
     [isMobile]
   );
+=======
+  const smoothScrollToPax = useCallback((paxId) => {
+    if (typeof window === "undefined") return;
+    const el = cardRefs.current[paxId];
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const currentY = window.scrollY || 0;
+
+    const OFFSET = isMobile ? 92 : 80;
+    const targetY = Math.max(0, currentY + rect.top - OFFSET);
+    window.scrollTo({ top: targetY, behavior: "smooth" });
+  }, [isMobile]);
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
 
   const findNextPaxIdLoop = useCallback(
     (currentId) => {
@@ -425,11 +447,16 @@ export default function PassengersPanel({
 
               const hasName =
                 (v.firstName && v.firstName.trim()) || (v.lastName && v.lastName.trim());
+<<<<<<< HEAD
 
               const fullName =
                 v.firstName && v.lastName
                   ? `${titleFromForm(v)} ${v.firstName} ${v.lastName}`
                   : "";
+=======
+              const fullName =
+                v.firstName && v.lastName ? `${titleFromForm(v)} ${v.firstName} ${v.lastName}` : "";
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
 
               const showAncillaryForThisPax = p.type !== "INF";
               const activeForThisPax = activeAncByPax?.[p.id] ?? null;
@@ -524,6 +551,11 @@ export default function PassengersPanel({
 
                           <div className="w-full">
                             <div className="flex items-center w-full gap-3">
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
                               <div className="ml-auto shrink-0">
                                 <button
                                   type="button"
@@ -581,12 +613,15 @@ export default function PassengersPanel({
                                     selectedOffers={selectedOffers}
                                     rawDetail={rawDetail}
                                     t={t}
+<<<<<<< HEAD
                                     onClose={() =>
                                       setActiveAncByPax?.((prev) => ({
                                         ...prev,
                                         [p.id]: null,
                                       }))
                                     }
+=======
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
                                   />
                                 </div>
                               ) : activeForThisPax === "meal" ? (
@@ -596,12 +631,15 @@ export default function PassengersPanel({
                                     selectedOffers={selectedOffers}
                                     rawDetail={rawDetail}
                                     t={t}
+<<<<<<< HEAD
                                     onClose={() =>
                                       setActiveAncByPax?.((prev) => ({
                                         ...prev,
                                         [p.id]: null,
                                       }))
                                     }
+=======
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
                                   />
                                 </div>
                               ) : activeForThisPax === "pb" ? (
@@ -613,6 +651,7 @@ export default function PassengersPanel({
                                     paxId={p.id}
                                     legs={legsForPB}
                                     rawDetail={rawDetail}
+<<<<<<< HEAD
                                     t={t}
                                     onClose={() =>
                                       setActiveAncByPax?.((prev) => ({
@@ -620,6 +659,8 @@ export default function PassengersPanel({
                                         [p.id]: null,
                                       }))
                                     }
+=======
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
                                   />
                                 </div>
                               ) : (
@@ -680,8 +721,12 @@ export default function PassengersPanel({
                     {t?.previewSummary || "Preview summary"}
                   </div>
                   <div className="text-xs sm:text-sm text-slate-600">
+<<<<<<< HEAD
                     {t?.previewSummaryHint ||
                       "Green = Saved (confirmed), Amber = Draft (selecting)."}
+=======
+                    {t?.previewSummaryHint || "Green = Saved (confirmed), Amber = Draft (selecting)."}
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
                   </div>
                 </div>
 
@@ -705,17 +750,25 @@ export default function PassengersPanel({
                       : norm(p?.label || p?.name || `Pax ${paxId}`);
 
                   return (
+<<<<<<< HEAD
                     <div
                       key={paxId}
                       className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4"
                     >
+=======
+                    <div key={paxId} className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4">
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
                       <div className="min-w-0">
                         <div className="font-extrabold text-slate-900 truncate">
                           {fullName || `Pax ${paxId}`}
                         </div>
+<<<<<<< HEAD
                         <div className="text-xs text-slate-500">
                           {(p?.type || "").toUpperCase()}
                         </div>
+=======
+                        <div className="text-xs text-slate-500">{(p?.type || "").toUpperCase()}</div>
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
                       </div>
 
                       {legs.length ? (
@@ -747,10 +800,14 @@ export default function PassengersPanel({
                             );
 
                             return (
+<<<<<<< HEAD
                               <div
                                 key={j}
                                 className="border border-slate-200 rounded-2xl bg-slate-50 p-3"
                               >
+=======
+                              <div key={j} className="border border-slate-200 rounded-2xl bg-slate-50 p-3">
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="text-sm font-extrabold text-slate-900">
                                     {leg.label}
@@ -760,11 +817,15 @@ export default function PassengersPanel({
                                       </span>
                                     ) : null}
                                   </div>
+<<<<<<< HEAD
                                   <span
                                     className={`px-2 py-1 rounded-full border text-[11px] ${pillClass(
                                       legStatus
                                     )}`}
                                   >
+=======
+                                  <span className={`px-2 py-1 rounded-full border text-[11px] ${pillClass(legStatus)}`}>
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
                                     {legStatus === "confirmed"
                                       ? t?.confirmed || "Confirmed"
                                       : legStatus === "selecting"
@@ -774,11 +835,15 @@ export default function PassengersPanel({
                                 </div>
 
                                 <div className="mt-3 space-y-2">
+<<<<<<< HEAD
                                   <Row
                                     title={t?.seatLabel || "Seat"}
                                     value={seatRes.value}
                                     status={seatRes.status}
                                   />
+=======
+                                  <Row title={t?.seatLabel || "Seat"} value={seatRes.value} status={seatRes.status} />
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
 
                                   <Row
                                     title={t?.bagLabel || "Baggage"}
@@ -817,4 +882,8 @@ export default function PassengersPanel({
       </div>
     </div>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 7a4bb5b5fb26d4639629a84581ff1427888129e5
