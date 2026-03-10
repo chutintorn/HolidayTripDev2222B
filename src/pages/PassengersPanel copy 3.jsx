@@ -63,18 +63,15 @@ function seatCodeFromSeatObj(seatObj) {
   if (typeof seatObj === "string") return seatObj;
   const s = seatObj.seatCode || seatObj.seat || seatObj.seatNumber;
   if (s) return String(s);
-  if (seatObj.rowNumber && seatObj.column) {
+  if (seatObj.rowNumber && seatObj.column)
     return `${seatObj.rowNumber}${seatObj.column}`;
-  }
   return "";
 }
 function pillClass(status) {
-  if (status === "confirmed") {
+  if (status === "confirmed")
     return "bg-emerald-100 text-emerald-800 border-emerald-200";
-  }
-  if (status === "selecting") {
+  if (status === "selecting")
     return "bg-amber-100 text-amber-800 border-amber-200";
-  }
   return "bg-slate-100 text-slate-600 border-slate-200";
 }
 function resolveSeatStatus(savedSeat, draftSeat) {
@@ -114,6 +111,8 @@ function resolveMealStatus(savedLeg, draftLeg) {
     status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
   };
 }
+
+/* ✅ resolve Priority Boarding (PBOD) */
 function resolvePbStatus(savedLeg, draftLeg) {
   const s = normUpper(savedLeg?.pbod?.ssrCode);
   const d = normUpper(draftLeg?.pbod?.ssrCode);
@@ -126,6 +125,8 @@ function resolvePbStatus(savedLeg, draftLeg) {
     status: savedAny ? "confirmed" : draftAny ? "selecting" : "none",
   };
 }
+
+// ✅ Effective status for leg: confirmed if ANY confirmed, else selecting if ANY selecting, else none
 function overallStatusFor(...statuses) {
   const hasConfirmed = statuses.some((s) => s === "confirmed");
   const hasSelecting = statuses.some((s) => s === "selecting");
@@ -197,21 +198,18 @@ export default function PassengersPanel({
     []
   );
 
-  const smoothScrollToPax = useCallback(
-    (paxId) => {
-      if (typeof window === "undefined") return;
-      const el = cardRefs.current[paxId];
-      if (!el) return;
+  const smoothScrollToPax = useCallback((paxId) => {
+    if (typeof window === "undefined") return;
+    const el = cardRefs.current[paxId];
+    if (!el) return;
 
-      const rect = el.getBoundingClientRect();
-      const currentY = window.scrollY || 0;
+    const rect = el.getBoundingClientRect();
+    const currentY = window.scrollY || 0;
 
-      const OFFSET = isMobile ? 92 : 80;
-      const targetY = Math.max(0, currentY + rect.top - OFFSET);
-      window.scrollTo({ top: targetY, behavior: "smooth" });
-    },
-    [isMobile]
-  );
+    const OFFSET = isMobile ? 92 : 80;
+    const targetY = Math.max(0, currentY + rect.top - OFFSET);
+    window.scrollTo({ top: targetY, behavior: "smooth" });
+  }, [isMobile]);
 
   const findNextPaxIdLoop = useCallback(
     (currentId) => {
@@ -425,11 +423,8 @@ export default function PassengersPanel({
 
               const hasName =
                 (v.firstName && v.firstName.trim()) || (v.lastName && v.lastName.trim());
-
               const fullName =
-                v.firstName && v.lastName
-                  ? `${titleFromForm(v)} ${v.firstName} ${v.lastName}`
-                  : "";
+                v.firstName && v.lastName ? `${titleFromForm(v)} ${v.firstName} ${v.lastName}` : "";
 
               const showAncillaryForThisPax = p.type !== "INF";
               const activeForThisPax = activeAncByPax?.[p.id] ?? null;
@@ -680,8 +675,7 @@ export default function PassengersPanel({
                     {t?.previewSummary || "Preview summary"}
                   </div>
                   <div className="text-xs sm:text-sm text-slate-600">
-                    {t?.previewSummaryHint ||
-                      "Green = Saved (confirmed), Amber = Draft (selecting)."}
+                    {t?.previewSummaryHint || "Green = Saved (confirmed), Amber = Draft (selecting)."}
                   </div>
                 </div>
 
@@ -705,17 +699,12 @@ export default function PassengersPanel({
                       : norm(p?.label || p?.name || `Pax ${paxId}`);
 
                   return (
-                    <div
-                      key={paxId}
-                      className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4"
-                    >
+                    <div key={paxId} className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4">
                       <div className="min-w-0">
                         <div className="font-extrabold text-slate-900 truncate">
                           {fullName || `Pax ${paxId}`}
                         </div>
-                        <div className="text-xs text-slate-500">
-                          {(p?.type || "").toUpperCase()}
-                        </div>
+                        <div className="text-xs text-slate-500">{(p?.type || "").toUpperCase()}</div>
                       </div>
 
                       {legs.length ? (
@@ -747,10 +736,7 @@ export default function PassengersPanel({
                             );
 
                             return (
-                              <div
-                                key={j}
-                                className="border border-slate-200 rounded-2xl bg-slate-50 p-3"
-                              >
+                              <div key={j} className="border border-slate-200 rounded-2xl bg-slate-50 p-3">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="text-sm font-extrabold text-slate-900">
                                     {leg.label}
@@ -760,11 +746,7 @@ export default function PassengersPanel({
                                       </span>
                                     ) : null}
                                   </div>
-                                  <span
-                                    className={`px-2 py-1 rounded-full border text-[11px] ${pillClass(
-                                      legStatus
-                                    )}`}
-                                  >
+                                  <span className={`px-2 py-1 rounded-full border text-[11px] ${pillClass(legStatus)}`}>
                                     {legStatus === "confirmed"
                                       ? t?.confirmed || "Confirmed"
                                       : legStatus === "selecting"
@@ -774,11 +756,7 @@ export default function PassengersPanel({
                                 </div>
 
                                 <div className="mt-3 space-y-2">
-                                  <Row
-                                    title={t?.seatLabel || "Seat"}
-                                    value={seatRes.value}
-                                    status={seatRes.status}
-                                  />
+                                  <Row title={t?.seatLabel || "Seat"} value={seatRes.value} status={seatRes.status} />
 
                                   <Row
                                     title={t?.bagLabel || "Baggage"}

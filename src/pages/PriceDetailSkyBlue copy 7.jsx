@@ -95,11 +95,6 @@ function calcAgeFromDob(isoDob) {
   }
 }
 
-/* ========================= Contact validation helpers ========================= */
-function isValidEmail(v = "") {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
-}
-
 /* ========================= Summary helpers (DOB + Age Years/Months) ========================= */
 function calcAgeYearsMonths(isoDob) {
   try {
@@ -261,6 +256,7 @@ function buildBookingPayload({
         email: v.email || contact?.email || "",
         gender: v.gender === "M" ? "Male" : v.gender === "F" ? "Female" : v.gender,
         nationality: v.nationality || "TH",
+
         flightFareKey: offersArr.map((o) => {
           const jk = o?.journeyKey || "";
           const seat = savedSeats?.[p.id]?.[jk] || null;
@@ -604,9 +600,7 @@ export default function PriceDetailSkyBlue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [travellers.map((x) => x.id).join("|")]);
 
-  const updateForm = useCallback((id, v) => {
-    setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...v } }));
-  }, []);
+  const updateForm = useCallback((id, v) => setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...v } })), []);
 
   // Complete = used for chip + Continue validation only
   const isComplete = useCallback((v) => Boolean(v?.firstName && v?.lastName && v?.dob), []);
@@ -619,36 +613,26 @@ export default function PriceDetailSkyBlue() {
 
   const fmt = useCallback(
     (num, ccy) =>
-      `${Number(num).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })} ${ccy}`,
+      `${Number(num).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${ccy}`,
     []
   );
 
   /* ==== Contact information ==== */
-  const [contact, setContact] = useState({
-    dialCode: "+66",
-    phone: "",
-    email: "",
-    optIn: false,
-  });
+  const [contact, setContact] = useState({ dialCode: "+66", phone: "", email: "", optIn: false });
   const [showContactErrors, setShowContactErrors] = useState(false);
 
-  const emailTrimmed = useMemo(() => String(contact.email || "").trim(), [contact.email]);
-  const phoneTrimmed = useMemo(() => String(contact.phone || "").trim(), [contact.phone]);
-
-  const contactValid = useMemo(() => {
-    const hasPhone = phoneTrimmed.length > 0;
-    const hasEmail = emailTrimmed.length > 0;
-    const emailOk = isValidEmail(emailTrimmed);
-    return hasPhone && hasEmail && emailOk;
-  }, [phoneTrimmed, emailTrimmed]);
-
-  const canContinue = useMemo(
-    () => travellers.every((p) => isComplete(forms[p.id])) && contactValid,
-    [travellers, forms, isComplete, contactValid]
+  // ✅ Email is optional, phone is required
+  const contactValid = useMemo(
+    () => String(contact.phone || "").trim().length > 0,
+    [contact.phone]
   );
+
+  const canContinue = useMemo(() => travellers.every((p) => isComplete(forms[p.id])) && contactValid, [
+    travellers,
+    forms,
+    isComplete,
+    contactValid,
+  ]);
 
   // Add-ons still zero
   const currency = fareSummary?.currency || detail?.currency || "THB";
@@ -797,12 +781,7 @@ export default function PriceDetailSkyBlue() {
       <Modal open={openPriceReq} onClose={() => setOpenPriceReq(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{t.requestPreview} — Price</div>
-          <button
-            onClick={() => setOpenPriceReq(false)}
-            className="text-xl leading-none"
-            aria-label={t.close}
-            title={t.close}
-          >
+          <button onClick={() => setOpenPriceReq(false)} className="text-xl leading-none" aria-label={t.close} title={t.close}>
             ×
           </button>
         </div>
@@ -825,9 +804,7 @@ export default function PriceDetailSkyBlue() {
               </PrettyBlock>
               <div className="h-3" />
               <PrettyBlock title="JSON">
-                <pre className="text-xs overflow-auto">
-                  {JSON.stringify(debug.pricingRequest, null, 2)}
-                </pre>
+                <pre className="text-xs overflow-auto">{JSON.stringify(debug.pricingRequest, null, 2)}</pre>
               </PrettyBlock>
             </>
           ) : (
@@ -839,12 +816,7 @@ export default function PriceDetailSkyBlue() {
       <Modal open={openSeatReq} onClose={() => setOpenSeatReq(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{t.requestPreview} — Seat map</div>
-          <button
-            onClick={() => setOpenSeatReq(false)}
-            className="text-xl leading-none"
-            aria-label={t.close}
-            title={t.close}
-          >
+          <button onClick={() => setOpenSeatReq(false)} className="text-xl leading-none" aria-label={t.close} title={t.close}>
             ×
           </button>
         </div>
@@ -867,9 +839,7 @@ export default function PriceDetailSkyBlue() {
               </PrettyBlock>
               <div className="h-3" />
               <PrettyBlock title="JSON">
-                <pre className="text-xs overflow-auto">
-                  {JSON.stringify(debug.seatRequest, null, 2)}
-                </pre>
+                <pre className="text-xs overflow-auto">{JSON.stringify(debug.seatRequest, null, 2)}</pre>
               </PrettyBlock>
             </>
           ) : (
@@ -881,21 +851,14 @@ export default function PriceDetailSkyBlue() {
       <Modal open={openSeatResp} onClose={() => setOpenSeatResp(false)}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="font-extrabold">{seatRaw ? t.seatRespTitle : t.seatErrorTitle}</div>
-          <button
-            onClick={() => setOpenSeatResp(false)}
-            className="text-xl leading-none"
-            aria-label={t.close}
-            title={t.close}
-          >
+          <button onClick={() => setOpenSeatResp(false)} className="text-xl leading-none" aria-label={t.close} title={t.close}>
             ×
           </button>
         </div>
         <div className="p-4">
           {seatRaw ? (
             <PrettyBlock title="JSON">
-              <pre className="text-xs overflow-auto">
-                {typeof seatRaw === "string" ? seatRaw : JSON.stringify(seatRaw, null, 2)}
-              </pre>
+              <pre className="text-xs overflow-auto">{typeof seatRaw === "string" ? seatRaw : JSON.stringify(seatRaw, null, 2)}</pre>
             </PrettyBlock>
           ) : seatError ? (
             <PrettyBlock title="Error">

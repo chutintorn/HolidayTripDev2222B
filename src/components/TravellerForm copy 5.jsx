@@ -62,15 +62,6 @@ function weekdayInfo(dateObj, lang) {
   return { label, className: clsByDay[day] || "bg-slate-100 text-slate-900" };
 }
 
-/* ✅ A-Z only, auto uppercase, remove spaces, Thai, numbers, special chars */
-function sanitizeName(value = "") {
-  return String(value)
-    .toUpperCase()
-    .replace(/\s+/g, "")
-    .replace(/[^A-Z]/g, "")
-    .slice(0, 30);
-}
-
 /**
  * TravellerForm
  * - Validates firstName, lastName, dob (required + real date)
@@ -81,7 +72,6 @@ function sanitizeName(value = "") {
  * - DD selection works even before month/year
  * - Don't reset dd/mm/yyyy from local.dob when local.dob is "" (partial selection)
  * - Validate later (when all 3 selected)
- * - first/last name auto sanitize to A-Z only
  */
 function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
   const [local, setLocal] = useState(value || {});
@@ -267,7 +257,7 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
           <input
             placeholder={t?.firstName || "First/Given name"}
             value={local.firstName || ""}
-            onChange={(e) => set("firstName", sanitizeName(e.target.value))}
+            onChange={(e) => set("firstName", e.target.value)}
             className={`w-full rounded-lg border px-3 py-2 text-sm ${
               errors.firstName ? "border-red-400" : "border-slate-300"
             }`}
@@ -281,7 +271,7 @@ function TravellerFormBase({ t, value, onChange, onSave, showSave = true }) {
           <input
             placeholder={t?.lastName || "Family name/Surname"}
             value={local.lastName || ""}
-            onChange={(e) => set("lastName", sanitizeName(e.target.value))}
+            onChange={(e) => set("lastName", e.target.value)}
             className={`w-full rounded-lg border px-3 py-2 text-sm ${
               errors.lastName ? "border-red-400" : "border-slate-300"
             }`}

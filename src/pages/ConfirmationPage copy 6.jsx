@@ -1,6 +1,6 @@
 // src/pages/ConfirmationPage.jsx
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import QRCode from "react-qr-code";
 
@@ -363,8 +363,7 @@ function buildFlightLegs({ holdResponse, selectedOffers, lang }) {
       const origin = a?.origin || a?.from || a?.departureAirport || "";
       const destination = a?.destination || a?.to || a?.arrivalAirport || "";
 
-      const depDT =
-        a?.departureDateTime || a?.departureTime || a?.departTime || a?.departure || "";
+      const depDT = a?.departureDateTime || a?.departureTime || a?.departTime || a?.departure || "";
       const arrDT = a?.arrivalDateTime || a?.arrivalTime || a?.arriveTime || a?.arrival || "";
 
       const flightNo =
@@ -426,7 +425,6 @@ function buildFlightLegs({ holdResponse, selectedOffers, lang }) {
 
 /* ========================= page ========================= */
 export default function ConfirmationPage() {
-  const navigate = useNavigate();
   const { state } = useLocation() || {};
 
   const allSavedSeats = useSelector((s) => s?.seatSelection?.saved || {});
@@ -482,9 +480,7 @@ export default function ConfirmationPage() {
   const vatTotal = Number(priceSummary?.vatTotal ?? 0) || 0;
 
   const seatByLeg = Array.isArray(priceSummary?.seatByLeg) ? priceSummary.seatByLeg : [];
-  const seatByPaxByLeg = Array.isArray(priceSummary?.seatByPaxByLeg)
-    ? priceSummary.seatByPaxByLeg
-    : [];
+  const seatByPaxByLeg = Array.isArray(priceSummary?.seatByPaxByLeg) ? priceSummary.seatByPaxByLeg : [];
 
   const reservationCode = useMemo(
     () => getReservationCode(holdResponse, state?.bookingRef),
@@ -578,8 +574,6 @@ export default function ConfirmationPage() {
       viewServices: lang === "th" ? "ดูรายละเอียด" : "View details",
       hideServices: lang === "th" ? "ซ่อนรายละเอียด" : "Hide details",
       savePdf: lang === "th" ? "บันทึกเป็น PDF" : "Save as PDF",
-      runDemoAgain: "Run Demo Again",
-      backToStart: "← Back to start",
     }),
     [lang]
   );
@@ -658,9 +652,7 @@ export default function ConfirmationPage() {
   function InfoBox({ title, children }) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-3 print-break-avoid">
-        <div className="text-[12px] font-extrabold tracking-wide text-slate-700 uppercase">
-          {title}
-        </div>
+        <div className="text-[12px] font-extrabold tracking-wide text-slate-700 uppercase">{title}</div>
         <div className="mt-2">{children}</div>
       </div>
     );
@@ -729,9 +721,7 @@ export default function ConfirmationPage() {
           const reduxCodes = getBaggageFromReduxCodes(allSavedBaggage, paxId, L.journeyKey);
 
           const codes =
-            api.codes && api.codes.length
-              ? api.codes
-              : [reduxCodes.bg, reduxCodes.sb].map(norm).filter(Boolean);
+            api.codes && api.codes.length ? api.codes : [reduxCodes.bg, reduxCodes.sb].map(norm).filter(Boolean);
 
           const text = codes.length ? formatBaggageDisplay(codes, api.nameMap || {}, lang) : "-";
 
@@ -843,13 +833,7 @@ export default function ConfirmationPage() {
 
           return { idx, label: idx === 0 ? t.depart : t.ret, selected };
         })
-      : [
-          {
-            idx: 0,
-            label: t.depart,
-            selected: getPBODFromApiSelected(holdResponse, paxId, 0) || false,
-          },
-        ];
+      : [{ idx: 0, label: t.depart, selected: getPBODFromApiSelected(holdResponse, paxId, 0) || false }];
 
     return (
       <InfoBox title={t.pbodTitle}>
@@ -891,9 +875,7 @@ export default function ConfirmationPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <div className="font-extrabold text-slate-900">
-                        {idx === 0 ? t.depart : t.ret}
-                      </div>
+                      <div className="font-extrabold text-slate-900">{idx === 0 ? t.depart : t.ret}</div>
                       <div className="text-sm font-extrabold text-slate-800">
                         {safeUpper(L.origin) || "---"} → {safeUpper(L.destination) || "---"}
                       </div>
@@ -907,9 +889,7 @@ export default function ConfirmationPage() {
                         <span className="font-extrabold text-slate-900">{L.flightNo}</span>
                       ) : null}
                       {L.dow ? <LegChip text={L.dow} /> : null}
-                      {dateText ? (
-                        <span className="font-semibold text-slate-700">{dateText}</span>
-                      ) : null}
+                      {dateText ? <span className="font-semibold text-slate-700">{dateText}</span> : null}
                     </div>
                   </div>
 
@@ -1020,9 +1000,7 @@ export default function ConfirmationPage() {
                   {seatByLeg.map((lg, idx) => {
                     const legLabel = seatByLeg.length >= 2 ? (idx === 0 ? t.depart : t.ret) : t.depart;
 
-                    const paxLeg = seatByPaxByLeg.find(
-                      (x) => String(x?.journeyKey) === String(lg?.journeyKey)
-                    );
+                    const paxLeg = seatByPaxByLeg.find((x) => String(x?.journeyKey) === String(lg?.journeyKey));
                     const paxItems = Array.isArray(paxLeg?.items) ? paxLeg.items : [];
 
                     return (
@@ -1057,8 +1035,7 @@ export default function ConfirmationPage() {
                                   className="flex items-center justify-between text-[11px]"
                                 >
                                   <div className="text-slate-700">
-                                    Pax {x?.paxId}:{" "}
-                                    <span className="font-extrabold">{x?.seatCode || "-"}</span>
+                                    Pax {x?.paxId}: <span className="font-extrabold">{x?.seatCode || "-"}</span>
                                   </div>
                                   <div className="font-extrabold text-slate-900">
                                     {fmt(Number(x?.total || 0) || 0, x?.currency || currency)}
@@ -1174,9 +1151,7 @@ export default function ConfirmationPage() {
               onClick={() => setLang("th")}
               className={
                 "px-4 py-2 rounded-lg border text-sm font-extrabold " +
-                (lang === "th"
-                  ? "bg-sky-600 border-sky-600 text-white"
-                  : "bg-white border-sky-400 text-sky-800")
+                (lang === "th" ? "bg-sky-600 border-sky-600 text-white" : "bg-white border-sky-400 text-sky-800")
               }
             >
               ไทย
@@ -1185,9 +1160,7 @@ export default function ConfirmationPage() {
               onClick={() => setLang("en")}
               className={
                 "px-4 py-2 rounded-lg border text-sm font-extrabold " +
-                (lang === "en"
-                  ? "bg-sky-600 border-sky-600 text-white"
-                  : "bg-white border-sky-400 text-sky-800")
+                (lang === "en" ? "bg-sky-600 border-sky-600 text-white" : "bg-white border-sky-400 text-sky-800")
               }
             >
               English
@@ -1201,20 +1174,6 @@ export default function ConfirmationPage() {
         ref={printRootRef}
         className="max-w-[1180px] mx-auto px-3 sm:px-4 py-5 print-full-width"
       >
-        <div className="mb-4 no-print">
-          <div className="flex flex-col sm:flex-row gap-3">
-            
-
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="w-full sm:w-auto px-4 py-3 rounded-full border border-sky-200 bg-sky-50 text-sky-700 text-sm font-extrabold hover:bg-sky-100 transition"
-            >
-              ⟳ {t.runDemoAgain}
-            </button>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,60%)_minmax(0,40%)] gap-4">
           {/* LEFT */}
           <div className="space-y-4">
@@ -1229,9 +1188,7 @@ export default function ConfirmationPage() {
               </div>
 
               <div className="mt-4">
-                <div className="text-xs font-bold text-slate-600 tracking-wide uppercase">
-                  {t.reservation}
-                </div>
+                <div className="text-xs font-bold text-slate-600 tracking-wide uppercase">{t.reservation}</div>
                 <div className="mt-1 font-mono font-extrabold text-slate-900 text-4xl tracking-tight break-all">
                   {reservationCode}
                 </div>
@@ -1241,9 +1198,7 @@ export default function ConfirmationPage() {
                 <span
                   className={
                     "px-3 py-1 rounded-full border font-extrabold text-sm " +
-                    (ok
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                      : "bg-rose-50 border-rose-200 text-rose-700")
+                    (ok ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-rose-50 border-rose-200 text-rose-700")
                   }
                 >
                   {ok ? t.holdOk : t.holdFail}
@@ -1284,34 +1239,21 @@ export default function ConfirmationPage() {
                   {passengerInfos.map((p, i) => {
                     const paxId = p?.paxNumber ?? p?.paxNo ?? p?.pax ?? i + 1;
                     const fullName = `${safeUpper(p.title)} ${p.firstName || ""} ${p.lastName || ""}`.trim();
-                    const g =
-                      genderLabel(p?.gender) ||
-                      genderLabel(p?.sex) ||
-                      genderLabel(p?.genderCode) ||
-                      "";
+                    const g = genderLabel(p?.gender) || genderLabel(p?.sex) || genderLabel(p?.genderCode) || "";
 
                     return (
-                      <div
-                        key={String(paxId)}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4 print-break-avoid"
-                      >
+                      <div key={String(paxId)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 print-break-avoid">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="font-extrabold text-slate-900 truncate">
                               {fullName || "-"}
-                              <span className="ml-2 text-xs font-bold text-slate-500">
-                                #{paxId}
-                              </span>
+                              <span className="ml-2 text-xs font-bold text-slate-500">#{paxId}</span>
                             </div>
 
                             <div className="text-sm text-slate-600 mt-1">
-                              <span className="font-semibold text-slate-800">
-                                {p.passengerType || "-"}
-                              </span>
+                              <span className="font-semibold text-slate-800">{p.passengerType || "-"}</span>
                               {g ? <span className="text-slate-400">{"  •  "}</span> : null}
-                              {g ? (
-                                <span className="font-semibold text-slate-800">{g}</span>
-                              ) : null}
+                              {g ? <span className="font-semibold text-slate-800">{g}</span> : null}
                             </div>
                           </div>
 
@@ -1365,9 +1307,7 @@ export default function ConfirmationPage() {
                   onClick={() => setPayMethod("card")}
                   className={
                     "px-3 py-2 rounded-xl border text-sm font-extrabold " +
-                    (payMethod === "card"
-                      ? "bg-sky-600 border-sky-600 text-white"
-                      : "bg-white border-slate-300 text-slate-700")
+                    (payMethod === "card" ? "bg-sky-600 border-sky-600 text-white" : "bg-white border-slate-300 text-slate-700")
                   }
                 >
                   {t.card}
@@ -1377,9 +1317,7 @@ export default function ConfirmationPage() {
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-slate-700 font-bold">{t.amountToPay}</div>
-                  <div className="text-lg sm:text-xl font-extrabold text-sky-700 text-right">
-                    {fmt(tripTotal)}
-                  </div>
+                  <div className="text-lg sm:text-xl font-extrabold text-sky-700 text-right">{fmt(tripTotal)}</div>
                 </div>
                 <div className="mt-1 text-xs text-slate-500">{t.demoDisabled}</div>
               </div>
@@ -1395,9 +1333,7 @@ export default function ConfirmationPage() {
 
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-slate-500">{t.qrAmount}</div>
-                      <div className="mt-1 text-sm font-extrabold text-slate-800">
-                        {Number(tripTotal || 0).toFixed(2)}
-                      </div>
+                      <div className="mt-1 text-sm font-extrabold text-slate-800">{Number(tripTotal || 0).toFixed(2)}</div>
 
                       <button
                         onClick={() => copy(qrAmountOnly)}
@@ -1414,44 +1350,26 @@ export default function ConfirmationPage() {
 
               {payMethod === "card" ? (
                 <div className="mt-4 border border-slate-200 rounded-2xl p-3 no-print">
-                  <div className="text-sm font-extrabold text-slate-800">
-                    {lang === "th" ? "กรอกรายละเอียดบัตร" : "Enter card details"}
-                  </div>
+                  <div className="text-sm font-extrabold text-slate-800">{lang === "th" ? "กรอกรายละเอียดบัตร" : "Enter card details"}</div>
                   <div className="mt-3 space-y-2">
-                    <input
-                      className="w-full border rounded-xl p-2"
-                      placeholder={lang === "th" ? "ชื่อบนบัตร" : "Name on card"}
-                    />
-                    <input
-                      className="w-full border rounded-xl p-2"
-                      placeholder={lang === "th" ? "หมายเลขบัตร" : "Card number"}
-                    />
+                    <input className="w-full border rounded-xl p-2" placeholder={lang === "th" ? "ชื่อบนบัตร" : "Name on card"} />
+                    <input className="w-full border rounded-xl p-2" placeholder={lang === "th" ? "หมายเลขบัตร" : "Card number"} />
                     <div className="grid grid-cols-2 gap-2">
                       <input className="w-full border rounded-xl p-2" placeholder="MM/YY" />
                       <input className="w-full border rounded-xl p-2" placeholder="CVV" />
                     </div>
-                    <button
-                      disabled
-                      className="w-full px-4 py-3 rounded-xl bg-slate-300 text-white font-extrabold cursor-not-allowed"
-                    >
+                    <button disabled className="w-full px-4 py-3 rounded-xl bg-slate-300 text-white font-extrabold cursor-not-allowed">
                       {lang === "th" ? "ชำระเงิน" : "Pay now"}
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="mt-4 border border-slate-200 rounded-2xl p-3 no-print">
-                  <div className="text-sm font-extrabold text-slate-800">
-                    {lang === "th" ? "สแกน QR สำหรับชำระเงิน" : "Scan QR for payment"}
-                  </div>
+                  <div className="text-sm font-extrabold text-slate-800">{lang === "th" ? "สแกน QR สำหรับชำระเงิน" : "Scan QR for payment"}</div>
                   <div className="mt-3 text-xs text-slate-600">
-                    {lang === "th"
-                      ? "เดโม: QR แสดงเฉพาะตอนเลือกเคาน์เตอร์/QR"
-                      : "Demo: QR shows only when Counter/QR is selected."}
+                    {lang === "th" ? "เดโม: QR แสดงเฉพาะตอนเลือกเคาน์เตอร์/QR" : "Demo: QR shows only when Counter/QR is selected."}
                   </div>
-                  <button
-                    disabled
-                    className="mt-3 w-full px-4 py-3 rounded-xl bg-slate-300 text-white font-extrabold cursor-not-allowed"
-                  >
+                  <button disabled className="mt-3 w-full px-4 py-3 rounded-xl bg-slate-300 text-white font-extrabold cursor-not-allowed">
                     {lang === "th" ? "ชำระเงิน" : "Pay now"}
                   </button>
                 </div>
