@@ -214,20 +214,6 @@ function weekdayTheme(dayIdx) {
   }
 }
 
-/* ========================= Contact validators ========================= */
-function sanitizePhoneDigits(value = "") {
-  return String(value || "").replace(/\D/g, "");
-}
-
-function isValidPhoneNumber(value = "") {
-  const digits = sanitizePhoneDigits(value);
-  return digits.length >= 7 && digits.length <= 15;
-}
-
-function isValidEmailAddress(value = "") {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
-}
-
 /**
  * Build booking payload supports ROUND-TRIP via selectedOffers[]
  * includes selectedSeat from Redux savedSeats
@@ -634,16 +620,14 @@ export default function PriceDetailSkyBlue() {
   /* ==== Contact information ==== */
   const [contact, setContact] = useState({ dialCode: "+66", phone: "", email: "", optIn: false });
   const [showContactErrors, setShowContactErrors] = useState(false);
+  const contactValid = useMemo(() => contact.phone.trim() && contact.email.trim(), [contact.phone, contact.email]);
 
-  const contactValid = useMemo(() => {
-    const phoneOk = isValidPhoneNumber(contact.phone || "");
-    const emailOk = isValidEmailAddress(contact.email || "");
-    return phoneOk && emailOk;
-  }, [contact.phone, contact.email]);
-
-  const canContinue = useMemo(() => {
-    return travellers.every((p) => isComplete(forms[p.id])) && contactValid;
-  }, [travellers, forms, isComplete, contactValid]);
+  const canContinue = useMemo(() => travellers.every((p) => isComplete(forms[p.id])) && contactValid, [
+    travellers,
+    forms,
+    isComplete,
+    contactValid,
+  ]);
 
   // Add-ons still zero
   const currency = fareSummary?.currency || detail?.currency || "THB";
@@ -748,7 +732,7 @@ export default function PriceDetailSkyBlue() {
               setContact={setContact}
               showContactErrors={showContactErrors}
               selectedOffers={selectedOffers}
-              rawDetail={rawDetail}
+              rawDetail={rawDetail} // ✅ IMPORTANT for BaggagePanel
             />
           </div>
 

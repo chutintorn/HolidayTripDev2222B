@@ -142,13 +142,7 @@ function hasAnySelection(x) {
 }
 
 /* ========================= Component ========================= */
-export default function BaggagePanel({
-  paxId,
-  selectedOffers = [],
-  rawDetail,
-  t,
-  onClose,
-}) {
+export default function BaggagePanel({ paxId, selectedOffers = [], rawDetail, t }) {
   const dispatch = useDispatch();
   const [legIndex, setLegIndex] = useState(0);
 
@@ -228,6 +222,7 @@ export default function BaggagePanel({
     const selectingBG = uiBG?.ssrCode ? normalize(uiBG.ssrCode) : "-";
     const selectingSB = uiSB?.ssrCode ? normalize(uiSB.ssrCode) : "-";
 
+    // ✅ NEW: line-by-line summary rows (Confirmed / Selecting)
     const Row = ({ label, value, tone }) => (
       <div className="flex items-center gap-2 text-[13px] leading-snug">
         <span className="text-slate-600 font-semibold w-[86px]">{label}</span>
@@ -244,9 +239,10 @@ export default function BaggagePanel({
 
     return (
       <div className="flex items-start justify-between gap-2 flex-wrap rounded-xl border border-slate-200 bg-white px-3 py-2">
-        {/* LEFT: Summary */}
+        {/* LEFT: Summary (line-by-line) */}
         <div className="min-w-[240px]">
           <div className="space-y-2">
+            {/* Confirmed */}
             <div>
               <div className="text-[12px] font-extrabold text-slate-700">
                 {t?.confirmed ?? "Confirmed"}:
@@ -267,6 +263,7 @@ export default function BaggagePanel({
 
             <div className="h-px bg-slate-200" />
 
+            {/* Selecting */}
             <div>
               <div className="text-[12px] font-extrabold text-slate-700">
                 {t?.selecting ?? "Selecting"}:
@@ -288,7 +285,7 @@ export default function BaggagePanel({
         </div>
 
         {/* RIGHT: Buttons */}
-        <div className="flex items-center gap-2 self-center flex-wrap justify-end">
+        <div className="flex items-center gap-2 self-center">
           <button
             type="button"
             onClick={() => dispatch(saveBaggage({ paxId, journeyKey }))}
@@ -319,16 +316,6 @@ export default function BaggagePanel({
           >
             {hasDraft ? (t?.cancelSelecting ?? t?.cancel ?? "Cancel") : t?.release ?? "Release"}
           </button>
-
-          {onClose ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg font-bold border border-slate-300 bg-white text-slate-700 hover:border-slate-400"
-            >
-              {t?.close ?? "Close"}
-            </button>
-          ) : null}
         </div>
       </div>
     );
@@ -398,6 +385,7 @@ export default function BaggagePanel({
 
       {/* BG options */}
       <div className="rounded-xl border border-slate-200 bg-white p-3">
+        {/* ✅ NO gray wrapper around icon */}
         <div className="flex items-center gap-3 mb-2">
           <img
             src={baggageImg}
@@ -415,6 +403,7 @@ export default function BaggagePanel({
         </div>
 
         <div className="space-y-1">
+          {/* None */}
           <label className="flex items-center justify-between gap-3 py-2 px-2 rounded-lg hover:bg-sky-50">
             <div className="flex items-center gap-2 min-w-0">
               <input
@@ -476,6 +465,7 @@ export default function BaggagePanel({
                   <div className="min-w-0">
                     <div className="font-semibold text-slate-900">
                       {s?.description || (t?.checkedBaggage ?? "Baggage")}
+                      {/* ✅ keep code small grey (not in title) */}
                       <span className="ml-2 text-xs text-slate-400 font-bold">{code}</span>
                     </div>
                   </div>
@@ -500,6 +490,7 @@ export default function BaggagePanel({
       {/* SB options */}
       {showSB ? (
         <div className="rounded-xl border border-slate-200 bg-white p-3">
+          {/* ✅ NO gray wrapper around icon */}
           <div className="flex items-center gap-3 mb-2">
             <img
               src={specialBaggageImg}
@@ -596,9 +587,7 @@ export default function BaggagePanel({
             {(servicesForFlight?.sb || []).length === 0 ? (
               <div className="text-xs text-slate-500">
                 {t?.noSbOptions ??
-                  (t?.isTH
-                    ? "เที่ยวบินนี้ไม่มีตัวเลือกสัมภาระพิเศษ"
-                    : "No special baggage options for this flight.")}
+                  (t?.isTH ? "เที่ยวบินนี้ไม่มีตัวเลือกสัมภาระพิเศษ" : "No special baggage options for this flight.")}
               </div>
             ) : null}
           </div>

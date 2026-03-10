@@ -1,22 +1,6 @@
 // src/components/ContactInformation.jsx
 import React, { memo, useEffect, useState, useCallback } from "react";
 
-/* phone numeric only */
-function sanitizePhone(value = "") {
-  return String(value).replace(/\D/g, "").slice(0, 15);
-}
-
-/* phone length validator */
-function isValidPhone(v = "") {
-  const digits = sanitizePhone(v);
-  return digits.length >= 7 && digits.length <= 15;
-}
-
-/* simple email validator */
-function isValidEmail(v = "") {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim());
-}
-
 function ContactInformationBase({ t, value, onChange, showErrors }) {
   const [local, setLocal] = useState(
     value || { dialCode: "+66", phone: "", email: "", optIn: false }
@@ -29,32 +13,15 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
 
   const set = useCallback(
     (k, v) => {
-      let nextValue = v;
-
-      if (k === "phone") {
-        nextValue = sanitizePhone(v);
-      }
-
-      if (k === "email") {
-        nextValue = String(v || "").trim();
-      }
-
-      const next = { ...local, [k]: nextValue };
+      const next = { ...local, [k]: v };
       setLocal(next);
       onChange?.(next);
     },
     [local, onChange]
   );
 
-  const phoneValue = String(local.phone || "").trim();
-  const phoneRequiredErr = !!(showErrors && !phoneValue);
-  const phoneFormatErr =
-    !!(showErrors && phoneValue && !isValidPhone(phoneValue));
-
-  const emailValue = String(local.email || "").trim();
-  const emailRequiredErr = !!(showErrors && !emailValue);
-  const emailFormatErr =
-    !!(showErrors && emailValue && !isValidEmail(emailValue));
+  const phoneErr = !!(showErrors && !String(local.phone || "").trim());
+  const emailErr = !!(showErrors && !String(local.email || "").trim());
 
   const label = (text) => (
     <span>
@@ -63,6 +30,7 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
   );
 
   return (
+    // ✅ KEEP SAME WRAPPER (no scroll change)
     <div className="mt-3 bg-slate-100 rounded-xl p-4 border border-slate-300">
       <h3 className="mt-0 text-base font-semibold">
         {t?.contact || "Contact Information"}
@@ -78,21 +46,14 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
           onChange={(e) => set("email", e.target.value)}
           placeholder="name@example.com"
           className={`w-full rounded-lg border px-3 py-2 bg-white ${
-            emailRequiredErr || emailFormatErr
-              ? "border-red-400"
-              : "border-slate-300"
+            emailErr ? "border-red-400" : "border-slate-300"
           }`}
           inputMode="email"
           autoComplete="email"
         />
-        {emailRequiredErr && (
+        {emailErr && (
           <div className="text-red-600 text-xs mt-1">
             {t?.required || "Required"}
-          </div>
-        )}
-        {!emailRequiredErr && emailFormatErr && (
-          <div className="text-red-600 text-xs mt-1">
-            {t?.invalidEmail || "Please enter a valid email address"}
           </div>
         )}
       </div>
@@ -103,6 +64,7 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
           {label(t?.mobilePhone || "Mobile Phone")}
         </div>
 
+        {/* ✅ ALWAYS SAME LINE */}
         <div className="flex gap-2">
           <select
             value={local.dialCode}
@@ -119,26 +81,18 @@ function ContactInformationBase({ t, value, onChange, showErrors }) {
           <input
             value={local.phone}
             onChange={(e) => set("phone", e.target.value)}
-            placeholder="812345678"
+            placeholder="8x-xxxxxxx"
             className={`flex-1 rounded-lg border px-3 py-2 bg-white ${
-              phoneRequiredErr || phoneFormatErr
-                ? "border-red-400"
-                : "border-slate-300"
+              phoneErr ? "border-red-400" : "border-slate-300"
             }`}
-            inputMode="numeric"
+            inputMode="tel"
             autoComplete="tel"
-            maxLength={15}
           />
         </div>
 
-        {phoneRequiredErr && (
+        {phoneErr && (
           <div className="text-red-600 text-xs mt-1">
             {t?.required || "Required"}
-          </div>
-        )}
-        {!phoneRequiredErr && phoneFormatErr && (
-          <div className="text-red-600 text-xs mt-1">
-            {t?.invalidPhone || "Please enter 7 to 15 digits only"}
           </div>
         )}
       </div>
