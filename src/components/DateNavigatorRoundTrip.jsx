@@ -299,7 +299,7 @@ export default function DateNavigatorRoundTrip({
         aria-label="Minimum price"
       >
         <div style={styles.minLabel}>
-          {lang === "th" ? "ราคาต่ำสุด" : "Minimum price"}
+          {lang === "th" ? "" : "Minimum price"}
         </div>
 
         <div style={styles.minValue}>
