@@ -427,12 +427,11 @@ export default function TripFormBasic({ onSubmit }) {
       <div className="px-[2px] sm:px-4 md:px-5 lg:px-6 xl:px-8 max-w-full lg:max-w-[1180px] xl:max-w-[1240px] mx-auto">
         <form
           onSubmit={handleSubmit}
-          
           className="
             bg-white/90 rounded-2xl shadow-lg
-            px-4 py-2 sm:px-4 md:px-5 lg:px-6
-            md:py-2 lg:py-2
-            space-y-1
+            px-4 py-3 sm:px-4 md:px-5 lg:px-6
+            md:py-4 lg:py-4
+            space-y-3
             text-[13px] sm:text-sm
           "
         >
@@ -470,7 +469,7 @@ export default function TripFormBasic({ onSubmit }) {
 
           <div className="h-0 md:h-[2px]" />
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-y-3 md:gap-y-8 gap-x-3 md:gap-x-3 lg:gap-x-4 xl:gap-x-5 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-y-2 md:gap-y-2 gap-x-3 md:gap-x-3 lg:gap-x-4 xl:gap-x-5 items-center">
             <div className={fromSpan}>
               <AirportSelect
                 value={origin}

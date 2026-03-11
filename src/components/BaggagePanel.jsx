@@ -432,30 +432,6 @@ export default function BaggagePanel({
         </div>
 
         <div className="space-y-1">
-          <label className="flex items-center justify-between gap-3 py-2 px-2 rounded-lg hover:bg-sky-50">
-            <div className="flex items-center gap-2 min-w-0">
-              <input
-                type="radio"
-                name={`bg-${paxId}-${journeyKey}`}
-                checked={!uiBG}
-                onChange={() =>
-                  dispatch(
-                    setDraftBaggage({
-                      paxId,
-                      journeyKey,
-                      kind: "BG",
-                      service: null,
-                    })
-                  )
-                }
-              />
-              <span className="text-slate-700 font-semibold">
-                {t?.noBaggage ?? (t?.isTH ? "ไม่เพิ่มสัมภาระ" : "No baggage")}
-              </span>
-            </div>
-            <span className="text-slate-400 text-sm">—</span>
-          </label>
-
           {(servicesForFlight?.bg || []).map((s) => {
             const code = normalize(s?.ssrCode);
             const checked = normalize(uiBG?.ssrCode) === code;
@@ -505,12 +481,36 @@ export default function BaggagePanel({
             );
           })}
 
-          {(servicesForFlight?.bg || []).length === 0 ? (
+          {(servicesForFlight?.bg || []).length > 0 ? (
+            <label className="flex items-center justify-between gap-3 py-2 px-2 rounded-lg hover:bg-slate-50 border-t border-slate-100 mt-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <input
+                  type="radio"
+                  name={`bg-${paxId}-${journeyKey}`}
+                  checked={!uiBG}
+                  onChange={() =>
+                    dispatch(
+                      setDraftBaggage({
+                        paxId,
+                        journeyKey,
+                        kind: "BG",
+                        service: null,
+                      })
+                    )
+                  }
+                />
+                <span className="text-slate-500 font-semibold">
+                  {t?.notSelected ?? (t?.isTH ? "ยังไม่ได้เลือก" : "Not selected")}
+                </span>
+              </div>
+              <span className="text-slate-400 text-sm">—</span>
+            </label>
+          ) : (
             <div className="text-xs text-slate-500">
               {t?.noBgOptions ??
                 (t?.isTH ? "เที่ยวบินนี้ไม่มีตัวเลือกสัมภาระ" : "No baggage options for this flight.")}
             </div>
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -537,30 +537,6 @@ export default function BaggagePanel({
           </div>
 
           <div className="space-y-1">
-            <label className="flex items-center justify-between gap-3 py-2 px-2 rounded-lg hover:bg-sky-50">
-              <div className="flex items-center gap-2 min-w-0">
-                <input
-                  type="radio"
-                  name={`sb-${paxId}-${journeyKey}`}
-                  checked={!uiSB}
-                  onChange={() =>
-                    dispatch(
-                      setDraftBaggage({
-                        paxId,
-                        journeyKey,
-                        kind: "SB",
-                        service: null,
-                      })
-                    )
-                  }
-                />
-                <span className="text-slate-700 font-semibold">
-                  {t?.none ?? (t?.isTH ? "ไม่เลือก" : "None")}
-                </span>
-              </div>
-              <span className="text-slate-400 text-sm">—</span>
-            </label>
-
             {(servicesForFlight?.sb || []).map((s) => {
               const code = normalize(s?.ssrCode);
               const checked = normalize(uiSB?.ssrCode) === code;
@@ -610,14 +586,38 @@ export default function BaggagePanel({
               );
             })}
 
-            {(servicesForFlight?.sb || []).length === 0 ? (
+            {(servicesForFlight?.sb || []).length > 0 ? (
+              <label className="flex items-center justify-between gap-3 py-2 px-2 rounded-lg hover:bg-slate-50 border-t border-slate-100 mt-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <input
+                    type="radio"
+                    name={`sb-${paxId}-${journeyKey}`}
+                    checked={!uiSB}
+                    onChange={() =>
+                      dispatch(
+                        setDraftBaggage({
+                          paxId,
+                          journeyKey,
+                          kind: "SB",
+                          service: null,
+                        })
+                      )
+                    }
+                  />
+                  <span className="text-slate-500 font-semibold">
+                    {t?.notSelected ?? (t?.isTH ? "ยังไม่ได้เลือก" : "Not selected")}
+                  </span>
+                </div>
+                <span className="text-slate-400 text-sm">—</span>
+              </label>
+            ) : (
               <div className="text-xs text-slate-500">
                 {t?.noSbOptions ??
                   (t?.isTH
                     ? "เที่ยวบินนี้ไม่มีตัวเลือกสัมภาระพิเศษ"
                     : "No special baggage options for this flight.")}
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       ) : null}

@@ -26,12 +26,8 @@ export default function DateNavigatorRoundTrip({
   );
 
   const anchorDepartRef = useRef(toDate(anchorDepart) || startOfToday());
-  const anchorReturnRef = useRef(
-    toDate(anchorReturn) || addDays(startOfToday(), 1)
-  );
-  const gapRef = useRef(
-    calcGapDays(anchorDepartRef.current, anchorReturnRef.current)
-  );
+  const anchorReturnRef = useRef(toDate(anchorReturn) || addDays(startOfToday(), 1));
+  const gapRef = useRef(calcGapDays(anchorDepartRef.current, anchorReturnRef.current));
 
   useEffect(() => {
     const d0 = toDate(anchorDepart);
@@ -40,10 +36,7 @@ export default function DateNavigatorRoundTrip({
     if (d0) anchorDepartRef.current = startOfDay(d0);
     if (r0) anchorReturnRef.current = startOfDay(r0);
 
-    gapRef.current = calcGapDays(
-      anchorDepartRef.current,
-      anchorReturnRef.current
-    );
+    gapRef.current = calcGapDays(anchorDepartRef.current, anchorReturnRef.current);
 
     if (d0) setActiveDepart(startOfDay(d0));
   }, [anchorDepart, anchorReturn]);
@@ -54,10 +47,7 @@ export default function DateNavigatorRoundTrip({
   }, [minDate]);
 
   const gapDays = gapRef.current;
-  const activeReturn = useMemo(
-    () => addDays(activeDepart, gapDays),
-    [activeDepart, gapDays]
-  );
+  const activeReturn = useMemo(() => addDays(activeDepart, gapDays), [activeDepart, gapDays]);
 
   const canGoToDepart = (d) => startOfDay(d) >= minAllowed;
 
@@ -71,15 +61,11 @@ export default function DateNavigatorRoundTrip({
 
     const r = addDays(d, gapDays);
     setActiveDepart(d);
-    if (typeof onNavigate === "function") {
-      onNavigate({ departDate: d, returnDate: r });
-    }
+    if (typeof onNavigate === "function") onNavigate({ departDate: d, returnDate: r });
   };
 
-  const basePrevDayDisabled =
-    isLoading || !canGoToDepart(addDays(activeDepart, -1));
-  const basePrevWeekDisabled =
-    isLoading || !canGoToDepart(addDays(activeDepart, -7));
+  const basePrevDayDisabled = isLoading || !canGoToDepart(addDays(activeDepart, -1));
+  const basePrevWeekDisabled = isLoading || !canGoToDepart(addDays(activeDepart, -7));
 
   const prevDayDisabled = activeTab === "return" ? true : basePrevDayDisabled;
   const prevWeekDisabled = activeTab === "return" ? true : basePrevWeekDisabled;
@@ -107,13 +93,9 @@ export default function DateNavigatorRoundTrip({
 
   // ✅ Sun -> S U N (EN only)
   const departDow =
-    lang === "th"
-      ? departDowRaw
-      : String(departDowRaw).toUpperCase().split("").join(" ");
+    lang === "th" ? departDowRaw : String(departDowRaw).toUpperCase().split("").join(" ");
   const returnDow =
-    lang === "th"
-      ? returnDowRaw
-      : String(returnDowRaw).toUpperCase().split("").join(" ");
+    lang === "th" ? returnDowRaw : String(returnDowRaw).toUpperCase().split("").join(" ");
 
   const departDowStyle = getDowStyleByRuleVivid(activeDepart);
   const returnDowStyle = getDowStyleByRuleVivid(activeReturn);
@@ -139,6 +121,7 @@ export default function DateNavigatorRoundTrip({
 
   return (
     <section style={styles.wrap} aria-label="Date navigator">
+      {/* ✅ TOP ACTIONS (like one-way) */}
       {showTopActions && (
         <div style={styles.actionRowTop}>
           <button
@@ -168,6 +151,7 @@ export default function DateNavigatorRoundTrip({
         </div>
       )}
 
+      {/* NAVIGATION ROW */}
       <div style={styles.navRow}>
         {/* LEFT */}
         <div style={styles.sideLeft}>
@@ -201,6 +185,7 @@ export default function DateNavigatorRoundTrip({
         {/* CENTER */}
         <div style={styles.center} aria-label="Active date">
           <div className="dnrt-lines" style={styles.lines}>
+            {/* depart */}
             <div className="dnrt-line" style={styles.line}>
               <div
                 className="dnrt-date"
@@ -227,6 +212,7 @@ export default function DateNavigatorRoundTrip({
               </span>
             </div>
 
+            {/* return */}
             <div className="dnrt-line" style={styles.line}>
               <div
                 className="dnrt-date"
@@ -303,6 +289,7 @@ export default function DateNavigatorRoundTrip({
         </div>
       </div>
 
+      {/* MINIMUM PRICE */}
       <div
         style={{
           ...styles.minRow,
@@ -332,24 +319,20 @@ function startOfToday() {
   d.setHours(0, 0, 0, 0);
   return d;
 }
-
 function startOfDay(d) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
-
 function addDays(d, n) {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
   x.setHours(0, 0, 0, 0);
   return x;
 }
-
 function toDate(v) {
   if (!v) return null;
   if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-
   if (typeof v === "string") {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim());
     if (!m) return null;
@@ -360,10 +343,8 @@ function toDate(v) {
     d.setHours(0, 0, 0, 0);
     return isNaN(d.getTime()) ? null : d;
   }
-
   return null;
 }
-
 function calcGapDays(depart, ret) {
   const d = startOfDay(depart);
   const r = startOfDay(ret);
@@ -373,65 +354,39 @@ function calcGapDays(depart, ret) {
   // if ret is before depart (negative), clamp to 0 for navigator stability
   return diff >= 0 ? diff : 0;
 }
-
 function fmtDayNum(d) {
   return String(d.getDate()).padStart(2, "0");
 }
-
 function fmtMon3(d) {
-  const months = [
-    "JAN",
-    "FEB",
-    "MAR",
-    "APR",
-    "MAY",
-    "JUN",
-    "JUL",
-    "AUG",
-    "SEP",
-    "OCT",
-    "NOV",
-    "DEC",
-  ];
+  const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   return months[d.getMonth()];
 }
-
 function getDow(d, lang) {
-  const en = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const th = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+  const en = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const th = ["อา.","จ.","อ.","พ.","พฤ.","ศ.","ส."];
   return lang === "th" ? th[d.getDay()] : en[d.getDay()];
 }
-
 function fmtMoney(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return "—";
   return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
-
 function getDowStyleByRuleVivid(d) {
   const day = d.getDay();
-  if (day === 0)
-    return { background: "#edddde", borderColor: "#f58293", color: "#f7084c" };
-  if (day === 1)
-    return { background: "#f1f3e3", borderColor: "#f0ec17", color: "#8a9307" };
-  if (day === 2)
-    return { background: "#f4e5f0", borderColor: "#f62fc1", color: "#d81fd0" };
-  if (day === 3)
-    return { background: "#a9f9d0", borderColor: "#10b981", color: "#0a9a71" };
-  if (day === 4)
-    return { background: "#f5e9d7", borderColor: "#f0954b", color: "#c87905" };
-  if (day === 5)
-    return { background: "#d3e4fa", borderColor: "#3b82f6", color: "#1b6fe6" };
+  if (day === 0) return { background: "#edddde", borderColor: "#f58293", color: "#f7084c" };
+  if (day === 1) return { background: "#f1f3e3", borderColor: "#f0ec17", color: "#8a9307" };
+  if (day === 2) return { background: "#f4e5f0", borderColor: "#f62fc1", color: "#d81fd0" };
+  if (day === 3) return { background: "#a9f9d0", borderColor: "#10b981", color: "#0a9a71" };
+  if (day === 4) return { background: "#f5e9d7", borderColor: "#f0954b", color: "#c87905" };
+  if (day === 5) return { background: "#d3e4fa", borderColor: "#3b82f6", color: "#1b6fe6" };
   return { background: "#e2d0f5", borderColor: "#8b5cf6", color: "#6b28d9" };
 }
-
 function getLightFromVivid(vivid) {
   return {
     background: withAlpha(vivid.background, 0.22),
     borderColor: withAlpha(vivid.borderColor, 0.35),
   };
 }
-
 function withAlpha(hex, alpha) {
   if (typeof hex === "string" && hex.startsWith("#")) {
     const h = hex.replace("#", "");
@@ -445,14 +400,11 @@ function withAlpha(hex, alpha) {
 
 /* ========================= toast ========================= */
 let toastTimer = null;
-
 function toast(msg) {
   const el = document.getElementById("dn_toast_rt");
   if (!el) return;
-
   el.textContent = msg;
   el.style.opacity = "1";
-
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     el.style.opacity = "0";
@@ -460,26 +412,33 @@ function toast(msg) {
 }
 
 /* ========================= styles ========================= */
+/**
+ * เป้าหมาย UX:
+ * - โทนอ่อน ไม่รก
+ * - ลูกศรสีอ่อน (light gray)
+ * - DOW เป็นสี่เหลี่ยมมุมโค้งเล็ก
+ * - วัน/เดือนขนาดเล็กลง (ใกล้ 60%)
+ */
 const styles = {
   wrap: {
-    marginTop: 10,
+    marginTop: 12,
     background: "#ffffff",
     border: "1px solid #e2e8f0",
     borderRadius: 18,
     boxShadow: "0 10px 20px rgba(2,6,23,.08)",
-    padding: "8px 10px 10px",
+    padding: "10px 10px 12px",
     overflow: "hidden",
   },
 
+  // ✅ top actions
   actionRowTop: {
     display: "flex",
     gap: 10,
-    marginBottom: 8,
+    marginBottom: 10,
   },
-
   actionBtn: {
     flex: 1,
-    height: 34,
+    height: 36,
     borderRadius: 12,
     border: "1px solid #E2E8F0",
     background: "#F8FAFC",
@@ -489,85 +448,55 @@ const styles = {
     whiteSpace: "nowrap",
     cursor: "pointer",
   },
-
   viewBtn: {
     background: "#EAF2FF",
     border: "1px solid #C7D9FF",
     color: "#1E40AF",
   },
 
-  btnDisabled: {
-    opacity: 0.55,
-    cursor: "not-allowed",
-  },
-
   navRow: {
     display: "grid",
     gridTemplateColumns: "1fr auto 1fr",
     alignItems: "center",
-    columnGap: 6,
+    columnGap: 8,
     whiteSpace: "nowrap",
-    minHeight: 34,
   },
 
-  sideLeft: {
-    justifySelf: "start",
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-  },
+  sideLeft: { justifySelf: "start", display: "flex", alignItems: "center", gap: 6 },
+  sideRight: { justifySelf: "end", display: "flex", alignItems: "center", gap: 6 },
 
-  sideRight: {
-    justifySelf: "end",
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-  },
-
-  // ✅ arrows 130%
+  // ✅ lighter arrows
   btn: {
-    width: 42,
-    height: 34,
-    borderRadius: 10,
+    width: 40,
+    height: 36,
+    borderRadius: 12,
     border: "1px solid #EEF2F7",
     background: "#fff",
     fontWeight: 900,
     cursor: "pointer",
     userSelect: "none",
-    fontSize: 23,
+    fontSize: 18,
     lineHeight: "1",
     display: "grid",
     placeItems: "center",
     color: "#94A3B8",
-    padding: 0,
   },
-
   resetBtn: {
     background: "#F1F5F9",
     border: "1px solid #E2E8F0",
     color: "#64748B",
-    fontSize: 12,
   },
+  btnDisabled: { opacity: 0.55, cursor: "not-allowed" },
 
-  center: {
-    justifySelf: "center",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  center: { justifySelf: "center", display: "flex", alignItems: "center", justifyContent: "center" },
 
-  lines: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 4,
-  },
+  lines: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6 },
 
   line: {
     display: "grid",
-    gridTemplateColumns: "66px auto",
+    gridTemplateColumns: "68px auto",
     alignItems: "center",
-    columnGap: 6,
+    columnGap: 8,
     justifyContent: "center",
   },
 
@@ -575,19 +504,18 @@ const styles = {
     display: "flex",
     justifyContent: "flex-end",
     alignItems: "baseline",
-    gap: 4,
+    gap: 5,
     whiteSpace: "nowrap",
     color: "rgba(15,23,42,0.78)",
     fontWeight: 400,
     letterSpacing: ".2px",
     fontVariantNumeric: "tabular-nums",
   },
-
   dateWrapBold: {
     display: "flex",
     justifyContent: "flex-end",
     alignItems: "baseline",
-    gap: 4,
+    gap: 5,
     whiteSpace: "nowrap",
     color: "rgba(15,23,42,0.78)",
     fontWeight: 600,
@@ -595,16 +523,16 @@ const styles = {
     fontVariantNumeric: "tabular-nums",
   },
 
+  // ✅ ลดขนาดลง (ใกล้ 60%)
   dayNum: {
-    width: 22,
+    width: 24,
     textAlign: "right",
     fontSize: 13,
     fontWeight: 700,
     color: "rgba(15,23,42,0.88)",
   },
-
   monTxt: {
-    width: 36,
+    width: 38,
     textAlign: "left",
     fontSize: 11,
     fontWeight: 700,
@@ -612,15 +540,16 @@ const styles = {
     color: "rgba(14,165,233,0.95)",
   },
 
+  // ✅ DOW rectangle tiny corner
   dowPill: {
     fontSize: 10,
     fontWeight: 900,
-    padding: "2px 7px",
+    padding: "2px 8px",
     borderRadius: 3,
     border: "1px solid",
     whiteSpace: "nowrap",
     lineHeight: "1",
-    minWidth: 32,
+    minWidth: 34,
     textAlign: "center",
     display: "inline-flex",
     alignItems: "center",
@@ -631,29 +560,17 @@ const styles = {
   slideLeft: { animation: "dnrt_slide_left 220ms ease" },
 
   minRow: {
-    marginTop: 6,
+    marginTop: 10,
     borderRadius: 14,
-    padding: "8px 12px",
+    padding: "10px 12px",
     border: "1px solid transparent",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
   },
-
-  minLabel: {
-    fontSize: 12,
-    color: "rgba(15,23,42,0.70)",
-    fontWeight: 600,
-  },
-
-  minValue: {
-    fontSize: 14,
-    color: "#0b4f8a",
-    fontWeight: 900,
-    whiteSpace: "nowrap",
-  },
-
+  minLabel: { fontSize: 12, color: "rgba(15,23,42,0.70)", fontWeight: 600 },
+  minValue: { fontSize: 14, color: "#0b4f8a", fontWeight: 900, whiteSpace: "nowrap" },
   minChip: {
     marginLeft: 6,
     fontSize: 11,
@@ -666,7 +583,7 @@ const styles = {
   },
 
   toast: {
-    marginTop: 8,
+    marginTop: 10,
     width: "100%",
     textAlign: "center",
     fontSize: 12,
@@ -674,7 +591,7 @@ const styles = {
     color: "#fff",
     background: "rgba(15,23,42,.92)",
     borderRadius: 999,
-    padding: "7px 10px",
+    padding: "8px 10px",
     opacity: 0,
     transition: "opacity 180ms ease",
   },
@@ -683,17 +600,9 @@ const styles = {
 /* ✅ keyframes */
 if (typeof document !== "undefined") {
   const css = `
-    @keyframes dnrt_slide_right {
-      from { transform: translateX(10px); opacity: .6; }
-      to   { transform: translateX(0); opacity: 1; }
-    }
-
-    @keyframes dnrt_slide_left {
-      from { transform: translateX(-10px); opacity: .6; }
-      to   { transform: translateX(0); opacity: 1; }
-    }
+    @keyframes dnrt_slide_right { from { transform: translateX(10px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes dnrt_slide_left  { from { transform: translateX(-10px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
   `;
-
   let styleEl = document.getElementById("dnrt_keyframes");
   if (!styleEl) {
     styleEl = document.createElement("style");

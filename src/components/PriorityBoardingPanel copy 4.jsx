@@ -201,7 +201,7 @@ export default function PriorityBoardingPanel({
 
   const changed = !(samePick(uiPBOD, savedPBOD));
   const canConfirm = !!journeyKey && changed;
-  const canCancel = !!journeyKey && draft != null;
+  const canRelease = !!journeyKey && draft != null;
 
   const vatTotal = useMemo(() => sumVat(pbodService?.vat), [pbodService]);
   const total = Number(pbodService?.amount || 0) || 0;
@@ -306,19 +306,19 @@ export default function PriorityBoardingPanel({
 
             <button
               type="button"
-              disabled={!canCancel}
+              disabled={!canRelease}
               onClick={() => {
                 if (!journeyKey) return;
                 dispatch(clearDraftPriorityBoarding({ paxId, journeyKey }));
               }}
               className={[
                 "px-4 py-2 rounded-lg font-bold border",
-                canCancel
+                canRelease
                   ? "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
                   : "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed",
               ].join(" ")}
             >
-              {t?.cancel ?? "Cancel"}
+              {t?.release ?? "Release"}
             </button>
           </div>
         </div>

@@ -14,10 +14,10 @@ export default function AirportSelect({
 
   // ✅ Keep defaults, but lighter typography & no wrap
   className =
-  "w-full h-9 sm:h-10 rounded-xl sm:rounded-xl " +
-  "border border-slate-200 bg-white " +
-  "px-3 sm:px-3 " +
-  "shadow-sm focus:outline-none focus:ring focus:ring-sky-200/70",
+    "w-full h-12 sm:h-14 rounded-xl sm:rounded-2xl " +
+    "border border-slate-200 bg-white " +
+    "px-3 sm:px-4 " +
+    "shadow-sm focus:outline-none focus:ring focus:ring-sky-200/70",
 
   name,
   id,

@@ -407,6 +407,21 @@ export default function MealPanel({
             </div>
           </div>
 
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2 cursor-pointer hover:border-sky-300">
+            <input
+              type="radio"
+              name={`${String(paxId)}-${journeyKey}-MEAL`}
+              className="mt-1 h-4 w-4 accent-sky-600"
+              checked={!uiMeal}
+              onChange={() => dispatch(setDraftMealRadio({ paxId, journeyKey, service: null }))}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="font-extrabold text-slate-900 text-[13px]">
+                {t?.noMeal ?? "No meal"}
+              </div>
+            </div>
+          </label>
+
           {servicesForFlight.meals.length ? (
             <div className="space-y-2">
               {servicesForFlight.meals.map((svc, idx) => (
@@ -418,23 +433,6 @@ export default function MealPanel({
                   onPick={() => dispatch(setDraftMealRadio({ paxId, journeyKey, service: svc }))}
                 />
               ))}
-
-              <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2 cursor-pointer hover:border-sky-300">
-                <input
-                  type="radio"
-                  name={`${String(paxId)}-${journeyKey}-MEAL`}
-                  className="mt-1 h-4 w-4 accent-sky-600"
-                  checked={!uiMeal}
-                  onChange={() =>
-                    dispatch(setDraftMealRadio({ paxId, journeyKey, service: null }))
-                  }
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="font-extrabold text-slate-900 text-[13px]">
-                    {t?.noMeal ?? "No meal"}
-                  </div>
-                </div>
-              </label>
             </div>
           ) : (
             emptyHint(t?.noMealsForFlight ?? "No MH/MS meals for this flight.")
@@ -450,6 +448,21 @@ export default function MealPanel({
             </div>
           </div>
 
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2 cursor-pointer hover:border-sky-300">
+            <input
+              type="radio"
+              name={`${String(paxId)}-${journeyKey}-BEV`}
+              className="mt-1 h-4 w-4 accent-sky-600"
+              checked={!uiBev}
+              onChange={() => dispatch(setDraftBeverageRadio({ paxId, journeyKey, service: null }))}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="font-extrabold text-slate-900 text-[13px]">
+                {t?.noBev ?? "No beverage"}
+              </div>
+            </div>
+          </label>
+
           {servicesForFlight.bevs.length ? (
             <div className="space-y-2">
               {servicesForFlight.bevs.map((svc, idx) => (
@@ -463,23 +476,6 @@ export default function MealPanel({
                   }
                 />
               ))}
-
-              <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-2 cursor-pointer hover:border-sky-300">
-                <input
-                  type="radio"
-                  name={`${String(paxId)}-${journeyKey}-BEV`}
-                  className="mt-1 h-4 w-4 accent-sky-600"
-                  checked={!uiBev}
-                  onChange={() =>
-                    dispatch(setDraftBeverageRadio({ paxId, journeyKey, service: null }))
-                  }
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="font-extrabold text-slate-900 text-[13px]">
-                    {t?.noDrink ?? t?.noBev ?? "No drink"}
-                  </div>
-                </div>
-              </label>
             </div>
           ) : (
             emptyHint(t?.noBevForFlight ?? "No BEV options for this flight.")

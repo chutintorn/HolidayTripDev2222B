@@ -30,6 +30,7 @@ export default function DateNavigatorOneWay({
   clearDisabled = false,
   viewDisabled = false,
 
+  // ✅ new props
   hasSelection = false,
   isViewActive = false,
 }) {
@@ -81,6 +82,7 @@ export default function DateNavigatorOneWay({
     return getLightFromVivid(getDowStyleByRuleVivid(activeDate));
   }, [activeDate]);
 
+  // ✅ 3-state button style
   const viewBtnStyle = isViewActive
     ? styles.viewBtnActive
     : hasSelection
@@ -89,6 +91,7 @@ export default function DateNavigatorOneWay({
 
   return (
     <section style={styles.wrap} aria-label="Date navigator">
+      {/* ACTION BUTTONS */}
       <div style={styles.actionRowTop}>
         <button
           type="button"
@@ -116,6 +119,7 @@ export default function DateNavigatorOneWay({
         </button>
       </div>
 
+      {/* NAVIGATION ROW */}
       <div style={styles.navRow}>
         <button
           type="button"
@@ -205,6 +209,7 @@ export default function DateNavigatorOneWay({
         </button>
       </div>
 
+      {/* MINIMUM PRICE */}
       <div
         style={{
           ...styles.minRow,
@@ -234,92 +239,65 @@ function startOfToday() {
   d.setHours(0, 0, 0, 0);
   return d;
 }
-
 function startOfDay(d) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
-
 function addDays(d, n) {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
   x.setHours(0, 0, 0, 0);
   return x;
 }
-
 function toDate(v) {
   if (!v) return null;
   const d = new Date(v);
   d.setHours(0, 0, 0, 0);
   return isNaN(d.getTime()) ? null : d;
 }
-
 function fmtDayMon(d) {
   const months = [
-    "JAN",
-    "FEB",
-    "MAR",
-    "APR",
-    "MAY",
-    "JUN",
-    "JUL",
-    "AUG",
-    "SEP",
-    "OCT",
-    "NOV",
-    "DEC",
+    "JAN","FEB","MAR","APR","MAY","JUN",
+    "JUL","AUG","SEP","OCT","NOV","DEC"
   ];
   return {
     day: String(d.getDate()).padStart(2, "0"),
     mon: months[d.getMonth()],
   };
 }
-
 function getDow(d, lang) {
   const en = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const th = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
   return lang === "th" ? th[d.getDay()] : en[d.getDay()];
 }
-
 function fmtMoney(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return "—";
   return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
-
 function getDowStyleByRuleVivid(d) {
   const day = d.getDay();
-  if (day === 0)
-    return { background: "#edddde", borderColor: "#f58293", color: "#f7084c" };
-  if (day === 1)
-    return { background: "#f1f3e3", borderColor: "#f0ec17", color: "#a1a908" };
-  if (day === 2)
-    return { background: "#f4e5f0", borderColor: "#f62fc1", color: "#f424e6" };
-  if (day === 3)
-    return { background: "#a9f9d0", borderColor: "#10b981", color: "#0dbf8c" };
-  if (day === 4)
-    return { background: "#f5e9d7", borderColor: "#f0954b", color: "#e08d06" };
-  if (day === 5)
-    return { background: "#d3e4fa", borderColor: "#3b82f6", color: "#1b8df8" };
+  if (day === 0) return { background: "#edddde", borderColor: "#f58293", color: "#f7084c" };
+  if (day === 1) return { background: "#f1f3e3", borderColor: "#f0ec17", color: "#a1a908" };
+  if (day === 2) return { background: "#f4e5f0", borderColor: "#f62fc1", color: "#f424e6" };
+  if (day === 3) return { background: "#a9f9d0", borderColor: "#10b981", color: "#0dbf8c" };
+  if (day === 4) return { background: "#f5e9d7", borderColor: "#f0954b", color: "#e08d06" };
+  if (day === 5) return { background: "#d3e4fa", borderColor: "#3b82f6", color: "#1b8df8" };
   return { background: "#e2d0f5", borderColor: "#8b5cf6", color: "#752cf4" };
 }
-
 function getLightFromVivid(vivid) {
   return {
-    background: vivid.background + "44",
-    borderColor: vivid.borderColor + "77",
+    background: vivid.background + "55",
+    borderColor: vivid.borderColor + "88",
   };
 }
-
-let toastTimer = null;
 function toast(msg) {
   const el = document.getElementById("dn_toast");
   if (!el) return;
   el.textContent = msg;
   el.style.opacity = "1";
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
+  setTimeout(() => {
     el.style.opacity = "0";
   }, 1200);
 }
@@ -328,33 +306,31 @@ function toast(msg) {
 
 const styles = {
   wrap: {
-    marginTop: 10,
+    marginTop: 12,
     background: "#fff",
     border: "1px solid #e2e8f0",
-    borderRadius: 14,
-    padding: "8px 10px 10px",
-    boxShadow: "0 6px 14px rgba(2,6,23,.05)",
+    borderRadius: 16,
+    padding: "10px 12px 14px",
   },
 
   actionRowTop: {
     display: "flex",
-    gap: 8,
-    marginBottom: 8,
+    gap: 10,
+    marginBottom: 10,
   },
 
   actionBtn: {
     flex: 1,
-    height: 34,
-    borderRadius: 10,
+    height: 36,
+    borderRadius: 12,
     border: "1px solid #E2E8F0",
     background: "#F8FAFC",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 600,
     color: "#475569",
     whiteSpace: "nowrap",
     cursor: "pointer",
     transition: "all 0.15s ease",
-    padding: "0 10px",
   },
 
   viewBtnIdle: {
@@ -379,131 +355,78 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 4,
-    padding: "2px 0",
-    minHeight: 34,
+    gap: 6,
+    padding: "6px 0",
   },
 
   btn: {
-    width: 38,
+    width: 36,
     height: 32,
     borderRadius: 10,
     border: "1px solid #EEF2F7",
     background: "#fff",
-    fontWeight: 800,
+    fontWeight: 700,
     cursor: "pointer",
     color: "#94A3B8",
-    fontSize: 18,
-    lineHeight: "1",
+    fontSize: 16,
+    lineHeight: "30px",
     userSelect: "none",
     transition: "all 0.15s ease",
-    padding: 0,
-    display: "grid",
-    placeItems: "center",
-    flex: "0 0 auto",
   },
-
-btnDay: {
-  fontSize: 22,
-  color: "rgba(100,116,139,0.8)",
-},
-
-btnWeek: {
-  fontSize: 20,
-  color: "rgba(168,179,195,0.8)",
-  letterSpacing: 0,
-},
+  btnDay: { fontSize: 18, color: "#64748B" },
+  btnWeek: { fontSize: 16, color: "#A8B3C3", letterSpacing: 1 },
 
   resetBtn: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
     borderRadius: 999,
     border: "1px solid #EEF2F7",
     background: "#F8FAFC",
     color: "#64748B",
     fontSize: 10,
-    lineHeight: "1",
+    lineHeight: "30px",
   },
 
-  btnDisabled: {
-    opacity: 0.4,
-    cursor: "not-allowed",
-  },
+  btnDisabled: { opacity: 0.4, cursor: "not-allowed" },
 
   center: {
     flex: 1,
-    minWidth: 0,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 10,
   },
 
-  bigDate: {
-    display: "flex",
-    gap: 4,
-    alignItems: "baseline",
-    whiteSpace: "nowrap",
-  },
-
-  dayNum: {
-    fontWeight: 700,
-    fontSize: 17,
-    color: "#0F172A",
-    lineHeight: 1,
-  },
-
-  monTxt: {
-    fontWeight: 700,
-    fontSize: 14,
-    color: "#0F172A",
-    lineHeight: 1,
-    letterSpacing: "0.4px",
-  },
+  bigDate: { display: "flex", gap: 5, alignItems: "baseline" },
+  dayNum: { fontWeight: 600, fontSize: 18, color: "#0F172A" },
+  monTxt: { fontWeight: 600, fontSize: 16, color: "#0F172A" },
 
   dowPill: {
-    padding: "2px 7px",
+    padding: "2px 8px",
     borderRadius: 3,
     border: "1px solid",
-    fontWeight: 700,
+    fontWeight: 600,
     fontSize: 9,
-    letterSpacing: 1.6,
+    letterSpacing: 2,
     lineHeight: "1",
     whiteSpace: "nowrap",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 18,
   },
 
   minRow: {
-    marginTop: 6,
-    padding: "7px 10px",
-    borderRadius: 12,
+    marginTop: 10,
+    padding: "10px 12px",
+    borderRadius: 14,
     border: "1px solid transparent",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 8,
   },
-
-  minLabel: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: 650,
-  },
-
-  minValue: {
-    fontWeight: 900,
-    fontSize: 16,
-    color: "#111827",
-    whiteSpace: "nowrap",
-  },
-
+  minLabel: { fontSize: 12, color: "#6B7280", fontWeight: 650 },
+  minValue: { fontWeight: 900, fontSize: 18, color: "#111827" },
   minChip: {
-    marginLeft: 6,
-    fontSize: 10,
-    padding: "2px 8px",
+    marginLeft: 8,
+    fontSize: 11,
+    padding: "3px 10px",
     borderRadius: 999,
     background: "#ffffff",
     border: "1px solid #E9EDF3",
@@ -511,8 +434,8 @@ btnWeek: {
   },
 
   toast: {
-    marginTop: 6,
-    fontSize: 11,
+    marginTop: 8,
+    fontSize: 12,
     color: "#0f172a",
     opacity: 0,
     transition: "opacity 0.2s ease",

@@ -1,3 +1,4 @@
+// src/components/TripFormBasic.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DateRangePicker, CustomProvider } from "rsuite";
 import enGB from "rsuite/locales/en_GB";
@@ -62,7 +63,7 @@ const formatUiDate = (date, style = "SUN") => {
   return `${dd}-${MMM}-${dow}`;
 };
 
-/** Serialize to YYYY-MM-DD in local time */
+/** Serialize to YYYY-MM-DD in *local time* (avoids off-by-one UTC issues) */
 const toYMDLocal = (d) => {
   if (!d) return null;
   const y = d.getFullYear();
@@ -96,11 +97,7 @@ function TwoMonthSingleDatePicker({
   useEffect(() => {
     const onResize = () =>
       setIsMobile(typeof window !== "undefined" ? window.innerWidth < 768 : false);
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("resize", onResize);
-    }
-
+    if (typeof window !== "undefined") window.addEventListener("resize", onResize);
     return () => {
       if (typeof window !== "undefined") {
         window.removeEventListener("resize", onResize);
@@ -154,7 +151,7 @@ export default function TripFormBasic({ onSubmit }) {
   const { status, error, results } = useSelector(selectSearch);
 
   // ---- local state ----
-  const [tripType, setTripType] = useState("oneway");
+  const [tripType, setTripType] = useState("oneway"); // "oneway" | "roundtrip"
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
 
@@ -165,6 +162,7 @@ export default function TripFormBasic({ onSubmit }) {
   const [child, setChild] = useState(0);
   const [infant, setInfant] = useState(0);
 
+  // Nok Air: single cabin concept (display-only)
   const cabin = "ECONOMY";
 
   const [showPax, setShowPax] = useState(false);
@@ -172,16 +170,18 @@ export default function TripFormBasic({ onSubmit }) {
 
   const today = useMemo(startOfToday, []);
 
-  // ✅ One-way
+  // ✅ One-way: anchor date (first search date) for navigator
   const [anchorYMD, setAnchorYMD] = useState(null);
   const lastPayloadRef = useRef(null);
 
-  // ✅ Round-trip
+  // ✅ Round-trip: anchors + last payload for navigator
   const [rtAnchor, setRtAnchor] = useState(() => ({
     departYMD: null,
     returnYMD: null,
   }));
   const lastPayloadRTRef = useRef(null);
+
+  // ✅ Round-trip: active tab
   const [rtActiveTab, setRtActiveTab] = useState("depart");
 
   // ✅ bridge control for JourneyTable (one-way only)
@@ -189,15 +189,18 @@ export default function TripFormBasic({ onSubmit }) {
   const [owClearTick, setOwClearTick] = useState(0);
   const [owHasSelection, setOwHasSelection] = useState(false);
 
+  // ---- helpers ----
   const clampInt = (val, min, max = Infinity) =>
     Math.max(min, Math.min(max, Number.parseInt(val ?? 0, 10) || 0));
 
+  /** show message */
   const sameAirportMsg = () =>
     t?.form?.sameAirport ??
     (isTH
       ? "สนามบินต้นทางและปลายทางต้องไม่เหมือนกัน"
       : "Departure and arrival airports cannot be the same.");
 
+  /** validate current origin/destination */
   const isSameAirport = (o, d) => {
     const oc = normAirport(o);
     const dc = normAirport(d);
@@ -222,6 +225,7 @@ export default function TripFormBasic({ onSubmit }) {
     dispatch(clearSelectedOfferLegs());
   };
 
+  // ✅ Clear Search = refresh screen
   const handleClearSearch = () => {
     setOrigin("");
     setDestination("");
@@ -249,35 +253,36 @@ export default function TripFormBasic({ onSubmit }) {
     dispatch(clearResults());
   };
 
+  // infants ≤ adults
   useEffect(() => {
     setInfant((x) => Math.min(x ?? 0, adult ?? 0));
   }, [adult]);
 
   const paxSummary = useMemo(() => {
     const parts = [];
-    if (adult) {
+    if (adult)
       parts.push(
         `${adult} ${
           adult > 1 ? t.form?.adults ?? "adults" : t.form?.adult ?? "adult"
         }`
       );
-    }
     if (child) parts.push(`${child} ${t.form?.children ?? "children"}`);
     if (infant) parts.push(`${infant} ${t.form?.infants ?? "infants"}`);
     const cabinText = t.form?.economy ?? (isTH ? "ชั้นประหยัด" : "Economy");
     return `${parts.length ? parts.join(", ") : "0"}, ${cabinText}`;
   }, [adult, child, infant, t, isTH]);
 
+  // close pax dropdown on outside click
   useEffect(() => {
     const onDocClick = (e) => {
       if (!paxRef.current) return;
       if (!paxRef.current.contains(e.target)) setShowPax(false);
     };
-
     if (showPax) document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [showPax]);
 
+  // ---- submit ----
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -343,6 +348,7 @@ export default function TripFormBasic({ onSubmit }) {
     setShowPax(false);
   };
 
+  // ✅ One-way: arrow navigation handler
   const handleNavigateDate = (targetDate) => {
     const last = lastPayloadRef.current;
     if (!last) return;
@@ -360,6 +366,7 @@ export default function TripFormBasic({ onSubmit }) {
     dispatch(fetchSearchResults(payload2));
   };
 
+  // ✅ Round-trip: arrow navigation handler
   const handleNavigateRoundTrip = ({ departDate, returnDate }) => {
     const last = lastPayloadRTRef.current;
     if (!last) return;
@@ -381,6 +388,7 @@ export default function TripFormBasic({ onSubmit }) {
     dispatch(fetchSearchResults(payload2));
   };
 
+  // ✅ FORCE From/To to be full width on mobile (different line)
   const fromSpan =
     "col-span-12 " + (tripType === "roundtrip" ? "md:col-span-3" : "md:col-span-4");
   const toSpan =
@@ -424,26 +432,24 @@ export default function TripFormBasic({ onSubmit }) {
 
   return (
     <CustomProvider locale={calendarLocale}>
-      <div className="px-[2px] sm:px-4 md:px-5 lg:px-6 xl:px-8 max-w-full lg:max-w-[1180px] xl:max-w-[1240px] mx-auto">
+      <div className="px-[2px] sm:px-4 md:px-8 lg:px-10 xl:px-12 max-w-7xl mx-auto">
         <form
           onSubmit={handleSubmit}
-          
           className="
             bg-white/90 rounded-2xl shadow-lg
-            px-4 py-2 sm:px-4 md:px-5 lg:px-6
-            md:py-2 lg:py-2
-            space-y-1
+            px-4 py-2 sm:px-3 md:px-8 md:py-4
+            space-y-3
             text-[13px] sm:text-sm
           "
         >
           <div className="w-full flex justify-start">
-            <div className="w-full md:w-[420px] lg:w-[460px] xl:w-[500px] rounded-[999px] bg-slate-200 p-[3px] overflow-hidden">
-              <div className="flex w-full h-9 md:h-[40px]">
+            <div className="w-full md:w-1/2 lg:w-[58.333333%] rounded-[999px] bg-slate-200 p-[4px] overflow-hidden">
+              <div className="flex w-full h-9 md:h-[44px]">
                 <button
                   type="button"
                   onClick={() => switchTripType("roundtrip")}
                   className={
-                    "w-1/2 h-9 md:h-[40px] rounded-l-[999px] text-[13px] md:text-[14px] font-medium transition-all " +
+                    "w-1/2 h-10 md:h-[44px] rounded-l-[999px] text-[13px] sm:text-sm font-medium transition-all " +
                     (tripType === "roundtrip"
                       ? "bg-sky-600 text-white shadow-md"
                       : "bg-transparent text-slate-700")
@@ -456,7 +462,7 @@ export default function TripFormBasic({ onSubmit }) {
                   type="button"
                   onClick={() => switchTripType("oneway")}
                   className={
-                    "w-1/2 h-9 md:h-[40px] rounded-r-[999px] text-[13px] md:text-[14px] font-medium transition-all " +
+                    "w-1/2 h-10 md:h-[44px] rounded-r-[999px] text-[13px] sm:text-sm font-medium transition-all " +
                     (tripType === "oneway"
                       ? "bg-sky-600 text-white shadow-md"
                       : "bg-transparent text-slate-700")
@@ -468,9 +474,9 @@ export default function TripFormBasic({ onSubmit }) {
             </div>
           </div>
 
-          <div className="h-0 md:h-[2px]" />
+          <div className="h-0 md:h-1" />
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-y-3 md:gap-y-8 gap-x-3 md:gap-x-3 lg:gap-x-4 xl:gap-x-5 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-y-1 md:gap-y-2 gap-x-2 md:gap-x-4 lg:gap-x-6 xl:gap-x-8 items-center">
             <div className={fromSpan}>
               <AirportSelect
                 value={origin}
@@ -529,20 +535,19 @@ export default function TripFormBasic({ onSubmit }) {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-y-2 md:gap-y-2 gap-x-3 md:gap-x-4 !items-end">
-            <div className="md:col-span-5 lg:col-span-5 relative" ref={paxRef}>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-y-1 md:gap-y-2 gap-x-3 md:gap-x-4 !items-end">
+            <div className="md:col-span-6 lg:col-span-5 relative" ref={paxRef}>
               <button
                 type="button"
                 onClick={() => setShowPax((s) => !s)}
                 className="
                   w-full
-                  h-11 md:h-[48px]
+                  h-12
                   rounded-xl
                   border border-slate-200 bg-white
                   px-4
                   shadow-sm hover:bg-slate-50
                   flex items-center gap-2
-                  text-[14px]
                 "
               >
                 <span aria-hidden>👤</span>
@@ -645,23 +650,21 @@ export default function TripFormBasic({ onSubmit }) {
               )}
             </div>
 
-            <div className="md:col-span-7 lg:col-span-7 mt-1 md:mt-3 lg:mt-2">
-              <div className="w-full rounded-[999px] bg-slate-200 p-[3px] overflow-hidden">
-                <div className="grid grid-cols-2 w-full h-9 md:h-[40px]">
+            <div className="md:col-span-6 lg:col-span-7 mt-2 md:mt-5 lg:mt-4">
+              <div className="w-full rounded-[999px] bg-slate-200 p-[4px] overflow-hidden">
+                <div className="flex w-full h-10">
                   <button
                     type="button"
                     onClick={handleClearSearch}
                     className="
-                      min-w-0
-                      h-9 md:h-[40px]
+                      w-1/2
+                      h-10 md:h-[44px]
                       rounded-l-[999px]
                       bg-transparent
                       text-slate-700
-                      text-[13px] md:text-[14px]
                       font-medium
                       hover:bg-white/60
                       transition
-                      whitespace-nowrap
                     "
                   >
                     {isTH ? "ล้าง" : "Clear"}
@@ -671,17 +674,15 @@ export default function TripFormBasic({ onSubmit }) {
                     type="submit"
                     disabled={status === "loading"}
                     className="
-                      min-w-0
-                      h-9 md:h-[40px]
+                      w-1/2
+                      h-10 md:h-[44px]
                       rounded-r-[999px]
                       bg-sky-600
                       text-white
-                      text-[13px] md:text-[14px]
                       font-semibold
                       hover:bg-sky-700
                       transition
                       disabled:opacity-60
-                      whitespace-nowrap
                     "
                   >
                     {status === "loading"
