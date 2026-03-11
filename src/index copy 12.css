@@ -1,0 +1,201 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* -------------------------------------------
+   RSuite DatePicker / DateRangePicker polish
+   ------------------------------------------- */
+@layer components {
+  /* Ensure the popup floats above other UI */
+  .rs-picker-popup {
+    z-index: 9999;
+  }
+
+  /* Make the two-month menu comfortably wide on md+ screens */
+  @media (min-width: 768px) {
+    .rs-picker-daterange-menu {
+      min-width: 560px;
+    }
+  }
+
+  /* Mobile friendliness: let the popup fit viewport width (base) */
+  @media (max-width: 767px) {
+    .rs-picker-daterange-menu {
+      width: calc(100vw - 2rem);
+      max-width: calc(100vw - 2rem);
+    }
+  }
+
+  /* Remove extra right padding/gap so 2nd month aligns with frame */
+  .rs-picker-daterange-menu {
+    padding-right: 0 !important;
+  }
+
+  /* Input (toggle) inside our picker wrapper */
+  .ibe-datepicker .rs-picker-toggle {
+    @apply h-12 sm:h-14
+      w-full
+      rounded-xl sm:rounded-2xl
+      border border-slate-200
+      bg-white
+      px-3 sm:px-4
+      shadow-sm;
+  }
+
+  .ibe-datepicker .rs-picker-toggle:hover {
+    @apply bg-slate-50;
+  }
+
+  .ibe-datepicker .rs-picker-toggle.rs-btn,
+  .ibe-datepicker .rs-picker-toggle .rs-picker-toggle-value,
+  .ibe-datepicker .rs-picker-toggle .rs-picker-toggle-placeholder {
+    @apply text-[15px] sm:text-[16px] text-slate-800;
+  }
+
+  /* Focus ring + border on focus */
+  .ibe-datepicker .rs-picker-focused .rs-picker-toggle,
+  .ibe-datepicker .rs-picker-toggle:focus-within {
+    @apply ring ring-sky-200/70 border-sky-500;
+  }
+
+  /* Calendar panel look */
+  .rs-calendar {
+    @apply rounded-2xl border border-slate-200 shadow-lg;
+  }
+
+  .rs-calendar-header {
+    @apply px-3 py-2;
+  }
+
+  .rs-calendar-header .rs-calendar-header-title {
+    @apply font-semibold;
+  }
+
+  /* Day cell sizing + shape (base) */
+  .rs-calendar-table-cell-content {
+    @apply w-9 h-9 leading-9 rounded-full;
+  }
+
+  /* Today marker */
+  .rs-calendar-table-cell-is-today .rs-calendar-table-cell-content {
+    @apply border border-sky-400;
+  }
+
+  /* Selected / in-range colors */
+  .rs-calendar-table-cell-selected .rs-calendar-table-cell-content,
+  .rs-calendar-table-cell-selected-start .rs-calendar-table-cell-content,
+  .rs-calendar-table-cell-selected-end .rs-calendar-table-cell-content,
+  .rs-calendar-table-cell-in-range .rs-calendar-table-cell-content {
+    @apply bg-sky-600 text-white;
+  }
+
+  /* Disabled days: muted, no strikethrough */
+  .rs-calendar-table-cell-disabled .rs-calendar-table-cell-content {
+    @apply text-slate-300 no-underline;
+  }
+}
+
+/* =========================================================
+   Mobile: stack 2 months vertically and give more vertical
+   calendar space without changing the fallback behavior too much
+   ========================================================= */
+@media (max-width: 520px) {
+  /* popup placement */
+  .rs-picker-popup.rs-picker-popup-daterange {
+    position: fixed !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    top: clamp(120px, 18vh, 180px) !important; /* a bit higher than fallback */
+    height: 86vh !important;                   /* more vertical room */
+    width: 95vw !important;
+    max-width: 95vw !important;
+    right: auto !important;
+    bottom: auto !important;
+    max-height: none !important;
+  }
+
+  /* menu fills popup height */
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-menu {
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    padding-right: 0 !important;
+  }
+
+  /* stack calendars vertically and make middle area taller */
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panels,
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-calendars,
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-content,
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-calendar-group,
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panel-group,
+  .rs-picker-popup.rs-picker-popup-daterange [class*="calendar-group"],
+  .rs-picker-popup.rs-picker-popup-daterange [class*="calendarGroup"],
+  .rs-picker-popup.rs-picker-popup-daterange [class*="calendars"],
+  .rs-picker-popup.rs-picker-popup-daterange [class*="panels"] {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    gap: 14px !important;
+
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+
+    padding-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* remove min-width forcing horizontal layout */
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-daterange-panel,
+  .rs-picker-popup.rs-picker-popup-daterange .rs-calendar,
+  .rs-picker-popup.rs-picker-popup-daterange [class*="calendar"],
+  .rs-picker-popup.rs-picker-popup-daterange [class*="panel"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+  }
+
+  /* ✅ increase actual month vertical area */
+  .rs-picker-popup.rs-picker-popup-daterange .rs-calendar {
+    min-height: 370px !important;
+  }
+
+  .rs-picker-popup.rs-picker-popup-daterange .rs-calendar-table {
+    margin-bottom: 6px !important;
+  }
+
+  .rs-picker-popup.rs-picker-popup-daterange .rs-calendar-body {
+    padding-bottom: 6px !important;
+  }
+
+  /* toolbar stays visible */
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-toolbar {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 10 !important;
+    background: #fff !important;
+    border-top: 1px solid rgba(148, 163, 184, 0.35) !important;
+    padding: 8px 10px max(env(safe-area-inset-bottom), 8px) !important;
+  }
+
+  /* easier tap (mobile only) */
+  .rs-calendar-table-cell-content {
+    width: 42px !important;
+    height: 42px !important;
+    line-height: 42px !important;
+  }
+
+  /* keep OK button size similar */
+  .rs-picker-popup.rs-picker-popup-daterange .rs-picker-toolbar .rs-btn-primary {
+    transform: scale(1.15);
+    transform-origin: center;
+  }
+}

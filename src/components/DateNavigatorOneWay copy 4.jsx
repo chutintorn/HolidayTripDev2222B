@@ -186,7 +186,23 @@ export default function DateNavigatorOneWay({
           »
         </button>
 
-
+        <button
+          type="button"
+          style={{
+            ...styles.btn,
+            ...styles.resetBtn,
+            ...(resetDisabled ? styles.btnDisabled : null),
+          }}
+          disabled={resetDisabled}
+          onClick={() => {
+            const a = anchorRef.current || startOfToday();
+            doNavigate(a);
+          }}
+          aria-label="Reset to searched date"
+          title={lang === "th" ? "กลับไปวันค้นหา" : "Back to searched date"}
+        >
+          ●
+        </button>
       </div>
 
       <div
