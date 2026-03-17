@@ -257,16 +257,32 @@ export default function BaggagePanel({
                   tone="text-emerald-700"
                 />
                 <Row
-                  label={t?.specialBaggageShort ?? (t?.specialBaggage ?? "Special Baggage")}
+                  label={t?.specialBaggageShort ?? (t?.specialBaggage ?? "Special")}
                   value={confirmedSB}
                   tone="text-emerald-700"
                 />
               </div>
             </div>
 
-         
+            <div className="h-px bg-slate-200" />
 
-            
+            <div>
+              <div className="text-[12px] font-extrabold text-slate-700">
+                {t?.selecting ?? "Selecting"}:
+              </div>
+              <div className="mt-1 pl-2 space-y-1">
+                <Row
+                  label={t?.checkedBaggageShort ?? (t?.checkedBaggage ?? "Baggage")}
+                  value={selectingBG}
+                  tone="text-sky-700"
+                />
+                <Row
+                  label={t?.specialBaggageShort ?? (t?.specialBaggage ?? "Special")}
+                  value={selectingSB}
+                  tone="text-sky-700"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -407,7 +423,7 @@ export default function BaggagePanel({
           />
           <div className="min-w-0">
             <div className="font-extrabold text-slate-900">
-              {t?.bagCheckedTitle ?? (t?.isTH ? "สัมภาระโหลดใต้ท้องเครื่อง" : "Checked Baggage")}
+              {t?.bagCheckedTitle ?? (t?.isTH ? "สัมภาระโหลดใต้ท้องเครื่อง" : "Checked baggage")}
             </div>
             <div className="text-xs text-slate-500">
               {t?.bagHint ?? (t?.isTH ? "เลือกน้ำหนักสัมภาระที่ต้องการ" : "Choose your baggage weight")}

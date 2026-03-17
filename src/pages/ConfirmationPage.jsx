@@ -526,7 +526,7 @@ export default function ConfirmationPage() {
     () => ({
       title: lang === "th" ? "ยืนยันการจอง" : "Confirmation",
 
-      thanks: lang === "th" ? "ขอบคุณ" : "Thank you",
+      thanks: lang === "th" ? "ขอบคุณครับ" : "Thank you",
       passengers: lang === "th" ? "ผู้โดยสาร" : "Passengers",
       depart: lang === "th" ? "ขาไป" : "Depart",
       ret: lang === "th" ? "ขากลับ" : "Return",

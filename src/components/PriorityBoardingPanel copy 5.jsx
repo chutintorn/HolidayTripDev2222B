@@ -276,51 +276,53 @@ export default function PriorityBoardingPanel({
       </div>
 
       {/* Summary + buttons */}
-{/* Summary + buttons */}
-<div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-  <div className="flex items-center justify-between gap-3 flex-wrap">
-    <div className="text-[12px] text-slate-700 font-semibold">
-      <span className="text-slate-500">{t?.confirmed ?? "Confirmed"}:</span>{" "}
-      <span className="font-extrabold">{pickLabel(savedPBOD, t)}</span>
-    </div>
+      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-[12px] text-slate-700 font-semibold">
+            <span className="text-slate-500">{t?.confirmed ?? "Confirmed"}:</span>{" "}
+            <span className="font-extrabold">{pickLabel(savedPBOD, t)}</span>
+            <span className="text-slate-300"> &nbsp;|&nbsp; </span>
+            <span className="text-slate-500">{t?.selecting ?? "Selecting"}:</span>{" "}
+            <span className="font-extrabold">{pickLabel(uiPBOD, t)}</span>
+          </div>
 
-    <div className="flex items-center gap-2 ml-auto">
-      <button
-        type="button"
-        disabled={!canConfirm}
-        onClick={() => {
-          if (!journeyKey) return;
-          dispatch(savePriorityBoarding({ paxId, journeyKey }));
-        }}
-        className={[
-          "px-4 py-2 rounded-lg font-bold",
-          canConfirm
-            ? "bg-sky-600 text-white hover:bg-sky-700"
-            : "bg-slate-200 text-slate-500 cursor-not-allowed",
-        ].join(" ")}
-      >
-        {t?.confirm ?? "Confirm"}
-      </button>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              disabled={!canConfirm}
+              onClick={() => {
+                if (!journeyKey) return;
+                dispatch(savePriorityBoarding({ paxId, journeyKey }));
+              }}
+              className={[
+                "px-4 py-2 rounded-lg font-bold",
+                canConfirm
+                  ? "bg-sky-600 text-white hover:bg-sky-700"
+                  : "bg-slate-200 text-slate-500 cursor-not-allowed",
+              ].join(" ")}
+            >
+              {t?.confirm ?? "Confirm"}
+            </button>
 
-      <button
-        type="button"
-        disabled={!canCancel}
-        onClick={() => {
-          if (!journeyKey) return;
-          dispatch(clearDraftPriorityBoarding({ paxId, journeyKey }));
-        }}
-        className={[
-          "px-4 py-2 rounded-lg font-bold border",
-          canCancel
-            ? "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
-            : "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed",
-        ].join(" ")}
-      >
-        {t?.cancel ?? "Cancel"}
-      </button>
-    </div>
-  </div>
-</div>
+            <button
+              type="button"
+              disabled={!canCancel}
+              onClick={() => {
+                if (!journeyKey) return;
+                dispatch(clearDraftPriorityBoarding({ paxId, journeyKey }));
+              }}
+              className={[
+                "px-4 py-2 rounded-lg font-bold border",
+                canCancel
+                  ? "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
+                  : "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed",
+              ].join(" ")}
+            >
+              {t?.cancel ?? "Cancel"}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Options */}
       {!pbodService ? (

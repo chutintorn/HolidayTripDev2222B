@@ -353,7 +353,11 @@ export default function MealPanel({
               <span className="font-extrabold">{normalize(savedMeal?.ssrCode) || "-"}</span>{" "}
               <span className="text-slate-300">|</span>{" "}
               <span className="font-extrabold">{normalize(savedBev?.ssrCode) || "-"}</span>
-              
+              <span className="text-slate-300"> &nbsp;|&nbsp; </span>
+              <span className="text-slate-500">{t?.selecting ?? "Selecting"}:</span>{" "}
+              <span className="font-extrabold">{normalize(uiMeal?.ssrCode) || "-"}</span>{" "}
+              <span className="text-slate-300">|</span>{" "}
+              <span className="font-extrabold">{normalize(uiBev?.ssrCode) || "-"}</span>
             </div>
 
             <div className="flex items-center gap-2 ml-auto">
@@ -388,7 +392,7 @@ export default function MealPanel({
                     : "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed",
                 ].join(" ")}
               >
-              {t?.cancel ?? "Cancel"}
+                {t?.release ?? "Release"}
               </button>
             </div>
           </div>
