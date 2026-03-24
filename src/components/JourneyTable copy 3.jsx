@@ -12,8 +12,7 @@ import { flattenFlights } from "../utils/flattenFlights";
 import PaxChips from "./PaxChips";
 import { derivePax } from "../utils/pax";
 
-/* ========================= helpers ========================= */
-
+/** ------ Local-safe date helpers ---- */
 const ymd = (s) =>
   typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "";
 
@@ -24,9 +23,10 @@ const toLocalDate = (s) => {
   const m = Number(dstr.slice(5, 7)) - 1;
   const d = Number(dstr.slice(8, 10));
   const date = new Date(y, m, d);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return isNaN(date) ? null : date;
 };
 
+/** ---- Currency helper ---- */
 const fmtMoney = (n, currency = "THB") => {
   if (n === "" || n === null || n === undefined) return "";
   const num = typeof n === "string" ? Number(n.replace(/,/g, "")) : Number(n);
@@ -37,6 +37,7 @@ const fmtMoney = (n, currency = "THB") => {
   })}`;
 };
 
+/** ---- Hex → rgba for soft accent backgrounds ---- */
 const hexToRgba = (hex, alpha = 0.18) => {
   const m = hex?.trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
   if (!m) return `rgba(0,0,0,${alpha})`;
@@ -49,12 +50,13 @@ const hexToRgba = (hex, alpha = 0.18) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+/** ---- Time helper for secondary sort ---- */
 const timeToMinutes = (value) => {
   if (!value) return Number.MAX_SAFE_INTEGER;
 
   const str = String(value).trim();
-  const hhmm = str.match(/^(\d{1,2}):(\d{2})$/);
 
+  const hhmm = str.match(/^(\d{1,2}):(\d{2})$/);
   if (hhmm) {
     const h = Number(hhmm[1]);
     const m = Number(hhmm[2]);
@@ -62,13 +64,14 @@ const timeToMinutes = (value) => {
   }
 
   const d = new Date(str);
-  if (!Number.isNaN(d.getTime())) {
+  if (!isNaN(d.getTime())) {
     return d.getHours() * 60 + d.getMinutes();
   }
 
   return Number.MAX_SAFE_INTEGER;
 };
 
+/** ---- Price helper for sort ---- */
 const getFareNumber = (row) => {
   const candidates = [
     row?.fareAmountIncludingTax,
@@ -92,16 +95,6 @@ const getFareNumber = (row) => {
   }
 
   return Number.MAX_SAFE_INTEGER;
-};
-
-const dowColors = {
-  Mon: "#FFD700",
-  Tue: "#FF69B4",
-  Wed: "#32CD32",
-  Thu: "#FFA500",
-  Fri: "#00BFFF",
-  Sat: "#CF9FFF",
-  Sun: "#FF4500",
 };
 
 const TEXT = {
@@ -155,8 +148,7 @@ const TEXT = {
   },
 };
 
-/* ========================= subcomponents ========================= */
-
+/** ---- Inline details ---- */
 function InlineDetails({ row, accent, t }) {
   return (
     <div
@@ -207,6 +199,7 @@ function InlineDetails({ row, accent, t }) {
   );
 }
 
+/** closed-strip bar (no text) */
 function ClosedDowStrip({ accent }) {
   return (
     <div className="col-span-full mt-1.5">
@@ -218,8 +211,6 @@ function ClosedDowStrip({ accent }) {
   );
 }
 
-/* ========================= main ========================= */
-
 export default function JourneyTable({
   resultsOverride = null,
   currencyOverride,
@@ -229,9 +220,11 @@ export default function JourneyTable({
   showNextButton = false,
   onSelectRow,
   onNext,
+
   externalTab,
   onExternalTabChange,
   externalClearSignal = 0,
+
   onSelectionChange,
 }) {
   const dispatch = useDispatch();
@@ -293,8 +286,8 @@ export default function JourneyTable({
   const [nextLoading, setNextLoading] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
 
-  const [priceSortOrder, setPriceSortOrder] = useState(null);
-  const [departureSortOrder, setDepartureSortOrder] = useState(null);
+  const [priceSortOrder, setPriceSortOrder] = useState(null); // null | asc | desc
+  const [departureSortOrder, setDepartureSortOrder] = useState(null); // null | asc | desc
 
   const requestKey = selectedFare?.fareKey || "";
   const pricingStatus = useSelector(selectPricingStatus(requestKey));
@@ -312,6 +305,7 @@ export default function JourneyTable({
         if (priceDiff !== 0) {
           return priceSortOrder === "asc" ? priceDiff : -priceDiff;
         }
+
         return timeToMinutes(a?.departureTime) - timeToMinutes(b?.departureTime);
       });
       return data;
@@ -324,6 +318,7 @@ export default function JourneyTable({
         if (timeDiff !== 0) {
           return departureSortOrder === "asc" ? timeDiff : -timeDiff;
         }
+
         return getFareNumber(a) - getFareNumber(b);
       });
       return data;
@@ -333,12 +328,18 @@ export default function JourneyTable({
   }, [rows, priceSortOrder, departureSortOrder]);
 
   const handlePriceSortClick = () => {
-    setPriceSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    setPriceSortOrder((prev) => {
+      const next = prev === "asc" ? "desc" : "asc";
+      return next;
+    });
     setDepartureSortOrder(null);
   };
 
   const handleDepartureSortClick = () => {
-    setDepartureSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    setDepartureSortOrder((prev) => {
+      const next = prev === "asc" ? "desc" : "asc";
+      return next;
+    });
     setPriceSortOrder(null);
   };
 
@@ -573,12 +574,22 @@ export default function JourneyTable({
   const dow = depDate
     ? depDate.toLocaleDateString("en-GB", { weekday: "short" })
     : "";
+  const dowColors = {
+    Mon: "#FFD700",
+    Tue: "#FF69B4",
+    Wed: "#32CD32",
+    Thu: "#FFA500",
+    Fri: "#00BFFF",
+    Sat: "#CF9FFF",
+    Sun: "#FF4500",
+  };
   const accent = dowColors[dow] || "#00BFFF";
   const containerStyle = { "--dow": accent };
+
   const viewRow = selectedFare?.row || selectedRow || null;
 
   const baseSortBtn =
-    "h-9 flex-1 min-w-0 rounded-xl border bg-white px-2 sm:px-4 text-[12px] sm:text-[13px] font-medium leading-none transition-colors";
+    "h-9 w-[156px] rounded-xl border bg-white px-4 text-[13px] font-medium leading-none transition-colors";
   const activeSortBtn =
     "border-blue-400 text-blue-700 bg-blue-50 hover:border-blue-500";
   const idleSortBtn =
@@ -615,7 +626,7 @@ export default function JourneyTable({
           </h2>
 
           {tab !== "view" && (
-            <div className="ml-1 mb-2 flex items-center gap-2">
+            <div className="ml-1 mb-2 flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={handlePriceSortClick}
@@ -625,9 +636,9 @@ export default function JourneyTable({
                 aria-label={t.sortByPrice}
                 title={t.sortByPrice}
               >
-                <span className="inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                  <span className="truncate">{t.sortByPrice}</span>
-                  <span className="text-[14px] sm:text-[15px] font-extrabold leading-none tracking-[-0.02em] shrink-0">
+                <span className="inline-flex w-full items-center justify-center gap-1.5">
+                  <span>{t.sortByPrice}</span>
+                  <span className="text-[15px] font-extrabold leading-none tracking-[-0.02em]">
                     ⇅
                   </span>
                 </span>
@@ -642,9 +653,9 @@ export default function JourneyTable({
                 aria-label={t.sortByDeparture}
                 title={t.sortByDeparture}
               >
-                <span className="inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                  <span className="truncate">{t.sortByDeparture}</span>
-                  <span className="text-[14px] sm:text-[15px] font-extrabold leading-none tracking-[-0.02em] shrink-0">
+                <span className="inline-flex w-full items-center justify-center gap-1.5">
+                  <span>{t.sortByDeparture}</span>
+                  <span className="text-[15px] font-extrabold leading-none tracking-[-0.02em]">
                     ⇅
                   </span>
                 </span>
@@ -893,11 +904,9 @@ export default function JourneyTable({
             {t.loadingPriceSeatMap}
           </div>
         )}
-
         {!nextLoading && pricingStatus === "failed" && (
           <div className="mb-2 text-xs text-red-600">{t.failedPrice}</div>
         )}
-
         {!nextLoading && seatStatus === "failed" && (
           <div className="mb-2 text-xs text-red-600">{t.failedSeatMap}</div>
         )}

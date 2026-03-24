@@ -12,11 +12,9 @@ import { flattenFlights } from "../utils/flattenFlights";
 import PaxChips from "./PaxChips";
 import { derivePax } from "../utils/pax";
 
-/* ========================= helpers ========================= */
-
+/** ------ Local-safe date helpers ---- */
 const ymd = (s) =>
   typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : "";
-
 const toLocalDate = (s) => {
   const dstr = ymd(s);
   if (!dstr) return null;
@@ -24,9 +22,10 @@ const toLocalDate = (s) => {
   const m = Number(dstr.slice(5, 7)) - 1;
   const d = Number(dstr.slice(8, 10));
   const date = new Date(y, m, d);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return isNaN(date) ? null : date;
 };
 
+/** ---- Currency helper ---- */
 const fmtMoney = (n, currency = "THB") => {
   if (n === "" || n === null || n === undefined) return "";
   const num = typeof n === "string" ? Number(n.replace(/,/g, "")) : Number(n);
@@ -37,6 +36,7 @@ const fmtMoney = (n, currency = "THB") => {
   })}`;
 };
 
+/** ---- Hex → rgba for soft accent backgrounds ---- */
 const hexToRgba = (hex, alpha = 0.18) => {
   const m = hex?.trim().match(/^#?([a-f\d]{3}|[a-f\d]{6})$/i);
   if (!m) return `rgba(0,0,0,${alpha})`;
@@ -49,115 +49,8 @@ const hexToRgba = (hex, alpha = 0.18) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const timeToMinutes = (value) => {
-  if (!value) return Number.MAX_SAFE_INTEGER;
-
-  const str = String(value).trim();
-  const hhmm = str.match(/^(\d{1,2}):(\d{2})$/);
-
-  if (hhmm) {
-    const h = Number(hhmm[1]);
-    const m = Number(hhmm[2]);
-    return h * 60 + m;
-  }
-
-  const d = new Date(str);
-  if (!Number.isNaN(d.getTime())) {
-    return d.getHours() * 60 + d.getMinutes();
-  }
-
-  return Number.MAX_SAFE_INTEGER;
-};
-
-const getFareNumber = (row) => {
-  const candidates = [
-    row?.fareAmountIncludingTax,
-    row?.totalPrice,
-    row?.amount,
-    row?.price,
-    row?.fareAmount,
-    row?.total,
-  ];
-
-  for (const value of candidates) {
-    if (value === null || value === undefined || value === "") continue;
-
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value;
-    }
-
-    const cleaned = String(value).replace(/[^0-9.-]/g, "");
-    const num = Number(cleaned);
-    if (Number.isFinite(num)) return num;
-  }
-
-  return Number.MAX_SAFE_INTEGER;
-};
-
-const dowColors = {
-  Mon: "#FFD700",
-  Tue: "#FF69B4",
-  Wed: "#32CD32",
-  Thu: "#FFA500",
-  Fri: "#00BFFF",
-  Sat: "#CF9FFF",
-  Sun: "#FF4500",
-};
-
-const TEXT = {
-  en: {
-    depart: "Depart",
-    arrive: "Arrive",
-    details: "Details ▾",
-    hideDetails: "Hide details ▴",
-    freeFare: "✅ Free fare inclusions — Carry-on allowance 7 kg × 1",
-    shortHaul: "Short-haul",
-    estEmission: "est. emissions",
-    nonstop: "Nonstop",
-    carryOn: "7 kg per person",
-    economy: "Economy",
-    noFlights:
-      "No flights to display. The response may be empty or in an unexpected format.",
-    noSelected: "No flight selected yet.",
-    selected: "Selected",
-    select: "Select",
-    next: "NEXT",
-    pleaseWait: "Please wait…",
-    loadingPriceSeatMap: "Loading price & seat map…",
-    failedPrice: "Failed to load price.",
-    failedSeatMap: "Failed to load seat map.",
-    sortByPrice: "Sort by Price",
-    sortByDeparture: "Sort by Departure",
-  },
-  th: {
-    depart: "ออกเดินทาง",
-    arrive: "ถึง",
-    details: "รายละเอียด ▾",
-    hideDetails: "ซ่อนรายละเอียด ▴",
-    freeFare: "✅ สิทธิ์ค่าโดยสารฟรี — สัมภาระถือขึ้นเครื่อง 7 กก. × 1",
-    shortHaul: "เที่ยวบินระยะใกล้",
-    estEmission: "การปล่อยคาร์บอนโดยประมาณ",
-    nonstop: "บินตรง",
-    carryOn: "7 กก. ต่อท่าน",
-    economy: "ชั้นประหยัด",
-    noFlights:
-      "ไม่มีเที่ยวบินที่จะแสดง ผลลัพธ์อาจว่างหรือรูปแบบข้อมูลไม่ตรงที่คาดไว้",
-    noSelected: "ยังไม่ได้เลือกเที่ยวบิน",
-    selected: "เลือกแล้ว",
-    select: "เลือก",
-    next: "ถัดไป",
-    pleaseWait: "กรุณารอสักครู่…",
-    loadingPriceSeatMap: "กำลังโหลดราคาและผังที่นั่ง…",
-    failedPrice: "โหลดราคาไม่สำเร็จ",
-    failedSeatMap: "โหลดผังที่นั่งไม่สำเร็จ",
-    sortByPrice: "เรียงตามราคา",
-    sortByDeparture: "เรียงตามเวลา",
-  },
-};
-
-/* ========================= subcomponents ========================= */
-
-function InlineDetails({ row, accent, t }) {
+/** ---- Inline details (presentational only) ---- */
+function InlineDetails({ row, accent }) {
   return (
     <div
       className="min-h-0 pt-3 pb-3 px-3 rounded-lg"
@@ -166,33 +59,36 @@ function InlineDetails({ row, accent, t }) {
       <div className="relative pl-5">
         <span className="absolute left-2 top-0 bottom-0 w-[1px] bg-slate-300 rounded" />
 
+        {/* Depart */}
         <div className="relative my-3">
           <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
           <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
-            {(row?.departureTime || "").toString()} • {t.depart}
+            {(row?.departureTime || "").toString()} • Depart
           </div>
           <div className="text-slate-600 text-[12px] mt-0.5">
             {row?.originName || row?.origin}
           </div>
         </div>
 
+        {/* Note */}
         <div className="relative my-3">
           <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
           <div className="bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 shadow-sm">
             <div className="font-bold text-blue-700 text-[14px]">
               {row?.marketingCarrier || "Nok Air"}, {row?.flightNumber || ""}
             </div>
-            <div className="text-slate-500">{t.shortHaul}</div>
+            <div className="text-slate-500">Short-haul</div>
             <div className="text-[11px] mt-1">
-              {row?.perPaxCo2 || "48kg CO₂e"} • {t.estEmission}
+              {row?.perPaxCo2 || "48kg CO₂e"} • est. emissions
             </div>
           </div>
         </div>
 
+        {/* Arrive */}
         <div className="relative my-3">
           <span className="absolute left-0 top-1 w-[12px] h-[12px] rounded-full bg-white border border-slate-400" />
           <div className="inline-block text-[13px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-semibold text-blue-700">
-            {(row?.arrivalTime || "").toString()} • {t.arrive}
+            {(row?.arrivalTime || "").toString()} • Arrive
           </div>
           <div className="text-slate-600 text-[12px] mt-0.5">
             {row?.destinationName || row?.destination}
@@ -201,12 +97,13 @@ function InlineDetails({ row, accent, t }) {
       </div>
 
       <div className="mt-3 pt-2 border-t border-dashed text-[12px] font-medium text-blue-700">
-        {t.freeFare}
+        ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
       </div>
     </div>
   );
 }
 
+/** ✅ closed-strip bar (no text) */
 function ClosedDowStrip({ accent }) {
   return (
     <div className="col-span-full mt-1.5">
@@ -218,8 +115,6 @@ function ClosedDowStrip({ accent }) {
   );
 }
 
-/* ========================= main ========================= */
-
 export default function JourneyTable({
   resultsOverride = null,
   currencyOverride,
@@ -229,9 +124,13 @@ export default function JourneyTable({
   showNextButton = false,
   onSelectRow,
   onNext,
-  externalTab,
-  onExternalTabChange,
-  externalClearSignal = 0,
+
+  // ✅ external control (from DateNavigatorOneWay / TripFormBasic)
+  externalTab, // "list" | "view"
+  onExternalTabChange, // (nextTab) => void
+  externalClearSignal = 0, // change number => clear selection
+
+  // ✅ NEW: notify parent when selection exists / cleared
   onSelectionChange,
 }) {
   const dispatch = useDispatch();
@@ -239,9 +138,8 @@ export default function JourneyTable({
 
   const globalResults = useSelector(selectResults);
   const search = useSelector(selectSearch);
-  const lang = useSelector((s) => s.language?.value || "en");
-  const t = TEXT[lang] || TEXT.en;
 
+  // (read-only; keeps component safe if reducer path differs)
   useSelector((s) => {
     return (
       s?.offerSelection?.selectedOfferLegs ||
@@ -282,7 +180,8 @@ export default function JourneyTable({
   const [selectedFare, setSelectedFare] = useState(null);
   const [openId, setOpenId] = useState(null);
 
-  const [localTab, setLocalTab] = useState("list");
+  // ✅ internal tab fallback
+  const [localTab, setLocalTab] = useState("list"); // "list" | "view"
   const tab = externalTab || localTab;
 
   const setTabSafe = (next) => {
@@ -293,9 +192,6 @@ export default function JourneyTable({
   const [nextLoading, setNextLoading] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
 
-  const [priceSortOrder, setPriceSortOrder] = useState(null);
-  const [departureSortOrder, setDepartureSortOrder] = useState(null);
-
   const requestKey = selectedFare?.fareKey || "";
   const pricingStatus = useSelector(selectPricingStatus(requestKey));
   const seatStatus = useSelector(selectSeatMapStatus(requestKey));
@@ -303,45 +199,7 @@ export default function JourneyTable({
   const canNext =
     !!(selectedFare?.journeyKey && selectedFare?.fareKey) && !nextLoading;
 
-  const sortedRows = useMemo(() => {
-    const data = [...rows];
-
-    if (priceSortOrder) {
-      data.sort((a, b) => {
-        const priceDiff = getFareNumber(a) - getFareNumber(b);
-        if (priceDiff !== 0) {
-          return priceSortOrder === "asc" ? priceDiff : -priceDiff;
-        }
-        return timeToMinutes(a?.departureTime) - timeToMinutes(b?.departureTime);
-      });
-      return data;
-    }
-
-    if (departureSortOrder) {
-      data.sort((a, b) => {
-        const timeDiff =
-          timeToMinutes(a?.departureTime) - timeToMinutes(b?.departureTime);
-        if (timeDiff !== 0) {
-          return departureSortOrder === "asc" ? timeDiff : -timeDiff;
-        }
-        return getFareNumber(a) - getFareNumber(b);
-      });
-      return data;
-    }
-
-    return data;
-  }, [rows, priceSortOrder, departureSortOrder]);
-
-  const handlePriceSortClick = () => {
-    setPriceSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-    setDepartureSortOrder(null);
-  };
-
-  const handleDepartureSortClick = () => {
-    setDepartureSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-    setPriceSortOrder(null);
-  };
-
+  // ✅ Reset local selection when user clicks Search Flights (loading)
   useEffect(() => {
     if (search?.status === "loading") {
       setSelectedRow(null);
@@ -349,13 +207,12 @@ export default function JourneyTable({
       setOpenId(null);
       setTabSafe("list");
       setViewOpen(false);
-      setPriceSortOrder(null);
-      setDepartureSortOrder(null);
       if (typeof onSelectionChange === "function") onSelectionChange(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search?.status]);
 
+  // ✅ Also reset when params changed
   const searchKey = useMemo(() => {
     const p = search?.params || {};
     return JSON.stringify({
@@ -378,12 +235,11 @@ export default function JourneyTable({
     setOpenId(null);
     setTabSafe("list");
     setViewOpen(false);
-    setPriceSortOrder(null);
-    setDepartureSortOrder(null);
     if (typeof onSelectionChange === "function") onSelectionChange(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchKey]);
 
+  // ✅ External clear signal from DateNavigatorOneWay
   useEffect(() => {
     if (!externalClearSignal) return;
 
@@ -392,8 +248,6 @@ export default function JourneyTable({
     setOpenId(null);
     setTabSafe("list");
     setViewOpen(false);
-    setPriceSortOrder(null);
-    setDepartureSortOrder(null);
 
     dispatch(setSelectedOfferLegs([]));
     if (typeof onSelectionChange === "function") onSelectionChange(false);
@@ -404,11 +258,13 @@ export default function JourneyTable({
   if (!rows.length) {
     return (
       <div className="mt-6 rounded-xl border bg-amber-50 text-amber-900 p-4">
-        {t.noFlights}
+        No flights to display. The response may be empty or in an unexpected
+        format.
       </div>
     );
   }
 
+  // --- Select (NO API here)
   const selectLite = (row) => {
     const fareKey = row?.fareKey;
     if (!fareKey) return;
@@ -449,6 +305,9 @@ export default function JourneyTable({
     );
 
     setViewOpen(false);
+
+    // ✅ Nice UX: after selecting, auto switch to view if user already pressed View
+    // setTabSafe("view");
 
     if (typeof onSelectRow === "function") onSelectRow(selection);
   };
@@ -573,98 +432,63 @@ export default function JourneyTable({
   const dow = depDate
     ? depDate.toLocaleDateString("en-GB", { weekday: "short" })
     : "";
+  const dowColors = {
+    Mon: "#FFD700",
+    Tue: "#FF69B4",
+    Wed: "#32CD32",
+    Thu: "#FFA500",
+    Fri: "#00BFFF",
+    Sat: "#CF9FFF",
+    Sun: "#FF4500",
+  };
   const accent = dowColors[dow] || "#00BFFF";
   const containerStyle = { "--dow": accent };
-  const viewRow = selectedFare?.row || selectedRow || null;
 
-  const baseSortBtn =
-    "h-9 flex-1 min-w-0 rounded-xl border bg-white px-2 sm:px-4 text-[12px] sm:text-[13px] font-medium leading-none transition-colors";
-  const activeSortBtn =
-    "border-blue-400 text-blue-700 bg-blue-50 hover:border-blue-500";
-  const idleSortBtn =
-    "border-slate-400 text-blue-700 hover:border-blue-300 hover:bg-blue-50";
+  const viewRow = selectedFare?.row || selectedRow || null;
 
   return (
     <div className="w-full" style={containerStyle}>
       {!hideHeader && (
-        <>
-          <h2 className="ml-1 mb-2 text-blue-700 flex items-center gap-2 flex-wrap text-[200%] leading-tight">
-            {titleOverride && (
-              <span className="text-slate-700 font-semibold text-[0.6em]">
-                {titleOverride}
-              </span>
-            )}
-
-            <span className="font-semibold text-[0.9em]">
-              {rows[0]?.origin} {rows[0]?.destination}
+        <h2 className="ml-1 mb-2 text-blue-700 flex items-center gap-2 flex-wrap text-[200%] leading-tight">
+          {titleOverride && (
+            <span className="text-slate-700 font-semibold text-[0.6em]">
+              {titleOverride}
             </span>
-
-            {ddMMM && (
-              <>
-                <span className="text-slate-700 text-[0.65em]">{ddMMM}</span>
-                <span
-                  className="font-semibold px-3 py-1 rounded text-[0.6em]"
-                  style={{ backgroundColor: "#000", color: accent }}
-                >
-                  {dow}
-                </span>
-              </>
-            )}
-
-            <PaxChips source={search?.params || search?.results || payload || raw} />
-          </h2>
-
-          {tab !== "view" && (
-            <div className="ml-1 mb-2 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handlePriceSortClick}
-                className={`${baseSortBtn} ${
-                  priceSortOrder ? activeSortBtn : idleSortBtn
-                }`}
-                aria-label={t.sortByPrice}
-                title={t.sortByPrice}
-              >
-                <span className="inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                  <span className="truncate">{t.sortByPrice}</span>
-                  <span className="text-[14px] sm:text-[15px] font-extrabold leading-none tracking-[-0.02em] shrink-0">
-                    ⇅
-                  </span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDepartureSortClick}
-                className={`${baseSortBtn} ${
-                  departureSortOrder ? activeSortBtn : idleSortBtn
-                }`}
-                aria-label={t.sortByDeparture}
-                title={t.sortByDeparture}
-              >
-                <span className="inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                  <span className="truncate">{t.sortByDeparture}</span>
-                  <span className="text-[14px] sm:text-[15px] font-extrabold leading-none tracking-[-0.02em] shrink-0">
-                    ⇅
-                  </span>
-                </span>
-              </button>
-            </div>
           )}
-        </>
+
+          <span className="font-semibold text-[0.9em]">
+            {rows[0]?.origin} {rows[0]?.destination}
+          </span>
+
+          {ddMMM && (
+            <>
+              <span className="text-slate-700 text-[0.65em]">{ddMMM}</span>
+              <span
+                className="font-semibold px-3 py-1 rounded text-[0.6em]"
+                style={{ backgroundColor: "#000", color: accent }}
+              >
+                {dow}
+              </span>
+            </>
+          )}
+
+          <PaxChips source={search?.params || search?.results || payload || raw} />
+        </h2>
       )}
 
+      {/* ✅ View Selection panel */}
       {tab === "view" && (
         <div className="mb-3">
           {!viewRow ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-[13px] text-slate-600">
-              {t.noSelected}
+              No flight selected yet.
             </div>
           ) : (
             <article
               style={{ "--dow": accent }}
               className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
             >
+              {/* LEFT META */}
               <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
                 <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
                   <img
@@ -676,7 +500,7 @@ export default function JourneyTable({
 
                 <div>
                   <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
-                    {t.economy}
+                    Economy
                   </span>
 
                   <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
@@ -703,9 +527,9 @@ export default function JourneyTable({
                         : viewRow.duration}
                     </span>
                     <span>•</span>
-                    <span>{t.nonstop}</span>
+                    <span>Nonstop</span>
                     <span>•</span>
-                    <span>{t.carryOn}</span>
+                    <span>7 kg per person</span>
                     {viewRow.co2 && (
                       <>
                         <span>•</span>
@@ -716,6 +540,7 @@ export default function JourneyTable({
                 </div>
               </div>
 
+              {/* RIGHT */}
               <div className="flex flex-col items-end gap-1.5">
                 <div className="text-right">
                   <span
@@ -746,13 +571,13 @@ export default function JourneyTable({
                       : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
                   }
                 >
-                  {viewOpen ? t.hideDetails : t.details}
+                  {viewOpen ? "Hide details ▴" : "Details ▾"}
                 </button>
               </div>
 
               {viewOpen ? (
                 <div className="col-span-full mt-1.5 border-t border-dashed border-slate-200 pt-2">
-                  <InlineDetails row={viewRow} accent={accent} t={t} />
+                  <InlineDetails row={viewRow} accent={accent} />
                 </div>
               ) : (
                 <ClosedDowStrip accent={accent} />
@@ -762,9 +587,10 @@ export default function JourneyTable({
         </div>
       )}
 
+      {/* RESULT CARDS */}
       {tab !== "view" && (
         <div className="flex flex-col gap-3">
-          {sortedRows.map((row, idx) => {
+          {rows.map((row, idx) => {
             const cardId = row.id || `${row.flightNumber}-${idx}`;
             const open = openId === cardId;
             const selected = selectedRow?.fareKey === row.fareKey;
@@ -775,6 +601,7 @@ export default function JourneyTable({
                 style={{ "--dow": accent }}
                 className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
               >
+                {/* LEFT META */}
                 <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
                   <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
                     <img
@@ -786,7 +613,7 @@ export default function JourneyTable({
 
                   <div>
                     <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
-                      {t.economy}
+                      Economy
                     </span>
 
                     <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
@@ -813,9 +640,9 @@ export default function JourneyTable({
                           : row.duration}
                       </span>
                       <span>•</span>
-                      <span>{t.nonstop}</span>
+                      <span>Nonstop</span>
                       <span>•</span>
-                      <span>{t.carryOn}</span>
+                      <span>7 kg per person</span>
                       {row.co2 && (
                         <>
                           <span>•</span>
@@ -826,6 +653,7 @@ export default function JourneyTable({
                   </div>
                 </div>
 
+                {/* RIGHT */}
                 <div className="flex flex-col items-end gap-1.5">
                   <div className="text-right">
                     <span
@@ -858,7 +686,7 @@ export default function JourneyTable({
                         : "bg-[#0B73B1] hover:bg-[var(--dow)]")
                     }
                   >
-                    {selected ? t.selected : t.select}
+                    {selected ? "Selected" : "Select"}
                   </button>
 
                   <button
@@ -870,13 +698,13 @@ export default function JourneyTable({
                         : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
                     }
                   >
-                    {open ? t.hideDetails : t.details}
+                    {open ? "Hide details ▴" : "Details ▾"}
                   </button>
                 </div>
 
                 {open ? (
                   <div className="col-span-full mt-1.5 border-t border-dashed border-slate-200 pt-2">
-                    <InlineDetails row={row} accent={accent} t={t} />
+                    <InlineDetails row={row} accent={accent} />
                   </div>
                 ) : (
                   <ClosedDowStrip accent={accent} />
@@ -887,19 +715,18 @@ export default function JourneyTable({
         </div>
       )}
 
+      {/* Footer (NEXT: mobile big like round-trip) */}
       <div className="mt-3">
         {nextLoading && (
           <div className="mb-2 text-xs text-slate-600">
-            {t.loadingPriceSeatMap}
+            Loading price & seat map…
           </div>
         )}
-
         {!nextLoading && pricingStatus === "failed" && (
-          <div className="mb-2 text-xs text-red-600">{t.failedPrice}</div>
+          <div className="mb-2 text-xs text-red-600">Failed to load price.</div>
         )}
-
         {!nextLoading && seatStatus === "failed" && (
-          <div className="mb-2 text-xs text-red-600">{t.failedSeatMap}</div>
+          <div className="mb-2 text-xs text-red-600">Failed to load seat map.</div>
         )}
 
         {showNextButton && (
@@ -916,7 +743,7 @@ export default function JourneyTable({
                   : "bg-gray-300 text-gray-600 cursor-not-allowed")
               }
             >
-              {nextLoading ? t.pleaseWait : t.next}
+              {nextLoading ? "Please wait…" : "NEXT"}
             </button>
           </div>
         )}

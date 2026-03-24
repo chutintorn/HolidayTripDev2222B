@@ -283,7 +283,23 @@ export default function DateNavigatorRoundTrip({
             »
           </button>
 
-
+          <button
+            type="button"
+            style={{
+              ...styles.btn,
+              ...styles.resetBtn,
+              ...(resetDisabled ? styles.btnDisabled : null),
+            }}
+            disabled={resetDisabled}
+            aria-label={lang === "th" ? "รีเซ็ต" : "Reset"}
+            onClick={() => {
+              const a = anchorDepartRef.current || startOfToday();
+              setAnimDir("none");
+              doNavigate(a);
+            }}
+          >
+            •
+          </button>
         </div>
       </div>
 
@@ -296,7 +312,7 @@ export default function DateNavigatorRoundTrip({
         aria-label="Minimum price"
       >
         <div style={styles.minLabel}>
-          {lang === "th" ? "ราคาเริ่มต้น" : "ราคาเริ่มต้น - Minimum Price"}
+          {lang === "th" ? "ราคาต่ำสุด" : "Minimum price"}
         </div>
 
         <div style={styles.minValue}>

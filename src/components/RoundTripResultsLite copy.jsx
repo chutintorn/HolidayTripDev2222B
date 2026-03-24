@@ -101,102 +101,6 @@ const hexToRgba = (hex, alpha = 0.18) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const timeToMinutes = (value) => {
-  if (!value) return Number.MAX_SAFE_INTEGER;
-
-  const str = String(value).trim();
-
-  const hhmm = str.match(/^(\d{1,2}):(\d{2})$/);
-  if (hhmm) {
-    const h = Number(hhmm[1]);
-    const m = Number(hhmm[2]);
-    return h * 60 + m;
-  }
-
-  const d = new Date(str);
-  if (!isNaN(d.getTime())) {
-    return d.getHours() * 60 + d.getMinutes();
-  }
-
-  return Number.MAX_SAFE_INTEGER;
-};
-
-const getFareNumber = (row) => {
-  const candidates = [
-    row?.fareAmountIncludingTax,
-    row?.totalPrice,
-    row?.amount,
-    row?.price,
-    row?.fareAmount,
-    row?.total,
-  ];
-
-  for (const value of candidates) {
-    if (value === null || value === undefined || value === "") continue;
-
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value;
-    }
-
-    const cleaned = String(value).replace(/[^0-9.-]/g, "");
-    const num = Number(cleaned);
-    if (Number.isFinite(num)) return num;
-  }
-
-  return Number.MAX_SAFE_INTEGER;
-};
-
-const TEXT = {
-  en: {
-    economy: "Economy",
-    nonstop: "Nonstop",
-    carryOn: "7 kg per person",
-    selected: "Selected",
-    select: "Select",
-    details: "Details ▾",
-    hideDetails: "Hide details ▴",
-    noFlights: "No flights to display.",
-    noFlightsLeg: "No flights for this leg.",
-    noSelection: "No selection yet.",
-    depart: "Depart",
-    return: "Return",
-    clearSelection: "Clear selection",
-    next: "NEXT",
-    pleaseWait: "Please wait…",
-    chooseDeparture: "Choose a departure",
-    departureSelected: "Departure selected",
-    offerLoaded: "Offer loaded",
-    pricingAvailable: "Pricing available.",
-    sortByPrice: "Sort by Price",
-    sortByDeparture: "Sort by Departure",
-    freeFare: "✅ Free fare inclusions — Carry-on allowance 7 kg × 1",
-  },
-  th: {
-    economy: "ชั้นประหยัด",
-    nonstop: "บินตรง",
-    carryOn: "7 กก. ต่อท่าน",
-    selected: "เลือกแล้ว",
-    select: "เลือก",
-    details: "รายละเอียด ▾",
-    hideDetails: "ซ่อนรายละเอียด ▴",
-    noFlights: "ไม่มีเที่ยวบินที่จะแสดง",
-    noFlightsLeg: "ไม่มีเที่ยวบินสำหรับช่วงนี้",
-    noSelection: "ยังไม่มีรายการที่เลือก",
-    depart: "ขาไป",
-    return: "ขากลับ",
-    clearSelection: "ล้างการเลือก",
-    next: "ถัดไป",
-    pleaseWait: "กรุณารอสักครู่…",
-    chooseDeparture: "กรุณาเลือกเที่ยวบินขาไป",
-    departureSelected: "เลือกขาไปแล้ว",
-    offerLoaded: "โหลดข้อเสนอแล้ว",
-    pricingAvailable: "มีข้อมูลราคาแล้ว",
-    sortByPrice: "เรียงตามราคา",
-    sortByDeparture: "เรียงตามเวลา",
-    freeFare: "✅ สิทธิ์ค่าโดยสารฟรี — สัมภาระถือขึ้นเครื่อง 7 กก. × 1",
-  },
-};
-
 /* ---------- Debug packet builder ---------- */
 function buildDebugPackets(offers, secToken) {
   const API_BASE =
@@ -221,7 +125,7 @@ function buildDebugPackets(offers, secToken) {
 }
 
 /* ============================================================
- * Closed color strip (NO text)
+ * Closed color strip (NO text) — height reduced to 50%
  * ============================================================ */
 function ClosedDowStrip({ accent }) {
   return (
@@ -248,7 +152,6 @@ function LiteCard({
   paxCounts,
   readonly = false,
   hideActions = false,
-  t,
 }) {
   const a = paxCounts?.adult || 0;
   const c = paxCounts?.child || 0;
@@ -260,6 +163,7 @@ function LiteCard({
       style={{ "--dow": accent }}
       className="bg-white border border-slate-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center transition-colors hover:border-[var(--dow)]"
     >
+      {/* LEFT */}
       <div className="grid grid-cols-[auto_1fr] gap-2 items-center">
         <div className="w-7 h-7 rounded-md bg-white border border-amber-200 grid place-items-center overflow-hidden">
           <img
@@ -270,7 +174,7 @@ function LiteCard({
         </div>
         <div>
           <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[#e9f2ff] border border-[#c8defa] text-[#0b4f8a] mb-0.5">
-            {t.economy}
+            Economy
           </span>
 
           <div className="font-bold text-[15px] text-[#0b4f8a] leading-tight">
@@ -292,13 +196,14 @@ function LiteCard({
                 : row.duration}
             </span>
             <span>•</span>
-            <span>{t.nonstop}</span>
+            <span>Nonstop</span>
             <span>•</span>
-            <span>{t.carryOn}</span>
+            <span>7 kg per person</span>
           </div>
         </div>
       </div>
 
+      {/* RIGHT */}
       <div className="flex flex-col items-end gap-1.5">
         <div className="text-right">
           <span
@@ -334,7 +239,7 @@ function LiteCard({
               (readonly ? " opacity-70 cursor-not-allowed" : "")
             }
           >
-            {selected ? t.selected : t.select}
+            {selected ? "Selected" : "Select"}
           </button>
         )}
 
@@ -347,12 +252,14 @@ function LiteCard({
               : "text-slate-700 border-slate-400 hover:text-[var(--dow)] hover:border-[var(--dow)]")
           }
         >
-          {open ? t.hideDetails : t.details}
+          {open ? "Hide details ▴" : "Details ▾"}
         </button>
       </div>
 
+      {/* ✅ CLOSED: show strip only (NO TEXT) */}
       {!open && <ClosedDowStrip accent={accent} />}
 
+      {/* ✅ OPEN: show details panel */}
       <div
         className={`grid transition-[grid-template-rows,border-color] duration-200 overflow-hidden border-t border-dashed col-span-full mt-1.5 ${
           open ? "grid-rows-[1fr] border-slate-200" : "grid-rows-[0fr] border-transparent"
@@ -365,7 +272,7 @@ function LiteCard({
             style={{ backgroundColor: hexToRgba(accent, 0.12) }}
           >
             <div className="text-[12px] font-medium text-blue-700">
-              {t.freeFare}
+              ✅ Free fare inclusions — Carry-on allowance 7 kg × 1
             </div>
           </div>
         )}
@@ -374,7 +281,7 @@ function LiteCard({
   );
 }
 
-/* ---------- LegBox (controlled selection + sort) ---------- */
+/* ---------- LegBox (controlled selection) ---------- */
 function LegBox({
   title,
   rows,
@@ -383,47 +290,13 @@ function LegBox({
   selectedValue,
   onSelectValue,
   paxCounts,
-  t,
-  priceSortOrder = null,
-  departureSortOrder = null,
-  onPriceSortClick,
-  onDepartureSortClick,
 }) {
   const [openId, setOpenId] = useState(null);
-
-  const sortedRows = useMemo(() => {
-    const data = [...(rows || [])];
-
-    if (priceSortOrder) {
-      data.sort((a, b) => {
-        const priceDiff = getFareNumber(a) - getFareNumber(b);
-        if (priceDiff !== 0) {
-          return priceSortOrder === "asc" ? priceDiff : -priceDiff;
-        }
-        return timeToMinutes(a?.departureTime) - timeToMinutes(b?.departureTime);
-      });
-      return data;
-    }
-
-    if (departureSortOrder) {
-      data.sort((a, b) => {
-        const timeDiff =
-          timeToMinutes(a?.departureTime) - timeToMinutes(b?.departureTime);
-        if (timeDiff !== 0) {
-          return departureSortOrder === "asc" ? timeDiff : -timeDiff;
-        }
-        return getFareNumber(a) - getFareNumber(b);
-      });
-      return data;
-    }
-
-    return data;
-  }, [rows, priceSortOrder, departureSortOrder]);
 
   if (!Array.isArray(rows) || rows.length === 0) {
     return (
       <div className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm p-4 text-sm text-slate-600">
-        {t.noFlightsLeg}
+        No flights for this leg.
       </div>
     );
   }
@@ -450,13 +323,6 @@ function LegBox({
     });
   };
 
-  const baseSortBtn =
-    "h-9 flex-1 min-w-0 rounded-xl border bg-white px-2 sm:px-4 text-[12px] sm:text-[13px] font-medium leading-none transition-colors";
-  const activeSortBtn =
-    "border-blue-400 text-blue-700 bg-blue-50 hover:border-blue-500";
-  const idleSortBtn =
-    "border-slate-400 text-blue-700 hover:border-blue-300 hover:bg-blue-50";
-
   return (
     <div
       className="w-full rounded-2xl border bg-white overflow-hidden shadow-sm"
@@ -481,42 +347,8 @@ function LegBox({
         <PaxChips source={paxCounts} className="ml-auto" />
       </div>
 
-      <div className="px-3 pb-2 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onPriceSortClick}
-          className={`${baseSortBtn} ${priceSortOrder ? activeSortBtn : idleSortBtn}`}
-          aria-label={t.sortByPrice}
-          title={t.sortByPrice}
-        >
-          <span className="inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-            <span className="truncate">{t.sortByPrice}</span>
-            <span className="text-[14px] sm:text-[15px] font-extrabold leading-none tracking-[-0.02em] shrink-0">
-              ⇅
-            </span>
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onDepartureSortClick}
-          className={`${baseSortBtn} ${
-            departureSortOrder ? activeSortBtn : idleSortBtn
-          }`}
-          aria-label={t.sortByDeparture}
-          title={t.sortByDeparture}
-        >
-          <span className="inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-            <span className="truncate">{t.sortByDeparture}</span>
-            <span className="text-[14px] sm:text-[15px] font-extrabold leading-none tracking-[-0.02em] shrink-0">
-              ⇅
-            </span>
-          </span>
-        </button>
-      </div>
-
       <div className="flex flex-col gap-3 px-3 pb-3">
-        {sortedRows.map((row, idx) => {
+        {rows.map((row, idx) => {
           const cardId = row.id || `${row.flightNumber}-${idx}`;
           const open = openId === cardId;
           const isSel =
@@ -534,7 +366,6 @@ function LegBox({
               onToggle={() => setOpenId(open ? null : cardId)}
               accent={hdr.chipColor}
               paxCounts={paxCounts}
-              t={t}
             />
           );
         })}
@@ -544,17 +375,17 @@ function LegBox({
 }
 
 /* ---------- View Selection (read-only) ---------- */
-function ViewSelectionPanel({ outSel, inSel, currency, paxCounts, t }) {
+function ViewSelectionPanel({ outSel, inSel, currency, paxCounts }) {
   const [openId, setOpenId] = useState(null);
   const items = [
-    outSel ? { label: t.depart, sel: outSel } : null,
-    inSel ? { label: t.return, sel: inSel } : null,
+    outSel ? { label: "Depart", sel: outSel } : null,
+    inSel ? { label: "Return", sel: inSel } : null,
   ].filter(Boolean);
 
   if (!items.length) {
     return (
       <div className="w-full rounded-2xl border bg-white shadow-sm p-4 text-sm text-slate-600">
-        {t.noSelection}
+        No selection yet.
       </div>
     );
   }
@@ -600,7 +431,6 @@ function ViewSelectionPanel({ outSel, inSel, currency, paxCounts, t }) {
                 paxCounts={paxCounts}
                 readonly={true}
                 hideActions={true}
-                t={t}
               />
             </div>
           </div>
@@ -616,8 +446,6 @@ export default function RoundTripResultsLite() {
   const navigate = useNavigate();
   const raw = useSelector(selectResults);
   const search = useSelector(selectSearch);
-  const lang = useSelector((s) => s.language?.value || "en");
-  const t = TEXT[lang] || TEXT.en;
 
   const payload = raw?.data ?? raw;
   const token = raw?.securityToken || payload?.securityToken || "";
@@ -644,7 +472,7 @@ export default function RoundTripResultsLite() {
   if (!rows.length) {
     return (
       <div className="mt-6 rounded-xl border bg-amber-50 text-amber-900 p-4">
-        {t.noFlights}
+        No flights to display.
       </div>
     );
   }
@@ -672,13 +500,13 @@ export default function RoundTripResultsLite() {
   let groups = [];
   if (dirEntries.length >= 2) {
     groups = [
-      { title: t.depart, rows: dirEntries[0].rows },
-      { title: t.return, rows: dirEntries[1].rows },
+      { title: "Depart", rows: dirEntries[0].rows },
+      { title: "Return", rows: dirEntries[1].rows },
     ];
   } else if (dirEntries.length === 1) {
-    groups = [{ title: t.depart, rows: dirEntries[0].rows }];
+    groups = [{ title: "Depart", rows: dirEntries[0].rows }];
   } else {
-    groups = [{ title: t.depart, rows }];
+    groups = [{ title: "Depart", rows }];
   }
 
   const isRoundTrip = groups.length === 2;
@@ -687,40 +515,6 @@ export default function RoundTripResultsLite() {
   const [selectedInbound, setSelectedInbound] = useState(null);
   const [tab, setTab] = useState("depart");
   const [submitting, setSubmitting] = useState(false);
-
-  const [priceSortOrderByTab, setPriceSortOrderByTab] = useState({
-    depart: null,
-    return: null,
-  });
-
-  const [departureSortOrderByTab, setDepartureSortOrderByTab] = useState({
-    depart: null,
-    return: null,
-  });
-
-  const handlePriceSortClick = (tabKey) => {
-    setPriceSortOrderByTab((prev) => ({
-      ...prev,
-      [tabKey]: prev[tabKey] === "asc" ? "desc" : "asc",
-    }));
-
-    setDepartureSortOrderByTab((prev) => ({
-      ...prev,
-      [tabKey]: null,
-    }));
-  };
-
-  const handleDepartureSortClick = (tabKey) => {
-    setDepartureSortOrderByTab((prev) => ({
-      ...prev,
-      [tabKey]: prev[tabKey] === "asc" ? "desc" : "asc",
-    }));
-
-    setPriceSortOrderByTab((prev) => ({
-      ...prev,
-      [tabKey]: null,
-    }));
-  };
 
   useEffect(() => {
     if (!isRoundTrip) return;
@@ -754,8 +548,6 @@ export default function RoundTripResultsLite() {
     setSelectedInbound(null);
     dispatch(clearSelectedOfferLegs());
     setTab("depart");
-    setPriceSortOrderByTab({ depart: null, return: null });
-    setDepartureSortOrderByTab({ depart: null, return: null });
   };
 
   /* ===================== ONE-WAY ===================== */
@@ -810,24 +602,19 @@ export default function RoundTripResultsLite() {
     return (
       <div className="w-full flex flex-col gap-6 mt-4">
         <LegBox
-          title={t.depart}
+          title="Depart"
           rows={groups[0].rows}
           currency={currency}
           fallbackToken={token}
           selectedValue={selectedOutbound}
           onSelectValue={setSelectedOutbound}
           paxCounts={pax}
-          t={t}
-          priceSortOrder={priceSortOrderByTab.depart}
-          departureSortOrder={departureSortOrderByTab.depart}
-          onPriceSortClick={() => handlePriceSortClick("depart")}
-          onDepartureSortClick={() => handleDepartureSortClick("depart")}
         />
 
         <div className="rounded-2xl border bg-white shadow p-3">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="text-xs text-gray-700">
-              {selectedOutbound ? `✓ ${t.departureSelected}` : `• ${t.chooseDeparture}`}
+              {selectedOutbound ? "✓ Departure selected" : "• Choose a departure"}
             </div>
             <div className="sm:ml-auto flex items-center gap-2">
               <button
@@ -835,7 +622,7 @@ export default function RoundTripResultsLite() {
                 className="px-3 py-2 rounded-md bg-white text-slate-700 text-xs font-semibold border border-slate-200"
                 onClick={onReset}
               >
-                {t.clearSelection}
+                Clear selection
               </button>
               <button
                 type="button"
@@ -847,7 +634,7 @@ export default function RoundTripResultsLite() {
                 disabled={!selectedOutbound || inlineStatus === "loading"}
                 onClick={doInlineNext}
               >
-                {inlineStatus === "loading" ? t.pleaseWait : t.next}
+                {inlineStatus === "loading" ? "Please wait…" : "NEXT"}
               </button>
             </div>
           </div>
@@ -969,35 +756,25 @@ export default function RoundTripResultsLite() {
 
       {tab === "depart" && (
         <LegBox
-          title={t.depart}
+          title="Depart"
           rows={groups[0].rows}
           currency={currency}
           fallbackToken={token}
           selectedValue={selectedOutbound}
           onSelectValue={setSelectedOutbound}
           paxCounts={pax}
-          t={t}
-          priceSortOrder={priceSortOrderByTab.depart}
-          departureSortOrder={departureSortOrderByTab.depart}
-          onPriceSortClick={() => handlePriceSortClick("depart")}
-          onDepartureSortClick={() => handleDepartureSortClick("depart")}
         />
       )}
 
       {tab === "return" && (
         <LegBox
-          title={t.return}
+          title="Return"
           rows={groups[1].rows}
           currency={currency}
           fallbackToken={token}
           selectedValue={selectedInbound}
           onSelectValue={setSelectedInbound}
           paxCounts={pax}
-          t={t}
-          priceSortOrder={priceSortOrderByTab.return}
-          departureSortOrder={departureSortOrderByTab.return}
-          onPriceSortClick={() => handlePriceSortClick("return")}
-          onDepartureSortClick={() => handleDepartureSortClick("return")}
         />
       )}
 
@@ -1007,11 +784,10 @@ export default function RoundTripResultsLite() {
           inSel={selectedInbound}
           currency={currency}
           paxCounts={pax}
-          t={t}
         />
       )}
 
-      <div className="rounded-2xl border bg-white shadow p-3">
+            <div className="rounded-2xl border bg-white shadow p-3">
         <div className="flex flex-col gap-2">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-end">
             <button
@@ -1023,17 +799,17 @@ export default function RoundTripResultsLite() {
               disabled={!canProceed || pricingStatus === "loading" || submitting}
               onClick={handleUnifiedNext}
             >
-              {submitting || pricingStatus === "loading" ? t.pleaseWait : t.next}
+              {submitting || pricingStatus === "loading" ? "Please wait…" : "NEXT"}
             </button>
           </div>
 
           {pricingStatus === "succeeded" && priceDetail && (
             <div className="rounded-xl border bg-slate-50 p-3 text-xs">
-              <div className="font-semibold mb-1">{t.offerLoaded}</div>
+              <div className="font-semibold mb-1">Offer loaded</div>
               {typeof priceDetail.total !== "undefined" ? (
                 <div>Total: {fmtMoney(priceDetail.total, priceDetail.currency || currency)}</div>
               ) : (
-                <div>{t.pricingAvailable}</div>
+                <div>Pricing available.</div>
               )}
             </div>
           )}

@@ -833,7 +833,57 @@ export default function FareSidebar({
       <h3 className="text-lg font-semibold mb-3">{t.priceSummary}</h3>
 
       {/* Selected fare keys */}
+      <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-extrabold text-slate-900">{t.selectedKeysTitle}</div>
+          <button
+            type="button"
+            onClick={() => setShowKeys((v) => !v)}
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm font-extrabold hover:border-blue-400 hover:text-blue-700"
+          >
+            {showKeys ? t.hideKeys : t.viewKeys}
+          </button>
+        </div>
 
+        <div className="text-xs text-slate-600 mt-1">{t.selectedKeysHelp}</div>
+
+        {!showKeys ? null : normalizedSelectedOffers.length ? (
+          <div className="mt-3 space-y-2">
+            {normalizedSelectedOffers.map((o, idx) => {
+              const label = normalizedSelectedOffers.length >= 2 ? (idx === 0 ? t.depart : t.ret) : t.depart;
+
+              return (
+                <div
+                  key={`${o.fareKey || "fk"}-${o.journeyKey || "jk"}-${idx}`}
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-2"
+                >
+                  <div className="text-xs font-extrabold text-slate-800 mb-1">
+                    {label} #{idx + 1}
+                  </div>
+                  <div className="text-[11px] text-slate-700">
+                    <div>
+                      <span className="font-semibold">fareKey:</span>{" "}
+                      <span className="break-all">{o.fareKey || "-"}</span>
+                    </div>
+                    <div className="mt-1">
+                      <span className="font-semibold">journeyKey:</span>{" "}
+                      <span className="break-all">{o.journeyKey || "-"}</span>
+                    </div>
+                    {o.securityToken ? (
+                      <div className="mt-1">
+                        <span className="font-semibold">securityToken:</span>{" "}
+                        <span className="break-all">{o.securityToken}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-2 text-xs text-rose-600 font-semibold">{t.noSelectedOffers}</div>
+        )}
+      </div>
 
       {fareSummary ? (
         <>

@@ -197,7 +197,7 @@ export default function DateNavigatorOneWay({
         }}
       >
         <div style={styles.minLabel}>
-          {lang === "th" ? "ราคาเริ่มต้น" : "ราคาเริ่มต้น - Minimum Price"}
+          {lang === "th" ? "ราคาต่ำสุด" : "Minimum price"}
         </div>
 
         <div style={styles.minValue}>
@@ -501,4 +501,4 @@ btnWeek: {
     opacity: 0,
     transition: "opacity 0.2s ease",
   },
-}; 
+};

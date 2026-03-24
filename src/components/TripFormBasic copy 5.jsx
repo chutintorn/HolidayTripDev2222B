@@ -149,8 +149,6 @@ export default function TripFormBasic({ onSubmit }) {
   const isTH = t?.lang === "th" || t?.locale === "th" || t?.locale === "th-TH";
   const lang = isTH ? "th" : "en";
 
-  
-
   // ---- Redux (search) ----
   const dispatch = useDispatch();
   const { status, error, results } = useSelector(selectSearch);
@@ -800,4 +798,4 @@ function Row({ label, hint, children }) {
       {children}
     </div>
   );
-} 
+}
